@@ -562,6 +562,13 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 
 	ignore = ent->s.number;
 	traces = 0;
+		if (mc_unlagged.integer == 1)
+		{
+//unlagged - backward reconciliation #2
+		// backward-reconcile the other clients
+		G_DoTimeShiftFor( ent );
+//unlagged - backward reconciliation #2
+		}
 	while ( traces < 10 )
 	{//need to loop this in case we hit a Jedi who dodges the shot
 		trap_Trace( &tr, start, NULL, NULL, end, ignore, MASK_SHOT );
@@ -610,6 +617,15 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 		break;
 	}
 
+		if (mc_unlagged.integer == 1)
+		{
+//unlagged - backward reconciliation #2
+		// put them back
+		G_UndoTimeShiftFor( ent );
+//unlagged - backward reconciliation #2
+		}
+		
+		
 	if ( tr.surfaceFlags & SURF_NOIMPACT ) 
 	{
 		render_impact = qfalse;
@@ -682,9 +698,14 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 
 //---------------------------------------------------------
 void WP_DisruptorAltFire( gentity_t *ent )
+{
+	WP_mcdisrupt(ent, muzzle, DISRUPTOR_ALT_DAMAGE - 30, forward, 0);
+}
+
+void WP_mcdisrupt(gentity_t *ent, vec3_t rmuzzle, int damage, vec3_t mforward, int overpower)
 //---------------------------------------------------------
 {
-	int			damage = 0, skip;
+	int		skip;
 	qboolean	render_impact = qtrue;
 	vec3_t		start, end;
 	vec3_t		muzzle2;
@@ -698,8 +719,6 @@ void WP_DisruptorAltFire( gentity_t *ent )
 	int			traces = DISRUPTOR_ALT_TRACES;
 	qboolean	fullCharge = qfalse;
 
-	damage = DISRUPTOR_ALT_DAMAGE-30;
-
 	/*
 	if (ent->client->ps.zoomMode == 1 &&
 		ent->client->ps.zoomLocked)
@@ -709,14 +728,14 @@ void WP_DisruptorAltFire( gentity_t *ent )
 	}
 	*/
 
-	VectorCopy( muzzle, muzzle2 ); // making a backup copy
+	VectorCopy( rmuzzle, muzzle2 ); // making a backup copy
 
-	if (ent->client)
+	if (ent->client && ent->s.number < 32)
 	{
 		if (ent->s.weapon == WP_EMPLACED_GUN)
 		{
 			VectorClear(start);
-			VectorCopy(muzzle, start);
+			VectorCopy(rmuzzle, start);
 		}
 		else
 		{
@@ -755,13 +774,16 @@ void WP_DisruptorAltFire( gentity_t *ent )
 		traces = 2;
 	}
 
-	damage += count;
+	if (overpower != 1)
+	{
+		damage += count;
+	}
 
 	skip = ent->s.number;
 
 	for (i = 0; i < traces; i++ )
 	{
-		VectorMA( start, mc_disruptorrange.value, forward, end );
+		VectorMA( start, mc_disruptorrange.value, mforward, end );
 
 		trap_Trace ( &tr, start, NULL, NULL, end, skip, MASK_SHOT);
 
@@ -772,6 +794,8 @@ void WP_DisruptorAltFire( gentity_t *ent )
 
 		traceEnt = &g_entities[tr.entityNum];
 
+	if (overpower != 1)
+	{
 		if (traceEnt && traceEnt->client && traceEnt->client->ps.duelInProgress &&
 			traceEnt->client->ps.duelIndex != ent->s.number)
 		{
@@ -793,7 +817,7 @@ void WP_DisruptorAltFire( gentity_t *ent )
 				gentity_t *te = NULL;
 
 				tent = G_TempEntity( tr.endpos, EV_DISRUPTOR_SNIPER_SHOT );
-				VectorCopy( muzzle, tent->s.origin2 );
+				VectorCopy( rmuzzle, tent->s.origin2 );
 				tent->s.shouldtarget = fullCharge;
 				tent->s.eventParm = ent->s.number;
 
@@ -809,10 +833,11 @@ void WP_DisruptorAltFire( gentity_t *ent )
 				return;
 			}
 		}
+	}
 
 		// always render a shot beam, doing this the old way because I don't much feel like overriding the effect.
 		tent = G_TempEntity( tr.endpos, EV_DISRUPTOR_SNIPER_SHOT );
-		VectorCopy( muzzle, tent->s.origin2 );
+		VectorCopy( rmuzzle, tent->s.origin2 );
 		tent->s.shouldtarget = fullCharge;
 		tent->s.eventParm = ent->s.number;
 
@@ -876,9 +901,9 @@ void WP_DisruptorAltFire( gentity_t *ent )
 					VectorCopy(traceEnt->client->ps.viewangles, preAng);
 				}
 
-				G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, DAMAGE_NO_KNOCKBACK, MOD_DISRUPTOR_SNIPER );
+				G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, DAMAGE_NO_KNOCKBACK | (overpower > 0?DAMAGE_NO_PROTECTION:0), MOD_DISRUPTOR_SNIPER );
 
-				if (traceEnt->client && preHealth > 0 && traceEnt->health <= 0 && fullCharge)
+				if ((traceEnt->client && preHealth > 0 && traceEnt->health <= 0 && (fullCharge ||mc_insta.integer == 1)))
 				{ //was killed by a fully charged sniper shot, so disintegrate
 					VectorCopy(preAng, traceEnt->client->ps.viewangles);
 
@@ -907,7 +932,7 @@ void WP_DisruptorAltFire( gentity_t *ent )
 		}
 
 		// Get ready for an attempt to trace through another person
-		VectorCopy( tr.endpos, muzzle );
+		VectorCopy( tr.endpos, rmuzzle );
 		VectorCopy( tr.endpos, start );
 		skip = tr.entityNum;
 	}
@@ -929,7 +954,7 @@ static void WP_FireDisruptor( gentity_t *ent, qboolean altFire )
 		return;
 	}
 
-	if ( altFire )
+	if ( altFire || (mc_insta.integer == 1))
 	{
 		WP_DisruptorAltFire( ent );
 	}
@@ -1853,6 +1878,104 @@ static void WP_FireRocket( gentity_t *ent, qboolean altFire )
 	missile->bounceCount = mc_rocket_bounces.integer;
 }
 
+//---------------------------------------------------------
+static void WP_FiremcRocket( gentity_t *ent, qboolean altFire )
+//---------------------------------------------------------
+{
+	int	damage	= ROCKET_DAMAGE;
+	int	vel = ROCKET_VELOCITY;
+	int dif = 0;
+	float rTime;
+	gentity_t *missile;
+	trace_t target;
+
+	/*if ( altFire )
+	{
+		vel *= 0.5f;
+	}*/
+	vel *= 2;
+
+	missile = CreateMissile( muzzle, forward, vel, mc_weapons_life.integer, ent, altFire );
+	missile->s.eFlags |= EF_BOUNCE;
+
+	/*if (ent->client && ent->client->ps.rocketLockIndex != MAX_CLIENTS)
+	{
+		rTime = ent->client->ps.rocketLockTime;
+
+		if (rTime == -1)
+		{
+			rTime = ent->client->ps.rocketLastValidTime;
+		}
+		dif = ( level.time - rTime ) / ( 1200.0f / 16.0f );
+
+		if (dif < 0)
+		{
+			dif = 0;
+		}
+
+		//It's 10 even though it locks client-side at 8, because we want them to have a sturdy lock first, and because there's a slight difference in time between server and client
+		if ( dif >= mc_rocket_locktime.integer && rTime != -1 )
+		{*/
+	if (qtrue)
+	{
+		trace_t tr;
+		vec3_t forward, end;
+
+		AngleVectors( ent->client->ps.viewangles, forward, NULL, NULL );
+
+		end[0] = ent->client->ps.origin[0] + forward[0]*8192;
+		end[1] = ent->client->ps.origin[1] + forward[1]*8192;
+		end[2] = ent->client->ps.origin[2]+ 35 + forward[2]*8192;
+
+		trap_Trace(&tr, ent->client->ps.origin, NULL, NULL, end, ent->s.number, MASK_PLAYERSOLID);
+		if ((tr.entityNum < MAX_CLIENTS) && (tr.entityNum >=0) && (tr.entityNum != ent->s.number) && g_entities[tr.entityNum].client && g_entities[tr.entityNum].inuse)
+		{
+		
+			missile->enemy = &g_entities[tr.entityNum];
+
+			if (missile->enemy && missile->enemy->client && missile->enemy->health > 0 && !OnSameTeam(ent, missile->enemy))
+			{ //if enemy became invalid, died, or is on the same team, then don't seek it
+				missile->think = rocketThink;
+				missile->nextthink = level.time + ROCKET_ALT_THINK_TIME;
+			}
+		}
+		//}
+
+		ent->client->ps.rocketLockIndex = MAX_CLIENTS;
+		ent->client->ps.rocketLockTime = 0;
+		ent->client->ps.rocketTargetTime = 0;
+	}
+	missile->boltpoint4 = 32;
+	missile->classname = "rocket_proj";
+	missile->s.weapon = WP_ROCKET_LAUNCHER;
+
+	// NOTENOTE No mass yet.
+//	missile->mass = 10;
+
+	// Make it easier to hit things
+	VectorSet( missile->r.maxs, ROCKET_SIZE, ROCKET_SIZE, ROCKET_SIZE );
+	VectorScale( missile->r.maxs, -1, missile->r.mins );
+
+	missile->damage = damage;
+	missile->dflags = DAMAGE_DEATH_KNOCKBACK;
+	if (altFire)
+	{
+		missile->methodOfDeath = MOD_ROCKET_HOMING;
+		missile->splashMethodOfDeath = MOD_ROCKET_HOMING_SPLASH;
+	}
+	else
+	{
+		missile->methodOfDeath = MOD_ROCKET;
+		missile->splashMethodOfDeath = MOD_ROCKET_SPLASH;
+	}
+	
+	//rww - We don't want rockets to be deflected, do we?
+	missile->clipmask = MASK_SHOT;// | CONTENTS_LIGHTSABER;
+	missile->splashDamage = ROCKET_SPLASH_DAMAGE;
+	missile->splashRadius = ROCKET_SPLASH_RADIUS;
+
+	missile->bounceCount = mc_rocket_bounces.integer;
+}
 /*
 ======================================================================
 
@@ -1936,6 +2059,8 @@ gentity_t *WP_FireThermalDetonator( gentity_t *ent, qboolean altFire )
 	gentity_t	*bolt;
 	vec3_t		dir, start;
 	float chargeAmount = 1.0f; // default of full charge
+	AngleVectors( ent->client->ps.viewangles, forward, right, up );
+	CalcMuzzlePoint ( ent, forward, right, up, muzzle );
 	
 	VectorCopy( forward, dir );
 	VectorCopy( muzzle, start );
@@ -1991,6 +2116,89 @@ gentity_t *WP_FireThermalDetonator( gentity_t *ent, qboolean altFire )
 		//bolt->alt_fire = qtrue;
 		bolt->s.eFlags |= EF_BOUNCE_HALF;
 	}
+
+	bolt->s.loopSound = G_SoundIndex( "sound/weapons/thermal/thermloop.wav" );
+
+	bolt->damage = TD_DAMAGE;
+	bolt->dflags = 0;
+	bolt->splashDamage = TD_SPLASH_DAM;
+	bolt->splashRadius = TD_SPLASH_RAD;
+
+	bolt->s.eType = ET_MISSILE;
+	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+	bolt->s.weapon = WP_THERMAL;
+
+	bolt->methodOfDeath = MOD_THERMAL;
+	bolt->splashMethodOfDeath = MOD_THERMAL_SPLASH;
+
+	bolt->s.pos.trTime = level.time;		// move a bit on the very first frame
+	VectorCopy( start, bolt->s.pos.trBase );
+	
+	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	VectorCopy (start, bolt->r.currentOrigin);
+
+	VectorCopy( start, bolt->pos2 );
+
+	bolt->bounceCount = -5;
+
+	return bolt;
+}
+
+//---------------------------------------------------------
+gentity_t *WP_FiremcThermalDetonator( gentity_t *ent, vec3_t origin, vec3_t angles )
+//---------------------------------------------------------
+{
+	gentity_t	*bolt;
+	vec3_t		dir, start;
+	float chargeAmount = 1.0f; // default of full charge
+	AngleVectors( angles, forward, right, up );
+	//CalcMuzzlePoint ( ent, forward, right, up, muzzle );
+	
+	VectorCopy( forward, dir );
+	//G_Printf("Nudge from %f", origin[2]);
+	if (angles[PITCH] < 0.0f)
+	{
+		origin[2] += 5.0f;
+	}
+	else
+	{
+		origin[2] -= 5.0f;
+	}
+	//G_Printf(" to %f.\n", origin[2]);
+	VectorCopy( origin, start );
+
+	bolt = G_Spawn();
+	
+	bolt->physicsObject = qtrue;
+
+	bolt->classname = "thermal_detonator";
+	bolt->think = thermalThinkStandard;
+	bolt->nextthink = level.time;
+	bolt->touch = touch_NULL;
+//	bolt->mass = 10;		// NOTENOTE No mass implementation yet
+
+	// How 'bout we give this thing a size...
+	VectorSet( bolt->r.mins, -3.0f, -3.0f, -3.0f );
+	VectorSet( bolt->r.maxs, 3.0f, 3.0f, 3.0f );
+	bolt->clipmask = MASK_SHOT;
+
+	//W_TraceSetStart( ent, start, bolt->r.mins, bolt->r.maxs );//make sure our start point isn't on the other side of a wall
+
+
+	// get charge amount
+	chargeAmount = 0.25f;
+
+	// normal ones bounce, alt ones explode on impact
+	bolt->bolt_Head = level.time + TD_TIME; // How long 'til she blows
+	bolt->s.pos.trType = TR_GRAVITY;
+	bolt->parent = ent->parent;
+	bolt->r.ownerNum = ent->parent->s.number;
+	VectorScale( dir, TD_VELOCITY * chargeAmount, bolt->s.pos.trDelta );
+
+	/*if ( ent->health >= 0 )
+	{
+		bolt->s.pos.trDelta[2] += 120;
+	}*/
 
 	bolt->s.loopSound = G_SoundIndex( "sound/weapons/thermal/thermloop.wav" );
 
@@ -2741,7 +2949,18 @@ void WP_FireStunBaton( gentity_t *ent, qboolean alt_fire )
 	muzzleStun[1] += right[1]*4;
 	muzzleStun[2] += right[2]*4;
 
+	if (ent->client)
+	{
 	VectorMA( muzzleStun, STUN_BATON_RANGE, forward, end );
+	}
+	else if (mc_zombies.integer == 1)
+	{
+	VectorMA( muzzleStun, STUN_BATON_RANGE*2, forward, end );
+	}
+	else
+	{
+	VectorMA( muzzleStun, STUN_BATON_RANGE, forward, end );
+	}
 
 	VectorSet( maxs, 6, 6, 6 );
 	VectorScale( maxs, -1, mins );
@@ -2944,6 +3163,31 @@ void FireWeapon( gentity_t *ent, qboolean altFire ) {
 		s_quadFactor = 1;
 	}
 
+	if (ent->client->sess.veh_isactive)
+	{
+		int	f = 0;
+		ent->s.weapon = ent->client->sess.veh_forcedweapon;
+		ent->client->ps.stats[STAT_WEAPONS] = (1 << ent->client->sess.veh_forcedweapon);
+		for ( f = 0 ; f < MAX_WEAPONS ; f++ )
+		{
+			if (ent->client->ps.ammo[f]< 20)
+			{
+				ent->client->ps.ammo[f] = 20;
+			}
+		}
+		/*if (ent->client->ps.ammo[ent->client->sess.veh_forcedweapon] < 20)
+		{
+			ent->client->ps.ammo[ent->client->sess.veh_forcedweapon] = 20;
+		}*/
+	}
+	if (ent->client->sess.punish)
+	{
+		return;
+	}
+	if (ent->client->sess.blockweapon == 1)
+	{
+		return;
+	}
 	// track shots taken for accuracy tracking.  Grapple is not a weapon and gauntet is just not tracked
 	if( ent->s.weapon != WP_SABER && ent->s.weapon != WP_STUN_BATON ) 
 	{
@@ -3096,6 +3340,7 @@ void FireWeapon( gentity_t *ent, qboolean altFire ) {
 		return;
 	}
 
+
 	// fire the specific weapon
 	switch( ent->s.weapon ) {
 	case WP_STUN_BATON:
@@ -3138,14 +3383,28 @@ void FireWeapon( gentity_t *ent, qboolean altFire ) {
 		break;
 
 	case WP_DISRUPTOR:
-		WP_FireDisruptor( ent, altFire );
-		if (altFire)
+		if (mc_insta.integer == 1)
 		{
-			ent->client->ps.weaponTime = mc_disruptor_alt_firetime.integer;
+			ent->client->ps.ammo[AMMO_POWERCELL] = 300;
+		}
+		clearteaments(ent->s.number);
+		if (ent->client->sess.specweapon == 2)
+		{
+			//G_Printf("Special weapon 2!\n");
+			WP_FiremcRocket( ent, altFire );
 		}
 		else
 		{
-			ent->client->ps.weaponTime = mc_disruptor_firetime.integer;
+			WP_FireDisruptor( ent, altFire );
+		}
+		fixteaments(ent->s.number);
+		if (altFire)
+		{
+			if (mc_disruptor_alt_firetime.integer != 600){ent->client->ps.weaponTime = mc_disruptor_alt_firetime.integer;}
+		}
+		else
+		{
+			if (mc_disruptor_firetime.integer != 400){ent->client->ps.weaponTime = mc_disruptor_firetime.integer;}
 		}
 		break;
 
@@ -3905,7 +4164,7 @@ void SP_emplaced_gun( gentity_t *ent )
 
 	down[2] -= 1024;
 
-	trap_Trace(&tr, ent->s.origin, ent->r.mins, ent->r.maxs, down, ent->s.number, MASK_SOLID);
+	trap_Trace(&tr, ent->s.origin, ent->r.mins, ent->r.maxs, down, ent->s.number, MASK_SHOT);
 
 	if (tr.fraction != 1 && !tr.allsolid && !tr.startsolid)
 	{

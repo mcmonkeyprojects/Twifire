@@ -313,6 +313,9 @@ void Svcmd_mcStatus_f(void)
 {
 	gentity_t	*t;
 	int		i;
+	vmCvar_t	mapname;
+	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+	G_Printf("G_GameType: %i, Map: %s, Time: %s\n", g_gametype.integer, mapname.string, mc_timer());
 	for (i = 0;i <31;i+=1)
 	{
 		t = &g_entities[i];
@@ -320,7 +323,9 @@ void Svcmd_mcStatus_f(void)
 		{
 			char	userinfo[MAX_INFO_STRING];
 			trap_GetUserinfo( i, userinfo, sizeof( userinfo ) );
-			G_Printf("-%i) (name %s)(model %s)(ping %i)(score %i)(ip %i.%i.%i.%i)(health %i-%i)(origin %i,%i,%i)", i, t->client->pers.netname, Info_ValueForKey (userinfo, "model"), t->client->ps.ping, t->client->ps.persistant[PERS_SCORE], t->client->sess.IP0, t->client->sess.IP1, t->client->sess.IP2, t->client->sess.IP3, t->health, t->client->ps.stats[STAT_ARMOR], (int)t->client->ps.origin[0], (int)t->client->ps.origin[1], (int)t->client->ps.origin[2]);
+			G_Printf("-%i) (name %s)(model %s)(ping %i)(score %i)(ip %i.%i.%i.%i)(health %i-%i)(origin %i,%i,%i)(team %s)", i, t->client->pers.netname, Info_ValueForKey (userinfo, "model"), t->client->ps.ping, t->client->ps.persistant[PERS_SCORE], t->client->sess.IP0, t->client->sess.IP1, t->client->sess.IP2, t->client->sess.IP3, t->health, t->client->ps.stats[STAT_ARMOR], (int)t->client->ps.origin[0], (int)t->client->ps.origin[1], (int)t->client->ps.origin[2],
+			((t->client->sess.sessionTeam == TEAM_SPECTATOR)?"Spectator":(t->client->sess.sessionTeam == TEAM_FREE)?"Free":(t->client->sess.sessionTeam == TEAM_RED)?"Red":(t->client->sess.sessionTeam == TEAM_BLUE)?"Blue":"Other")
+			);
 			if (t->client->sess.adminloggedin != 0)
 			{
 				G_Printf("(adminrank %i)", t->client->sess.adminloggedin);
@@ -361,11 +366,12 @@ fx_runner->s.angles[YAW] = atoi(angle1);
 fx_runner->s.angles[PITCH] = atoi(angle2);
 fx_runner->s.angles[ROLL] = atoi(angle3);
 G_SetAngles(fx_runner,fx_runner->s.angles);
-fx_runner->classname = "fx_runner";
+fx_runner->classname = "mc_effect";
 fx_runner->s.origin[2] = atoi(origin_number3);
-
+fx_runner->custom = 1;
 SP_fx_runner(fx_runner);
 fx_runner->delay = atoi(delay);
+fx_runner->issaved = 1;
 }
 
 extern void AddSpawnField(char *field, char *value);
@@ -400,7 +406,9 @@ trap_Argv( 7, roll_number, 1024 );
 jakes_model->s.angles[YAW] = atoi(yaw_number);
 jakes_model->s.angles[PITCH] = atoi(pitch_number);
 jakes_model->s.angles[ROLL] = atoi(roll_number);
-jakes_model->classname = "jmodel";
+jakes_model->classname = "mc_model";
+jakes_model->custom = 1;
+jakes_model->issaved = 1;
 SP_jakes_model(jakes_model);
 G_Printf("Added model: %s at <%s %s %s %s>", model, origin_number, origin_number2, origin_number3, yaw_number);
 }
@@ -434,8 +442,10 @@ trap_Argv( 7, roll_number, 1024 );
 jakes_model->s.angles[YAW] = atoi(yaw_number);
 jakes_model->s.angles[PITCH] = atoi(pitch_number);
 jakes_model->s.angles[ROLL] = atoi(roll_number);
-jakes_model->classname = "jmodel";
+jakes_model->classname = "mc_model";
 SP_jakes_model(jakes_model);
+jakes_model->custom = 1;
+jakes_model->issaved = 1;
 G_Printf("Added model: %s at <%s %s %s %s>", model, origin_number, origin_number2, origin_number3, yaw_number);
 }
 
@@ -471,11 +481,11 @@ if ( trap_Argc() < 6 ) {
 trap_Argv( 1, model, sizeof( model ) );
 AddSpawnField("model", model);
 trap_Argv( 2, origin_number, 1024 );
-jakes_model->s.origin[0] = atoi(origin_number);
+jakes_model->s.origin[0] = atof(origin_number);
 trap_Argv( 3, origin_number2, 1024 );
-jakes_model->s.origin[1] = atoi(origin_number2);
+jakes_model->s.origin[1] = atof(origin_number2);
 trap_Argv( 4, origin_number3, 1024 );
-jakes_model->s.origin[2] = atoi(origin_number3);
+jakes_model->s.origin[2] = atof(origin_number3);
 trap_Argv( 5, yaw_number, 1024 );
 trap_Argv( 6, pitch_number, 1024 );
 trap_Argv( 7, roll_number, 1024 );
@@ -488,7 +498,7 @@ trap_Argv( 13, zmax, 1024 );
 jakes_model->s.angles[YAW] = atoi(yaw_number);
 jakes_model->s.angles[PITCH] = atoi(pitch_number);
 jakes_model->s.angles[ROLL] = atoi(roll_number);
-jakes_model->classname = "jmodel";
+jakes_model->classname = "mc_model";
 jakes_model->r.mins[0] = atoi(xmin);
 jakes_model->r.mins[1] = atoi(ymin);
 jakes_model->r.mins[2] = atoi(zmin);
@@ -496,12 +506,14 @@ jakes_model->r.maxs[0] = atoi(xmax);
 jakes_model->r.maxs[1] = atoi(ymax);
 jakes_model->r.maxs[2] = atoi(zmax);
 SP_jakes_model(jakes_model);
+jakes_model->custom = 1;
 jakes_model->r.mins[0] = atoi(xmin);
 jakes_model->r.mins[1] = atoi(ymin);
 jakes_model->r.mins[2] = atoi(zmin);
 jakes_model->r.maxs[0] = atoi(xmax);
 jakes_model->r.maxs[1] = atoi(ymax);
 jakes_model->r.maxs[2] = atoi(zmax);
+jakes_model->issaved = 1;
 trap_LinkEntity(jakes_model);
 G_Printf("Added model: %s at <%s %s %s %s>", model, origin_number, origin_number2, origin_number3, yaw_number);
 }
@@ -568,7 +580,7 @@ trap_Argv( 13, zmax, 1024 );
 jakes_model->s.angles[YAW] = atoi(yaw_number);
 jakes_model->s.angles[PITCH] = atoi(pitch_number);
 jakes_model->s.angles[ROLL] = atoi(roll_number);
-jakes_model->classname = "jmodel2";
+jakes_model->classname = "mc_model2";
 jakes_model->r.mins[0] = atoi(xmin);
 jakes_model->r.mins[1] = atoi(ymin);
 jakes_model->r.mins[2] = atoi(zmin);
@@ -576,12 +588,14 @@ jakes_model->r.maxs[0] = atoi(xmax);
 jakes_model->r.maxs[1] = atoi(ymax);
 jakes_model->r.maxs[2] = atoi(zmax);
 SP_mc_ghoul(jakes_model);
+jakes_model->custom = 1;
 jakes_model->r.mins[0] = atoi(xmin);
 jakes_model->r.mins[1] = atoi(ymin);
 jakes_model->r.mins[2] = atoi(zmin);
 jakes_model->r.maxs[0] = atoi(xmax);
 jakes_model->r.maxs[1] = atoi(ymax);
 jakes_model->r.maxs[2] = atoi(zmax);
+jakes_model->issaved = 1;
 trap_LinkEntity(jakes_model);
 G_Printf("Added model2: %s at <%s %s %s %s>", model, origin_number, origin_number2, origin_number3, yaw_number);
 }
@@ -659,6 +673,7 @@ void	svcmd_addmcbutton( void ) {
 	trap_Argv( 6, origin_number3, 1024 );
 	mcbutton->s.origin[2] = atoi(origin_number3) - 19;
 	SP_mcbutton(mcbutton);
+	mcbutton->custom = 1;
 	return;
 }
 */
@@ -898,6 +913,12 @@ void mcspawnent2(void)
 	trap_LinkEntity(newent);
 	Com_sprintf( iBuffer, sizeof(iBuffer), "");
 	//Com_sprintf( iBuffer, sizeof(iBuffer), "Spawned new %s : %i", type, newent->s.number);
+	iStringPos = 0;
+	iStringPart = 0;
+	i = 0;
+	c = 0;
+	o = 0;
+	g = 0;
 	
 	for ( iStringPos = 0; iStringPos <= strlen (spfstring); iStringPos++ )
 	{
@@ -972,6 +993,7 @@ void mcspawnent2(void)
 	G_Printf(va("^7%s\n", iBuffer ) );
 	G_ParseField( "classname", type, newent );
 }*/
+/*
 void mcspawnent2(gentity_t *ent)
 {
 	char	type[MAX_STRING_CHARS];
@@ -1021,6 +1043,7 @@ void mcspawnent2(gentity_t *ent)
 	needrespawn = 0;
 	trap_LinkEntity(newent);
 	Com_sprintf( iBuffer, sizeof(iBuffer), "");
+	newent->custom = 1;
 	//Com_sprintf( iBuffer, sizeof(iBuffer), "Spawned new %s : %i", type, newent->s.number);
 	
 	for ( iStringPos = 0; iStringPos <= strlen (spfstring); iStringPos++ )
@@ -1098,6 +1121,7 @@ void mcspawnent2(gentity_t *ent)
 	G_Printf(va("print \"^7%s\n\"", iBuffer ) );
 	G_ParseField( "classname", type, newent );
 }
+*/
 /*
 ===================
 Svcmd_EntityList_f
@@ -1161,7 +1185,7 @@ void	Svcmd_EntityList_f (void) {
 		G_Printf("\n");
 	}
 }
-gclient_t	*ClientForString( const char *s ) {
+gclient_t	*ClientForString( char *s ) {
 	gclient_t	*cl;
 	int			i;
 	int			idnum;
@@ -1259,6 +1283,11 @@ void mctele(void)
 	trap_Argv( 2, par2, sizeof( par2 ) );
 	trap_Argv( 3, par3, sizeof( par3 ) );
 	trap_Argv( 4, par4, sizeof( par4 ) );
+	if (Q_stricmp(par1, "") == 0)
+	{
+		G_Printf("/mctele <player>\n");
+		return;
+	}
 	num = dsp_adminTarget(NULL, par1, MAX_CLIENTS+1);
 	if (num < 0)
 	{
@@ -1275,11 +1304,13 @@ void mctele(void)
 void mckick(void)
 {
 	char par1[MAX_STRING_CHARS];
-	char par2[MAX_STRING_CHARS];
-	char par3[MAX_STRING_CHARS];
-	char par4[MAX_STRING_CHARS];
 	int num;
 	trap_Argv( 1, par1, sizeof( par1 ) );
+	if (Q_stricmp(par1, "") == 0)
+	{
+		G_Printf("/mckick <player>\n");
+		return;
+	}
 	num = dsp_adminTarget(NULL, par1, MAX_CLIENTS+1);
 	if (num < 0)
 	{
@@ -1287,6 +1318,36 @@ void mckick(void)
 		return;
 	}
 	trap_DropClient(num, va("%s", twimod_kickmsg.string));
+}
+void mcrename(void)
+{
+	char par1[MAX_STRING_CHARS];
+	char par2[MAX_STRING_CHARS];
+	char userinfo[MAX_INFO_VALUE];
+	gentity_t	*other;
+	int num;
+	trap_Argv( 1, par1, sizeof( par1 ) );
+	trap_Argv( 2, par2, sizeof( par2 ) );
+	if (Q_stricmp(par1, "") == 0)
+	{
+		G_Printf("/mcrename <player>\n");
+		return;
+	}
+	num = dsp_adminTarget(NULL, par1, MAX_CLIENTS+1);
+	if (num < 0)
+	{
+		G_Printf("Unknown player.\n");
+		return;
+	}
+	other = &g_entities[num];
+	toggolo = 1;
+	trap_SendServerCmd(-1, va("print \"%s ^7has been renamed to %s ^7by RCON^7.\n\"", other->client->pers.netname, par2));
+	trap_GetUserinfo(num, userinfo, MAX_INFO_STRING);
+	strcpy(other->client->pers.netname, par2);
+	Info_SetValueForKey(userinfo, "name", par2);
+	trap_SetUserinfo(num, userinfo);
+	ClientUserinfoChanged( num );
+	toggolo = 0;
 }
 void mckill(void)
 {
@@ -1336,6 +1397,9 @@ void mckill(void)
 }
 char	*ConcatArgs( int start );
 
+void testWP(int index);
+
+void testaddWP(int x, int y, int z);
 /*
 =================
 ConsoleCommand
@@ -1347,7 +1411,7 @@ qboolean	ConsoleCommand( void ) {
 	gentity_t	*lolzw;
 	int		i;
 	int		clientNum = (MAX_CLIENTS+1); // Deathspike :: Fake caller
-	gentity_t	*ent = NULL; // Deathspike :: Fake caller
+	gentity_t	*ent = &g_entities[33]; // Deathspike :: Fake caller
 	char		cmd_a2[MAX_TOKEN_CHARS];
 	char		cmd_a3[MAX_TOKEN_CHARS];
 	char		cmd_a4[MAX_TOKEN_CHARS];
@@ -1409,6 +1473,21 @@ qboolean	ConsoleCommand( void ) {
 		trap_FS_FCloseFile(f);
 		trap_SendServerCmd( -1, va("print \"^3Specialgametype ^5%s^3 activated.\n\"", cmd_a2));
 		trap_SendConsoleCommand( EXEC_APPEND, va("exec gametypes/gt_%s.cfg\n", cmd_a2));
+		return qtrue;
+	}
+	if (Q_stricmp( cmd, "testwp") == 0)
+	{
+		testWP(atoi(cmd_a2));
+		return qtrue;
+	}
+	if (Q_stricmp( cmd, "addwp") == 0)
+	{
+		testaddWP(atoi(cmd_a2), atoi(cmd_a3), atoi(cmd_a4));
+		return qtrue;
+	}
+	if (Q_stricmp( cmd, "reloadwp") == 0)
+	{
+		LoadPath_ThisLevel();
 		return qtrue;
 	}
 	if ( Q_stricmp (cmd, "entitylist") == 0 ) {
@@ -1494,13 +1573,24 @@ qboolean	ConsoleCommand( void ) {
 		mcspawnent(&g_entities[33]);
 		return qtrue;
 	}
+	if (Q_stricmp (cmd, "mcfreeadmin") == 0)
+	{
+		level.freepower1 = atoi(cmd_a2);
+		level.freepower2 = atoi(cmd_a3);
+		level.freepower3 = atoi(cmd_a4);
+		level.freepower4 = atoi(cmd_a5);
+		level.freepower5 = atoi(cmd_a6);
+		level.freepower6 = atoi(cmd_a7);
+		level.freepower7 = atoi(cmd_a8);
+		return qtrue;
+	}
 	if (Q_stricmp (cmd, "mcaddtele") == 0) {
 		vec3_t	pos;
 		VectorClear(pos);
 		pos[0] = atof(cmd_a3);
 		pos[1] = atof(cmd_a4);
 		pos[2] = atof(cmd_a5);
-		teleporter_add(pos, cmd_a2, atoi(cmd_a6));
+		teleporter_add(pos, cmd_a2, atoi(cmd_a6), atoi(cmd_a7), atoi(cmd_a8), cmd_a9);
 		return qtrue;
 	}
 	if (Q_stricmp (cmd, "ammap") == 0) {
@@ -1591,7 +1681,7 @@ qboolean	ConsoleCommand( void ) {
 	}
 
 	if (Q_stricmp (cmd, "addmcsentry") == 0) {
-		mcspawnsentry2(atoi(cmd_a2), atoi(cmd_a3), atoi(cmd_a4), atoi(cmd_a5));
+		mcspawnsentry2(atoi(cmd_a2), atoi(cmd_a3), atoi(cmd_a4), atoi(cmd_a5), atoi(cmd_a6));
 		return qtrue;
 	}
 	if (Q_stricmp (cmd, "addmcshield") == 0) {
@@ -1617,6 +1707,7 @@ qboolean	ConsoleCommand( void ) {
 		level.statuswrite = 32;
 		return qtrue;
 	}
+
 /*
 	if (Q_stricmp (cmd, "waterworld") == 0)
 	{
@@ -1633,6 +1724,7 @@ qboolean	ConsoleCommand( void ) {
 		return qtrue;
 	}
 */
+
 	if (Q_stricmp (cmd, "addlightrcon") == 0)
 	{
 		gentity_t	*light = G_Spawn();
@@ -1640,11 +1732,13 @@ qboolean	ConsoleCommand( void ) {
 		light->s.origin[1] = atoi(cmd_a3);
 		light->s.origin[2] = atoi(cmd_a4);
 		SP_mc_light ( light );
+		light->custom = 1;
+		light->issaved = 1;
 		light->s.constantLight = atoi(cmd_a5) + (atoi(cmd_a6)<<8) + (atoi(cmd_a7)<<16) + (atoi(cmd_a8)<<24);
 		strcpy(light->mcmlight,va("%i %i %i %i",atoi(cmd_a5), atoi(cmd_a6), atoi(cmd_a7), atoi(cmd_a8)));
 		return qtrue;
 	}
-	if (Q_stricmp (cmd, "cshaderrcon") == 0) {
+	if ((Q_stricmp (cmd, "cshaderrcon") == 0)||(Q_stricmp (cmd, "cshadderrcon") == 0)) {
 		level.mmshaders += 1;
 		if (level.mapeditsdone == 1)
 		{
@@ -1654,6 +1748,181 @@ qboolean	ConsoleCommand( void ) {
 		{
 			shaderblaxnosend();
 		}
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_loss_death") == 0)
+	{
+		level.credit_loss_death = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_loss_duellose") == 0)
+	{
+		level.credit_loss_duellose = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_get_kill") == 0)
+	{
+		level.credit_get_kill = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_get_duelwin") == 0)
+	{
+		level.credit_get_duelwin = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_heal") == 0)
+	{
+		level.price_force[FP_HEAL] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_jump") == 0)
+	{
+		level.price_force[FP_LEVITATION] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_speed") == 0)
+	{
+		level.price_force[FP_SPEED] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_push") == 0)
+	{
+		level.price_force[FP_PUSH] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_pull") == 0)
+	{
+		level.price_force[FP_PULL] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_mindtrick") == 0)
+	{
+		level.price_force[FP_TELEPATHY] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_grip") == 0)
+	{
+		level.price_force[FP_GRIP] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_lightning") == 0)
+	{
+		level.price_force[FP_LIGHTNING] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_rage") == 0)
+	{
+		level.price_force[FP_RAGE] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_protect") == 0)
+	{
+		level.price_force[FP_PROTECT] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_absorb") == 0)
+	{
+		level.price_force[FP_ABSORB] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_team_heal") == 0)
+	{
+		level.price_force[FP_TEAM_HEAL] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_team_energize") == 0)
+	{
+		level.price_force[FP_TEAM_FORCE] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_drain") == 0)
+	{
+		level.price_force[FP_DRAIN] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_seeing") == 0)
+	{
+		level.price_force[FP_SEE] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_saberthrow") == 0)
+	{
+		level.price_force[FP_SABERTHROW] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_saberoffense") == 0)
+	{
+		level.price_force[FP_SABERATTACK] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_saberdefense") == 0)
+	{
+		level.price_force[FP_SABERDEFEND] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_stunbaton") == 0)
+	{
+		level.price_weapons[WP_STUN_BATON] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_saber") == 0)
+	{
+		level.price_weapons[WP_SABER] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_bryar") == 0)
+	{
+		level.price_weapons[WP_BRYAR_PISTOL] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_blaster") == 0)
+	{
+		level.price_weapons[WP_BLASTER] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_disruptor") == 0)
+	{
+		level.price_weapons[WP_DISRUPTOR] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_bowcaster") == 0)
+	{
+		level.price_weapons[WP_BOWCASTER] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_repeater") == 0)
+	{
+		level.price_weapons[WP_REPEATER] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_demp") == 0)
+	{
+		level.price_weapons[WP_DEMP2] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_flechette") == 0)
+	{
+		level.price_weapons[WP_FLECHETTE] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_rocketlauncher") == 0)
+	{
+		level.price_weapons[WP_ROCKET_LAUNCHER] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_grenade") == 0)
+	{
+		level.price_weapons[WP_THERMAL] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_tripmine") == 0)
+	{
+		level.price_weapons[WP_TRIP_MINE] = atoi(cmd_a2);
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "mccredit_price_detpack") == 0)
+	{
+		level.price_weapons[WP_DET_PACK] = atoi(cmd_a2);
 		return qtrue;
 	}
 	if (Q_stricmp (cmd, "mctele") == 0) {
@@ -1668,6 +1937,11 @@ qboolean	ConsoleCommand( void ) {
 	if (Q_stricmp (cmd, "rmap") == 0) {
 		level.reFix = 1;
 		trap_SendConsoleCommand( EXEC_APPEND, va(";map %s;\n", cmd_a2) );
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "rmap_restart") == 0) {
+		level.reFix = 1;
+		trap_SendConsoleCommand( EXEC_APPEND, va(";map_restart;\n") );
 		return qtrue;
 	}
 	if (Q_stricmp (cmd, "mckick") == 0) {
@@ -1687,7 +1961,8 @@ qboolean	ConsoleCommand( void ) {
 		Svcmd_mcStatus_f();
 		return qtrue;
 	}
-/*
+
+				// addnotercon "creator" "message" public X Y Z
 	if (Q_stricmp(cmd, "addnotercon") == 0)
 	{
 		gentity_t	*note = G_Spawn();
@@ -1704,13 +1979,13 @@ qboolean	ConsoleCommand( void ) {
 		note->s.origin[1] = atoi(cmd_a6);
 		note->s.origin[2] = atoi(cmd_a7);
 		note->classname = "mc_note";
-		SP_mc_note(note, NULL, cmd_a4);
+		SP_mc_note(note, ent, cmd_a4);
+		note->custom = 1;
 		strcpy(note->mctargetname,cmd_a2);
 		return qtrue;
 	}
-*/
 
-				// addnotercon "creator" "message" public X Y Z
+
 	if (Q_stricmp (cmd, "rtestfile") == 0) {
 		fileHandle_t	f;
 		if (Q_stricmp(cmd_a2,"") == 0)
@@ -1754,7 +2029,7 @@ qboolean	ConsoleCommand( void ) {
 	if (Q_stricmp(cmd, "testsendtoplayer") == 0)
 	{
 		int num;
-		num = dsp_adminTarget(NULL, cmd_a2, MAX_CLIENTS+1);
+		num = dsp_adminTarget(ent, cmd_a2, MAX_CLIENTS+1);
 		if (num < 0)
 		{
 			G_Printf("Unknown player.\n");
@@ -1771,6 +2046,11 @@ qboolean	ConsoleCommand( void ) {
 			return qtrue;
 		}
 		trap_SetConfigstring( CS_MUSIC, cmd_a2 );
+		return qtrue;
+	}
+	if (Q_stricmp(cmd, "mcrename") == 0)
+	{
+		mcrename();
 		return qtrue;
 	}
 

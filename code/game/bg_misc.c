@@ -1284,6 +1284,7 @@ qboolean BG_HasYsalamiri(int gametype, playerState_t *ps)
 	return qfalse;
 }
 
+extern	qboolean	powervalidanyway(forcePowers_t power, playerState_t *ps);
 qboolean BG_CanUseFPNow(int gametype, playerState_t *ps, int time, forcePowers_t power)
 {
 	if (BG_HasYsalamiri(gametype, ps))
@@ -1303,7 +1304,10 @@ qboolean BG_CanUseFPNow(int gametype, playerState_t *ps, int time, forcePowers_t
 		{
 			if (!ps->saberLockFrame || power != FP_PUSH)
 			{
+				if (!powervalidanyway(power, ps))
+				{
 				return qfalse;
+				}
 			}
 		}
 	}

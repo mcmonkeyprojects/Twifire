@@ -64,11 +64,119 @@ void trap_SendServerCmd( int clientNum, const char *text )
 // __________________________________________________________________
 
 
+char *mc_lower (char *orig)
+{
+	int	iml;
+	int	mllen;
+	mllen = strlen(orig);
+	for (iml = 0;iml < mllen;iml++)
+	{
+		if (orig[iml] >= 'A' && orig[iml] <= 'Z')
+		{
+			orig[iml] += ('a' - 'A');
+		}
+	}
+	return orig;
+}
 
 
+void reForceThrow(gentity_t *self, qboolean pull, int powermod);
+void mcm_shout(gentity_t *ent, char *cmd_a2)
+{
+	int	powermod = 4;
+	if (Q_stricmp(cmd_a2,"") != 0)
+	{
+		powermod = atoi(cmd_a2);
+	}
+	reForceThrow(ent, qfalse, powermod);
+}
+
+void mc_clearedits(gentity_t *ent)
+{
+	vmCvar_t	mapname;
+	int		i;
+	fileHandle_t	f;
+	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+	for (i = 1;i < 32;i += 1)
+	{
+		trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string), &f, FS_READ);
+		if (f)
+		{
+			trap_FS_FCloseFile(f);
+			trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string), &f, FS_WRITE);
+			if ( !f )
+			{
+				trap_SendServerCmd( ent->s.number, va("print \"^1Error: Cannot access map file.\n\"" ) );
+			}
+			trap_FS_Write( va("\n"), strlen(va("\n")), f);
+			trap_FS_FCloseFile( f );
+		}
+	}
+	trap_SendServerCmd(ent->fixednum, va("print \"^2Edits cleared.\n\""));
+}
+
+void mc_lockserver(gentity_t *ent, char *password, char *message)
+{
+	if (g_needpass.integer == 1)
+	{
+		trap_SendConsoleCommand( EXEC_APPEND, va("g_password \"\";g_needpass 0;\n" ) );
+		trap_SendServerCmd(ent->fixednum, va("print \"^2Server unlocked.\n\""));
+		return;
+	}
+	if ((Q_stricmp(password,"") == 0)||(Q_stricmp(password,"info") == 0))
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^1/amlockserver <password> [message]\n\""));
+		return;
+	}
+	if (strchr(password,';')||strchr(password,'\n')||strchr(message,';')||strchr(message,'\n'))
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^1You should probably be banned for that.\n\""));
+		return;
+	}
+	trap_SendConsoleCommand( EXEC_APPEND, va("g_password \"%s\";g_needpass 1;mc_lockmessage \"%s\";\n", password, message ) );
+	trap_SendServerCmd(ent->fixednum, va("print \"^1Server locked.\n\""));
+	return;
+}
 
 
+void mc_amlightning(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
+{
+	int i = 0;
+	vec3_t angles2;
+	vec3_t origin2;
+	if (Q_stricmp(cmd_a4,"") == 0)
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^1/amlightning <X> <Y> <Z>\n\""));
+		return;
+	}
+	origin2[0] = monkeyspot(cmd_a2, 0, ent, ent);
+	origin2[1] = monkeyspot(cmd_a3, 1, ent, ent);
+	origin2[2] = monkeyspot(cmd_a4, 2, ent, ent);
+	for (i = 0;i < 5;i += 1)
+	{
+		VectorClear(angles2);
+		angles2[YAW] = irand(0, 360);
+		angles2[PITCH] = -90 + irand(-30, 30);
+		angles2[ROLL] = irand(0, 360);
+		G_PlayEffect_ID(G_EffectIndex( "lightning" ), origin2, angles2);
+	}
+	G_RadiusDamage( origin2, ent, 200, 100, NULL, MOD_REPEATER_ALT_SPLASH );
+	G_SoundAtLoc( origin2, CHAN_VOICE, G_SoundIndex("sound/effects/energy_crackle") );
+}
 
+
+void mc_amdistance(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char *cmd_a5, char *cmd_a6, char *cmd_a7)
+{
+	int x1 = monkeyspot(cmd_a2, 0, ent, ent);
+	int x2 = monkeyspot(cmd_a5, 0, ent, ent);
+	int y1 = monkeyspot(cmd_a3, 1, ent, ent);
+	int y2 = monkeyspot(cmd_a6, 1, ent, ent);
+	int z1 = monkeyspot(cmd_a4, 2, ent, ent);
+	int z2 = monkeyspot(cmd_a7, 2, ent, ent);
+	trap_SendServerCmd(ent->fixednum, va("print \"^7From (^5%i^7,^5%i^7,^5%i^7) to (^5%i^7,^5%i^7,^5%i^7)\n\"", x1, y1, z1, x2, y2, z2));
+	trap_SendServerCmd(ent->fixednum, va("print \"^7X distance: ^5%i^7. Y distance: ^5%i^7. Z distance: ^5%i^7.\n\"", x1 - x2, y1 - y2, z1 - z2));
+	trap_SendServerCmd(ent->fixednum, va("print \"^7Flat (XY) distance: ^5%i^7. Total (XYZ) distance: ^5%i^7.\n\"", (int)sqrt((double) ((x1-x2)*(x1-x2))+((y1-y2)*(y1-y2)) ), (int)sqrt((double) ((x1-x2)*(x1-x2))+((y1-y2)*(y1-y2))+((z1-z2)*(z1-z2)) )   ));
+}
 
 
 
@@ -93,11 +201,11 @@ void mcbansystem(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char 
 		}
 		if (ip_is_banned(cmd_a3) == 1)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1IP is banned.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1IP is banned.\n\""));
 		}
 		else
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^2IP is not banned.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^2IP is not banned.\n\""));
 		}
 		return;
 	}
@@ -111,12 +219,12 @@ void mcbansystem(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char 
 			if (ban->active == 1)
 			{
 				found += 1;
-				trap_SendServerCmd(ent->s.number, va("print \"^5%i^2)^1%i^7.^1%i^7.^1%i^7.^1%i\n\"", i, ban->ip1, ban->ip2, ban->ip3, ban->ip4));
+				trap_SendServerCmd(ent->fixednum, va("print \"^5%i^2)^1%i^7.^1%i^7.^1%i^7.^1%i\n\"", i, ban->ip1, ban->ip2, ban->ip3, ban->ip4));
 			}
 		}
 		if (found == 0)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1No bans found.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1No bans found.\n\""));
 		}
 		return;
 	}
@@ -128,7 +236,7 @@ void mcbansystem(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char 
 		}
 		bans_add(atoi(cmd_a3), atoi(cmd_a4), atoi(cmd_a5), atoi(cmd_a6));
 		bans_write();
-		trap_SendServerCmd(ent->s.number, va("print \"^1IP banned.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1IP banned.\n\""));
 		return;
 	}
 	else if (Q_stricmp(cmd_a2, "remove") == 0)
@@ -151,7 +259,7 @@ void mcbansystem(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char 
 							if (ban->ip4 == atoi(cmd_a6))
 							{
 								ban->active = 0;
-								trap_SendServerCmd(ent->s.number, va("print \"^2IP removed.\n\""));
+								trap_SendServerCmd(ent->fixednum, va("print \"^2IP removed.\n\""));
 								bans_write();
 								return;
 							}
@@ -160,14 +268,14 @@ void mcbansystem(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char 
 				}
 			}
 		}
-		trap_SendServerCmd(ent->s.number, va("print \"^1IP not found.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1IP not found.\n\""));
 		return;
 	}
 	failed:
-	trap_SendServerCmd(ent->s.number, va("print \"^1/ambans test <ip>                      ^2Test if an IP is banned.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/ambans list                           ^2See a list of all banned IPs.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/ambans remove <ip1> <ip2> <ip3> <ip4> ^2Remove a banned IP.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/ambans add <ip1> <ip2> <ip3> <ip4>    ^2Ban a new IP. Use -1 as a wildcard.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/ambans test <ip>                      ^2Test if an IP is banned.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/ambans list                           ^2See a list of all banned IPs.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/ambans remove <ip1> <ip2> <ip3> <ip4> ^2Remove a banned IP.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/ambans add <ip1> <ip2> <ip3> <ip4>    ^2Ban a new IP. Use -1 as a wildcard.\n\""));
 }
 
 void amchannels(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
@@ -188,13 +296,13 @@ void amchannels(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
 		ch = channels_find(cmd_a3);
 		if (ch == -1)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Unknown channel.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Unknown channel.\n\""));
 			return;
 		}
 		chan = &g_channels[ch];
 		if ((chan->inchannel[ent->s.number] == '0') && (Q_stricmp(cmd_a2, "join") != 0))
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1You are not in this channel.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1You are not in this channel.\n\""));
 			return;
 		}
 	}
@@ -217,16 +325,16 @@ void amchannels(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
 		ch = channels_create(cmd_a3, cmd_a4);
 		if (ch == -1)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Too many active channels.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Too many active channels.\n\""));
 			return;
 		}
 		if (ch == -2)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Channel already exists.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Channel already exists.\n\""));
 			return;
 		}
 		chan = &g_channels[ch];
-		trap_SendServerCmd(ent->s.number, va("print \"^2Channel created.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^2Channel created.\n\""));
 		chan->inchannel[ent->s.number] = 'A';
 		chan->isadmin[ent->s.number] = 'A';
 		return;
@@ -239,17 +347,17 @@ void amchannels(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
 		}
 		if (Q_stricmp(cmd_a4, chan->password) != 0)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Wrong password.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Wrong password.\n\""));
 			return;
 		}
 		if (chan->isbanned[ent->s.number] == 'A')
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1You are banned from this channel.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1You are banned from this channel.\n\""));
 			return;
 		}
 		if (chan->inchannel[ent->s.number] == 'A')
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1You are already in this channel.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1You are already in this channel.\n\""));
 			return;
 		}
 		chan->inchannel[ent->s.number] = 'A';
@@ -263,7 +371,7 @@ void amchannels(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
 			goto failed;
 		}
 		channels_remove(ch, ent->s.number, 0);
-		trap_SendServerCmd(ent->s.number, va("print \"^1Left the channel.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1Left the channel.\n\""));
 		return;
 	}
 	else if (Q_stricmp(cmd_a2, "list") == 0)
@@ -279,11 +387,11 @@ void amchannels(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
 			{
 				if (chan->isadmin[i] == 'A')
 				{
-					trap_SendServerCmd(ent->s.number, va("print \"^1[ADMIN]^5%i^2)^7%s\n\"", i, g_entities[i].client->pers.netname));
+					trap_SendServerCmd(ent->fixednum, va("print \"^1[ADMIN]^5%i^2)^7%s\n\"", i, g_entities[i].client->pers.netname));
 				}
 				else
 				{
-					trap_SendServerCmd(ent->s.number, va("print \"^5%i^2)^7%s\n\"", i, g_entities[i].client->pers.netname));
+					trap_SendServerCmd(ent->fixednum, va("print \"^5%i^2)^7%s\n\"", i, g_entities[i].client->pers.netname));
 				}
 			}
 		}
@@ -298,23 +406,23 @@ void amchannels(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
 		}
 		if (chan->isadmin[ent->s.number] == '0')
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1You are not a channel admin.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1You are not a channel admin.\n\""));
 			return;
 		}
 		target = dsp_adminTarget(ent, cmd_a4, ent->s.number);
 		if (target < 0)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Unknown player.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Unknown player.\n\""));
 			return;
 		}
 		if (chan->inchannel[target] == '0')
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Player ^7%s ^1is not in the channel.\n\"", g_entities[target].client->pers.netname));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Player ^7%s ^1is not in the channel.\n\"", g_entities[target].client->pers.netname));
 			return;
 		}
 		if (chan->isadmin[target] == 'A')
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Cannot ban a channel admin.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Cannot ban a channel admin.\n\""));
 			return;
 		}
 		channels_print(ch, va("^7%s^5 was banned from the channel.", g_entities[target].client->pers.netname));
@@ -331,23 +439,23 @@ void amchannels(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
 		}
 		if (chan->isadmin[ent->s.number] == '0')
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1You are not a channel admin.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1You are not a channel admin.\n\""));
 			return;
 		}
 		target = dsp_adminTarget(ent, cmd_a4, ent->s.number);
 		if (target < 0)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Unknown player.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Unknown player.\n\""));
 			return;
 		}
 		if (chan->inchannel[target] == '0')
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Player ^7%s ^1is not in the channel.\n\"", g_entities[target].client->pers.netname));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Player ^7%s ^1is not in the channel.\n\"", g_entities[target].client->pers.netname));
 			return;
 		}
 		if (chan->isadmin[target] == 'A')
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Player ^7%s^1 is already a channel admin.\n\"", g_entities[target].client->pers.netname));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Player ^7%s^1 is already a channel admin.\n\"", g_entities[target].client->pers.netname));
 			return;
 		}
 		channels_print(ch, va("^7%s^5 is now a channel admin.", g_entities[target].client->pers.netname));
@@ -362,22 +470,22 @@ void amchannels(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4)
 		}
 		if (chan->isadmin[ent->s.number] == '0')
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1You are not a channel admin.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1You are not a channel admin.\n\""));
 			return;
 		}
 		channels_delete(ch);
 		return;
 	}
 	failed:
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amchannels say <channel> <message>     ^2Say something in the chosen channel.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amteamchat <channel>                   ^2Lock teamchat to speaking in the chosen channel.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amchannels create <channel> <password> ^2Create a new channel.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amchannels join <channel> <password>   ^2Join the chosen channel.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amchannels leave <channel>             ^2Leave the chosen channel.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amchannels list <channel>              ^2See who is in the channel.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amchannels ban <channel> <player>      ^2If you are a channel admin, ban the player from the chosen channel.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amchannels makeadmin <channel> <player>^2If you are a channel admin, make the player a channel admin.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amchannels close <channel>             ^2If you are a channel admin, close the chosen channel.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchannels say <channel> <message>     ^2Say something in the chosen channel.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amteamchat <channel>                   ^2Lock teamchat to speaking in the chosen channel.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchannels create <channel> <password> ^2Create a new channel.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchannels join <channel> <password>   ^2Join the chosen channel.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchannels leave <channel>             ^2Leave the chosen channel.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchannels list <channel>              ^2See who is in the channel.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchannels ban <channel> <player>      ^2If you are a channel admin, ban the player from the chosen channel.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchannels makeadmin <channel> <player>^2If you are a channel admin, make the player a channel admin.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchannels close <channel>             ^2If you are a channel admin, close the chosen channel.\n\""));
 }
 extern void mctsent_think(gentity_t *ent);
 int send_mail(gentity_t *ent, char *account, char *message);
@@ -390,7 +498,7 @@ void mailsys(gentity_t *ent, char *cmd_a2, char *cmd_a3)
 	}
 	if (Q_stricmp(ent->client->sess.userlogged,"") == 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^2You are not logged in.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^2You are not logged in.\n\""));
 		return;
 	}
 	if (Q_stricmp(cmd_a2,"clear") == 0)
@@ -399,7 +507,7 @@ void mailsys(gentity_t *ent, char *cmd_a2, char *cmd_a3)
 		trap_FS_FOpenFile(va("%s/mail_1_%s.cfg", mc_userfolder.string, ent->client->sess.userlogged), &Mz, FS_WRITE);
 		trap_FS_Write( " ", strlen(" "), Mz);
 		trap_FS_FCloseFile( Mz );
-		trap_SendServerCmd(ent->s.number, va("print \"^2Mail cleared.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^2Mail cleared.\n\""));
 		return;
 	}
 	if (Q_stricmp(cmd_a2,"send") == 0)
@@ -409,23 +517,23 @@ void mailsys(gentity_t *ent, char *cmd_a2, char *cmd_a3)
 		message = ConcatArgs( 3 );
 		if (Q_stricmp(message,"") == 0)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1/ammail send <account> <message> ^2Sends new mail to chosen account.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1/ammail send <account> <message> ^2Sends new mail to chosen account.\n\""));
 			return;
 		}
 		result = send_mail(ent, cmd_a3, message);
 		switch (result)
 		{
 			case 1:
-				trap_SendServerCmd(ent->s.number, va("print \"^2Sent.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^2Sent.\n\""));
 				break;
 			case -1:
-				trap_SendServerCmd(ent->s.number, va("print \"^1Unknown account.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^1Unknown account.\n\""));
 				break;
 			case -2:
-				trap_SendServerCmd(ent->s.number, va("print \"^1Target inbox full.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^1Target inbox full.\n\""));
 				break;
 			default:
-				trap_SendServerCmd(ent->s.number, va("print \"^1Unknown error.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^1Unknown error.\n\""));
 				break;
 		}
 		return;
@@ -469,26 +577,26 @@ void mailsys(gentity_t *ent, char *cmd_a2, char *cmd_a3)
 					memcpy (messageline, buffer+iSp+1, i-iSp-1);
 				}
 				G_Printf("^5%i^7)%s\n", iC, messageline);
-				trap_SendServerCmd(ent->s.number, va("print \"^5%i^7)%s\n\"", iC, messageline));
+				trap_SendServerCmd(ent->fixednum, va("print \"^5%i^7)%s\n\"", iC, messageline));
 				stringclear(messageline,4090);
 				iSp = i;
 			}
 		}
 		if (iC == 0)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^2Inbox empty.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^2Inbox empty.\n\""));
 		}
 		if (len > 2048)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^2Inbox full.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^2Inbox full.\n\""));
 		}
 		return;
 	}
 	failed:
-	trap_SendServerCmd(ent->s.number, va("print \"^1/ammail send <account> <message> ^2Sends new mail to chosen account.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/ammail clear                    ^2Deletes all your mail.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/ammail read                     ^2Read all your mail.\n\""));
-	//trap_SendServerCmd(ent->s.number, va("print \"^1/ammail delete <number>          ^2Deletes specific message.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/ammail send <account> <message> ^2Sends new mail to chosen account.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/ammail clear                    ^2Deletes all your mail.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/ammail read                     ^2Read all your mail.\n\""));
+	//trap_SendServerCmd(ent->fixednum, va("print \"^1/ammail delete <number>          ^2Deletes specific message.\n\""));
 	return;
 }
 int send_mail(gentity_t *ent, char *account, char *message)
@@ -518,7 +626,7 @@ int send_mail(gentity_t *ent, char *account, char *message)
 		{
 			if (Q_stricmp(pl->client->sess.userlogged, account) == 0)
 			{
-				trap_SendServerCmd(i, va("print \"^2You have mail!\n\""));
+				trap_SendServerCmd(i, va("print \"^2You have mail!\n^2Type /ammail in your console to view it.\n\""));
 			}
 		}
 	}
@@ -526,7 +634,7 @@ int send_mail(gentity_t *ent, char *account, char *message)
 }
 
 
-void cmd_teles(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char *cmd_a5, char *cmd_a6, char *cmd_a7)
+void cmd_teles(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char *cmd_a5, char *cmd_a6, char *cmd_a7, char *cmd_a8, char *cmd_a9, char *cmd_a10)
 {
 	if ((Q_stricmp(cmd_a2,"") == 0)||(Q_stricmp(cmd_a2,"info") == 0))
 	{
@@ -543,19 +651,24 @@ void cmd_teles(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char *c
 			vec3_t	pos;
 			int	angle;
 			VectorClear(pos);
-			pos[0] = monkeyspot(cmd_a4, 0, ent, ent);
-			pos[1] = monkeyspot(cmd_a5, 1, ent, ent);
-			pos[2] = monkeyspot(cmd_a6, 2, ent, ent);
-			if ((Q_stricmp(cmd_a7,"") == 0)||(Q_stricmp(cmd_a7,"*") == 0))
+			pos[0] = monkeyspot(cmd_a7, 0, ent, ent);
+			pos[1] = monkeyspot(cmd_a8, 1, ent, ent);
+			pos[2] = monkeyspot(cmd_a9, 2, ent, ent);
+			if ((Q_stricmp(cmd_a10,"") == 0)||(Q_stricmp(cmd_a10,"*") == 0))
 			{
 				angle = ent->client->ps.viewangles[YAW];
 			}
 			else
 			{
-				angle = atoi(cmd_a7);
+				angle = atoi(cmd_a10);
 			}
-			teleporter_add(pos, cmd_a3, angle);
-			trap_SendServerCmd(ent->s.number, va("print \"^2Added teleport.\n\""));
+			if (strchr(cmd_a3,';') || strchr(cmd_a4, ';') || strchr(cmd_a3,'\n') || strchr(cmd_a4, '\n'))
+			{
+				trap_SendServerCmd(ent->fixednum, va("print \"^1Illegal chatcommand - cannot contain a ;semicolon;.\n\""));
+				return;
+			}
+			teleporter_add(pos, cmd_a3, angle, atoi(cmd_a5), atoi(cmd_a6), cmd_a4);
+			trap_SendServerCmd(ent->fixednum, va("print \"^2Added chatcommand.\n\""));
 			return;
 		}
 	}
@@ -573,13 +686,13 @@ void cmd_teles(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char *c
 			{
 				if (Q_stricmp(tele->name, cmd_a3) == 0)
 				{
-					trap_SendServerCmd(ent->s.number, va("print \"^1Deleted teleport.\n\""));
+					trap_SendServerCmd(ent->fixednum, va("print \"^1Deleted chatcommand.\n\""));
 					teleporter_delete(i);
 					return;
 				}
 			}
 		}
-		trap_SendServerCmd(ent->s.number, va("print \"^1Unknown teleport.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1Unknown chatcommand.\n\""));
 		return;
 	}
 	else if (Q_stricmp(cmd_a2, "list") == 0)
@@ -591,20 +704,20 @@ void cmd_teles(gentity_t *ent, char *cmd_a2, char *cmd_a3, char *cmd_a4, char *c
 			gteleporter_t	*tele = &g_teleporters[i];
 			if (tele && (tele->active == 1))
 			{
-					trap_SendServerCmd(ent->s.number, va("print \"^5%i^2)^7 %s\n\"", nums, tele->name));
+					trap_SendServerCmd(ent->fixednum, va("print \"^5%i^2)^7 %s\n\"", nums, tele->name));
 					nums += 1;
 			}
 		}
 		if (nums == 1)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1No teleports found.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1No chatcommands found.\n\""));
 		}
 		return;
 	}
 	failed:
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amteles add <name> <x> <y> <z> <yaw> ^2Creates new teleport.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amteles delete <name>                ^2Deletes teleport.\n\""));
-	trap_SendServerCmd(ent->s.number, va("print \"^1/amteles list                         ^2See all teleporters.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchatcommands add <name> [group] [type] [type2] [x] [y] [z] [yaw] ^2Creates a new chatcommand. Type: 0=teleport,1=empower,2=terminator,3=protect,4=kick,5=censor. type2: 0=fulltext, 1=start of text, 2=contained within text. (All options marked in [brackets] will automatically fill themselves in if left blank.) (Assumes teleporter at your current position)\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchatcommands delete <name>                ^2Deletes a chatcommand.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1/amchatcommands list                         ^2See all chatcommands.\n\""));
 	return;
 }
 
@@ -641,37 +754,37 @@ void mcamignore(gentity_t *ent, char *enttarget)
 				if (ent->client->sess.ignoring[i] == '0')
 				{
 					ent->client->sess.ignoring[i] = '0';
-					trap_SendServerCmd(ent->s.number, va("print \"^2No longer ignoring ^7%s^2.\n\"", glorp->client->pers.netname));
+					trap_SendServerCmd(ent->fixednum, va("print \"^2No longer ignoring ^7%s^2.\n\"", glorp->client->pers.netname));
 				}
 				else
 				{
 					ent->client->sess.ignoring[i] = 'A';
-					trap_SendServerCmd(ent->s.number, va("print \"^1Ignoring ^7%s^1.\n\"", glorp->client->pers.netname));
+					trap_SendServerCmd(ent->fixednum, va("print \"^1Ignoring ^7%s^1.\n\"", glorp->client->pers.netname));
 				}
 			}
 		}
 	}
 	else if (targetplayer < 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1Unknown player.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1Unknown player.\n\""));
 	}
 	else
 	{
 		gentity_t	*glorp = &g_entities[targetplayer];
 		if (!glorp || !glorp->inuse || !glorp->client)
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Unknown player.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Unknown player.\n\""));
 			return;
 		}
 		if (ent->client->sess.ignoring[targetplayer] == '0')
 		{
 			ent->client->sess.ignoring[targetplayer] = '0';
-			trap_SendServerCmd(ent->s.number, va("print \"^2No longer ignoring ^7%s^2.\n\"", glorp->client->pers.netname));
+			trap_SendServerCmd(ent->fixednum, va("print \"^2No longer ignoring ^7%s^2.\n\"", glorp->client->pers.netname));
 		}
 		else
 		{
 			ent->client->sess.ignoring[targetplayer] = 'A';
-				trap_SendServerCmd(ent->s.number, va("print \"^1Ignoring ^7%s^1.\n\"", glorp->client->pers.netname));
+				trap_SendServerCmd(ent->fixednum, va("print \"^1Ignoring ^7%s^1.\n\"", glorp->client->pers.netname));
 		}
 	}
 }
@@ -704,7 +817,7 @@ void addtsent(gentity_t *ent, char *usersafe, char *reaction, char *usersafe2)
 	trap_SendServerCmd( ent->s.number, va("print \"^2Spawned as ^5%i^2.\n\"", t->s.number));
 }
 */
-/*
+
 void SP_mc_note( gentity_t *ent, gentity_t *spawner, char *mpublic );
 void mcmc_readnote(gentity_t *ent, char *noteread)
 {
@@ -759,7 +872,7 @@ void mcmc_readnote(gentity_t *ent, char *noteread)
 	}
 	if (((note->s.bolt1 == 0)&&(Q_stricmp(note->mctargetname, ent->client->sess.userlogged) == 0))||(note->s.bolt1 == 1)||(ent->client->sess.ampowers6 & 262144))
 	{
-		trap_SendServerCmd(ent->s.number,va("print \"^2--Note--^7Num^2:^7 %i^2,^7 Owner^2:^7 %s^2,^7 Contents^2:^7 %s^2.\n\"", note->s.number, note->mctargetname, note->mcmessage));
+		trap_SendServerCmd(ent->fixednum,va("print \"^2--Note--^7Num^2:^7 %i^2,^7 Owner^2:^7 %s^2,^7 Contents^2:^7 %s^2.\n\"", note->s.number, note->mctargetname, note->mcmessage));
 		return;
 	}
 	else
@@ -821,12 +934,12 @@ void mcmc_delnote(gentity_t *ent, char *noteread)
 	}
 	if (((Q_stricmp(note->mctargetname, ent->client->sess.userlogged) == 0))||(ent->client->sess.ampowers6 & 262144))
 	{
-		trap_SendServerCmd(ent->s.number,va("print \"^1Removed - ^2Note -^7 Owner^2:^7 %s^2,^7 contents^2:^7 %s^2.\n\"", note->mctargetname, note->mcmessage));
+		trap_SendServerCmd(ent->fixednum,va("print \"^1Removed - ^2Note -^7 Owner^2:^7 %s^2,^7 contents^2:^7 %s^2.\n\"", note->mctargetname, note->mcmessage));
 		G_FreeEntity(note);
-		if (level.thisistpm == 32)
+		/*if (level.thisistpm == 32)
 		{
 			save_all_notes();
-		}
+		}*/
 		return;
 	}
 }
@@ -863,6 +976,7 @@ void	Svcmd_AddNote( gentity_t *ent, int clientNum )
 		//ent->client->ps.viewangles[2] = 0.0f;
 		strcpy(jakes_model->mctargetname, ent->client->sess.userlogged);
 		SP_mc_note(jakes_model, ent, mcpub);
+		jakes_model->custom = 1;
 		VectorCopy(ent->client->ps.origin, origin);
 		G_LogPrintf("AddNote admin command has been executed by %s. (%s) (%s) <%i %i %i>\n", ent->client->pers.netname, model, mcpub,(int)origin[0], (int)origin[1], (int)origin[2]);
 		//VectorClear( origin );
@@ -873,14 +987,15 @@ void	Svcmd_AddNote( gentity_t *ent, int clientNum )
 			VectorCopy(origin, ent->client->ps.origin);
 		}* /
 		ent->client->sess.lastent = jakes_model->s.number;
-		trap_SendServerCmd(ent->s.number, va("print \"^2Added note ^5%i^2.\n\"", jakes_model->s.number));
-		if (level.thisistpm == 32)
+		ent->client->sess.traced = jakes_model->s.number;
+		trap_SendServerCmd(ent->fixednum, va("print \"^2Added note ^5%i^2.\n\"", jakes_model->s.number));
+		/*if (level.thisistpm == 32)
 		{
 			save_all_notes();
-		}
+		}*/
 	}
 }
-*/
+
 
 void fixforundopl(gentity_t *ent)
 {
@@ -904,60 +1019,44 @@ qboolean candocommand(gentity_t *ent, int powerset, int powerz)
 {
 	if (Q_stricmp(ent->client->sess.userlogged,"") == 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1You are not logged in.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1You are not logged in.\n\""));
 		G_Printf("Refused command.\n");
 		return qfalse;
 	}
-	else if (ent->client->sess.adminloggedin == 0)
+
+		switch (powerset)
+		{
+			case 1: if ((level.freepower1) & powerz){return qtrue;}break;
+			case 2: if ((level.freepower2) & powerz){return qtrue;}break;
+			case 3: if ((level.freepower3) & powerz){return qtrue;}break;
+			case 4: if ((level.freepower4) & powerz){return qtrue;}break;
+			case 5: if ((level.freepower5) & powerz){return qtrue;}break;
+			case 6: if ((level.freepower6) & powerz){return qtrue;}break;
+			case 7: if ((level.freepower7) & powerz){return qtrue;}break;
+			default: G_Printf("Error - attempted to check powergroup %i for %i - unknown powergroup", powerset, powerz);
+		}
+
+	if (ent->client->sess.adminloggedin == 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1You are not an admin.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1You are not an admin.\n\""));
 		G_Printf("Refused command.\n");
 		return qfalse;
 	}
 	else
 	{
-		if (level.thisistpm == 32)
-		{
-			int	tpmps1;
-			int	tpmps2;
-			int	tpmps3;
-			int	tpmps4;
-			int	tpmps5;
-			int	tpmps6;
-			tpmps1 = (int)TPM_POWERSET1;
-			tpmps2 = (int)TPM_POWERSET2;
-			tpmps3 = (int)TPM_POWERSET3;
-			tpmps4 = (int)TPM_POWERSET4;
-			tpmps5 = (int)TPM_POWERSET5;
-			tpmps6 = (int)TPM_POWERSET6;
-			switch (powerset)
-			{
-				case 1: if (tpmps1 & powerz)
-					{
-						return qtrue;
-					}
-					break;
-				case 2: if (tpmps2 & powerz){return qtrue;}break;
-				case 3: if (tpmps3 & powerz){return qtrue;}break;
-				case 4: if (tpmps4 & powerz){return qtrue;}break;
-				case 5: if (tpmps5 & powerz){return qtrue;}break;
-				case 6: if (tpmps6 & powerz){return qtrue;}break;
-				default: G_Printf("Error - attempted to check TPM powergroup %i for %i - unknown powergroup", powerset, powerz);
-			}
-		}
 		switch (powerset)
 		{
-			case 1: if (ent->client->sess.ampowers & powerz){return qtrue;}break;
-			case 2: if (ent->client->sess.ampowers2 & powerz){return qtrue;}break;
-			case 3: if (ent->client->sess.ampowers3 & powerz){return qtrue;}break;
-			case 4: if (ent->client->sess.ampowers4 & powerz){return qtrue;}break;
-			case 5: if (ent->client->sess.ampowers5 & powerz){return qtrue;}break;
-			case 6: if (ent->client->sess.ampowers6 & powerz){return qtrue;}break;
-			case 7: if (ent->client->sess.ampowers7 & powerz){return qtrue;}break;
+			case 1: if ((ent->client->sess.ampowers) & powerz){return qtrue;}break;
+			case 2: if ((ent->client->sess.ampowers2) & powerz){return qtrue;}break;
+			case 3: if ((ent->client->sess.ampowers3) & powerz){return qtrue;}break;
+			case 4: if ((ent->client->sess.ampowers4) & powerz){return qtrue;}break;
+			case 5: if ((ent->client->sess.ampowers5) & powerz){return qtrue;}break;
+			case 6: if ((ent->client->sess.ampowers6) & powerz){return qtrue;}break;
+			case 7: if ((ent->client->sess.ampowers7) & powerz){return qtrue;}break;
 			default: G_Printf("Error - attempted to check powergroup %i for %i - unknown powergroup", powerset, powerz);
 		}
 	}
-	trap_SendServerCmd(ent->s.number, va("print \"^1You are not allowed to use this command.\n\""));
+	trap_SendServerCmd(ent->fixednum, va("print \"^1You are not allowed to use this command.\n\""));
 	G_Printf("Refused command.\n");
 	return qfalse;
 }
@@ -1078,7 +1177,7 @@ int monkeyspot(char *spot, int xyorz, gentity_t *playerent, gentity_t *otherent)
 			VectorCopy( viewspot, src );
 			AngleVectors( fangles, vf, NULL, NULL );
 			VectorMA( src, 8192, vf, dest );
-			trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, targ->s.number, MASK_SOLID );
+			trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, targ->s.number, MASK_SHOT );
 			trace.endpos[2] += 25;
 			return trace.endpos[xyz];
 		}
@@ -1096,7 +1195,7 @@ int monkeyspot(char *spot, int xyorz, gentity_t *playerent, gentity_t *otherent)
 		VectorCopy( viewspot, src );
 		AngleVectors( angles, vf, NULL, NULL );
 		VectorMA( src, 8192, vf, dest );
-		trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, playerent->s.number, MASK_SOLID );
+		trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, playerent->s.number, MASK_SHOT );
 		trace.endpos[2] += 25;
 		return trace.endpos[xyz];
 	}
@@ -1109,7 +1208,7 @@ int monkeyspot(char *spot, int xyorz, gentity_t *playerent, gentity_t *otherent)
 		VectorCopy( viewspot, src );
 		AngleVectors( angles2, vf, NULL, NULL );
 		VectorMA( src, 8192, vf, dest );
-		trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, otherent->s.number, MASK_SOLID );
+		trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, otherent->s.number, MASK_SHOT );
 		trace.endpos[2] += 25;
 		return trace.endpos[xyz];
 	}
@@ -1163,13 +1262,15 @@ void mc_addlight(gentity_t *ent)
 		light->s.origin[0] = ent->client->ps.origin[0];
 		light->s.origin[1] = ent->client->ps.origin[1];
 		light->s.origin[2] = ent->client->ps.origin[2];
+		light->custom = 1;
 		SP_mc_light ( light );
 		light->s.constantLight = atoi(par1) + (atoi(par2)<<8) + (atoi(par3)<<16) + (atoi(par4)<<24);
 		strcpy(light->mcmlight,va("%i %i %i %i",atoi(par1), atoi(par2), atoi(par3), atoi(par4)));
+		trap_SendServerCmd(ent->fixednum, va("print \"^2Spawned a light as ^5%i^2.\n\"", light->s.number));
 	}
 	else
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1/ammap_addlight <red> <green> <blue> <intensity>\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1/ammap_addlight <red> <green> <blue> <intensity>\n\""));
 		return;
 	}
 }
@@ -1265,7 +1366,7 @@ void channelkick(gentity_t *ent, int group, char *player)
 			i = dsp_adminTarget(ent, player, ent->s.number);
 			if (i < 0)
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^3Invalid player.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^3Invalid player.\n\""));
 				return;
 			}
 			if (Q_stricmp(ent->client->sess.channel_01name,other->client->sess.channel_01name) == 0)
@@ -1288,7 +1389,7 @@ void channelkick(gentity_t *ent, int group, char *player)
 			}
 			else
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^7%s^3 is not in your group.\n\"", other->client->pers.netname));
+				trap_SendServerCmd(ent->fixednum, va("print \"^7%s^3 is not in your group.\n\"", other->client->pers.netname));
 				return;
 			}
 			channelprint(ent->client->sess.channel_01name,va("^5[%s]^7%s^5 has been kicked from the channel.\n", ent->client->sess.channel_01name, other->client->pers.netname));
@@ -1301,7 +1402,7 @@ void channelkick(gentity_t *ent, int group, char *player)
 			i = dsp_adminTarget(ent, player, ent->s.number);
 			if (i < 0)
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^3Invalid player.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^3Invalid player.\n\""));
 				return;
 			}
 			if (Q_stricmp(ent->client->sess.channel_02name,other->client->sess.channel_01name) == 0)
@@ -1324,7 +1425,7 @@ void channelkick(gentity_t *ent, int group, char *player)
 			}
 			else
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^7%s^3 is not in your group.\n\"", other->client->pers.netname));
+				trap_SendServerCmd(ent->fixednum, va("print \"^7%s^3 is not in your group.\n\"", other->client->pers.netname));
 				return;
 			}
 			channelprint(ent->client->sess.channel_01name,va("^5[%s]^7%s^5 has been kicked from the channel.\n", ent->client->sess.channel_02name, other->client->pers.netname));
@@ -1337,7 +1438,7 @@ void channelkick(gentity_t *ent, int group, char *player)
 			i = dsp_adminTarget(ent, player, ent->s.number);
 			if (i < 0)
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^3Invalid player.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^3Invalid player.\n\""));
 				return;
 			}
 			if (Q_stricmp(ent->client->sess.channel_03name,other->client->sess.channel_01name) == 0)
@@ -1360,7 +1461,7 @@ void channelkick(gentity_t *ent, int group, char *player)
 			}
 			else
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^7%s^3 is not in your group.\n\"", other->client->pers.netname));
+				trap_SendServerCmd(ent->fixednum, va("print \"^7%s^3 is not in your group.\n\"", other->client->pers.netname));
 				return;
 			}
 			channelprint(ent->client->sess.channel_01name,va("^5[%s]^7%s^5 has been kicked from the channel.\n", ent->client->sess.channel_03name, other->client->pers.netname));
@@ -1371,7 +1472,7 @@ void listchannelmembers(gentity_t *ent, char *channel)
 {
 	int i;
 	gentity_t *flent;
-	trap_SendServerCmd(ent->s.number, va("print \"^3Channel: ^5%s^3, password: ^5%s^3.\n\"", ent->client->sess.channel_01name, ent->client->sess.channel_01pass));
+	trap_SendServerCmd(ent->fixednum, va("print \"^3Channel: ^5%s^3, password: ^5%s^3.\n\"", ent->client->sess.channel_01name, ent->client->sess.channel_01pass));
 	for (i = 0; i < 32; i+=1)
 	{
 		flent = &g_entities[i];
@@ -1397,15 +1498,15 @@ void listchannels(gentity_t *ent)
 {
 	if (ent->client->sess.channel_01rank > 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^31 - %s^3(%i)\n\"", ent->client->sess.channel_01name, ent->client->sess.channel_01rank));
+		trap_SendServerCmd(ent->fixednum, va("print \"^31 - %s^3(%i)\n\"", ent->client->sess.channel_01name, ent->client->sess.channel_01rank));
 	}
 	if (ent->client->sess.channel_02rank > 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^32 - %s^3(%i)\n\"", ent->client->sess.channel_02name, ent->client->sess.channel_02rank));
+		trap_SendServerCmd(ent->fixednum, va("print \"^32 - %s^3(%i)\n\"", ent->client->sess.channel_02name, ent->client->sess.channel_02rank));
 	}
 	if (ent->client->sess.channel_03rank > 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^33 - %s^3(%i)\n\"", ent->client->sess.channel_03name, ent->client->sess.channel_03rank));
+		trap_SendServerCmd(ent->fixednum, va("print \"^33 - %s^3(%i)\n\"", ent->client->sess.channel_03name, ent->client->sess.channel_03rank));
 	}
 }
 void createchannel(gentity_t *ent, char *channelname, char *channelpass)
@@ -1414,17 +1515,17 @@ void createchannel(gentity_t *ent, char *channelname, char *channelpass)
 	gentity_t *flent;
 	if ((Q_stricmp(ent->client->sess.channel_01name,"") != 0)&&(Q_stricmp(ent->client->sess.channel_02name,"") != 0)&&(Q_stricmp(ent->client->sess.channel_03name,"") != 0))
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^3You are in 3 channels already. Please leave 1 channel before creating a new one.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^3You are in 3 channels already. Please leave 1 channel before creating a new one.\n\""));
 		return;
 	}
 	if (Q_stricmp(channelname,"") == 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^3Please specifiy a channel name.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^3Please specifiy a channel name.\n\""));
 		return;
 	}
 	if (Q_stricmp(channelpass,"") == 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^3Please specifiy a channel pass.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^3Please specifiy a channel pass.\n\""));
 		return;
 	}
 	for (i = 0; i < 32; i+=1)
@@ -1444,7 +1545,7 @@ void createchannel(gentity_t *ent, char *channelname, char *channelpass)
 		strcpy(ent->client->sess.channel_01name,channelname);
 		strcpy(ent->client->sess.channel_01pass,channelpass);
 		ent->client->sess.channel_01rank = 5;
-		trap_SendServerCmd(ent->s.number, va("print \"^3Channel 1 successfully created.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^3Channel 1 successfully created.\n\""));
 		return;
 	}
 	if (Q_stricmp(ent->client->sess.channel_02name,"") == 0)
@@ -1452,7 +1553,7 @@ void createchannel(gentity_t *ent, char *channelname, char *channelpass)
 		strcpy(ent->client->sess.channel_02name,channelname);
 		strcpy(ent->client->sess.channel_02pass,channelpass);
 		ent->client->sess.channel_02rank = 5;
-		trap_SendServerCmd(ent->s.number, va("print \"^3Channel 2 successfully created.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^3Channel 2 successfully created.\n\""));
 		return;
 	}
 	if (Q_stricmp(ent->client->sess.channel_03name,"") == 0)
@@ -1460,7 +1561,7 @@ void createchannel(gentity_t *ent, char *channelname, char *channelpass)
 		strcpy(ent->client->sess.channel_03name,channelname);
 		strcpy(ent->client->sess.channel_03pass,channelpass);
 		ent->client->sess.channel_03rank = 5;
-		trap_SendServerCmd(ent->s.number, va("print \"^3Channel 3 successfully created.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^3Channel 3 successfully created.\n\""));
 		return;
 	}
 }
@@ -1472,12 +1573,12 @@ void leavechannel(gentity_t *ent, int channel)
 	switch (channel)
 	{
 		case 0:
-			trap_SendServerCmd(ent->s.number, va("print \"^3Please specify a channel number.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^3Please specify a channel number.\n\""));
 			break;
 		case 1:
 			if (Q_stricmp(ent->client->sess.channel_01name,"") != 0)
 			{
-				//trap_SendServerCmd(ent->s.number, va("print \"^3Left channel 1.\n\""));
+				//trap_SendServerCmd(ent->fixednum, va("print \"^3Left channel 1.\n\""));
 				strcpy(oldname,ent->client->sess.channel_01name);
 				channelprint(ent->client->sess.channel_01name,va("^5[%s^5]^7%s^5 has left the channel.\n", oldname, ent->client->pers.netname ));
 				strcpy(ent->client->sess.channel_01name,"");
@@ -1504,7 +1605,7 @@ void leavechannel(gentity_t *ent, int channel)
 			}
 			else
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^3You do not have a channel 1.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^3You do not have a channel 1.\n\""));
 			}
 			break;
 		case 2:
@@ -1532,11 +1633,11 @@ void leavechannel(gentity_t *ent, int channel)
 			trap_SendServerCmd( flent-g_entities, va("chat \"^5[%s^5]^7%s^5 has left the channel.\"", oldname, ent->client->pers.netname ));
 		}
 	}*/
-				//trap_SendServerCmd(ent->s.number, va("print \"^3Left channel 2.\n\""));
+				//trap_SendServerCmd(ent->fixednum, va("print \"^3Left channel 2.\n\""));
 			}
 			else
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^3You do not have a channel 2.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^3You do not have a channel 2.\n\""));
 			}
 			break;
 		case 3:
@@ -1564,15 +1665,15 @@ void leavechannel(gentity_t *ent, int channel)
 			trap_SendServerCmd( flent-g_entities, va("chat \"^5[%s^5]^7%s^5 has left the channel.\"", oldname, ent->client->pers.netname ));
 		}
 	}*/
-				//trap_SendServerCmd(ent->s.number, va("print \"^3Left channel 3.\n\""));
+				//trap_SendServerCmd(ent->fixednum, va("print \"^3Left channel 3.\n\""));
 			}
 			else
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^3You do not have a channel 3.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^3You do not have a channel 3.\n\""));
 			}
 			break;
 		default:
-			trap_SendServerCmd(ent->s.number, va("print \"^3Channel must be between 1 and 3.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^3Channel must be between 1 and 3.\n\""));
 			break;
 	}
 }
@@ -1599,17 +1700,17 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 				found = 1;
 				if (Q_stricmp(ent->client->sess.channel_01name,flent->client->sess.channel_01name) == 0)
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3You are already in this group.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3You are already in this group.\n\""));
 					return;
 				}
 				if (Q_stricmp(ent->client->sess.channel_02name,flent->client->sess.channel_01name) == 0)
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3You are already in this group.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3You are already in this group.\n\""));
 					return;
 				}
 				if (Q_stricmp(ent->client->sess.channel_03name,flent->client->sess.channel_01name) == 0)
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3You are already in this group.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3You are already in this group.\n\""));
 					return;
 				}
 				if (Q_stricmp(flent->client->sess.channel_01pass,grouppass) == 0)
@@ -1639,7 +1740,7 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 					}
 					else
 					{
-						trap_SendServerCmd(ent->s.number,va("print \"^3You are in 3 channels. This is the channel limit. Please leave 1 channel to join a new one.\n\""));
+						trap_SendServerCmd(ent->fixednum,va("print \"^3You are in 3 channels. This is the channel limit. Please leave 1 channel to join a new one.\n\""));
 						return;
 					}
 			channelprint(ent->client->sess.channel_01name,va("^5[%s^5]^7%s^5 has joined the channel.\n", oldname, ent->client->pers.netname ));
@@ -1660,12 +1761,12 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 			trap_SendServerCmd( flent2-g_entities, va("chat \"^5[%s^5]^7%s^5 has joined the channel.\"", group, ent->client->pers.netname ));
 		}
 	}*/
-					//trap_SendServerCmd(ent->s.number,va("print \"^3Joined group ^5%s^3.\n\"",flent->client->sess.channel_01name));
+					//trap_SendServerCmd(ent->fixednum,va("print \"^3Joined group ^5%s^3.\n\"",flent->client->sess.channel_01name));
 					return;
 				}
 				else
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3Incorrect password.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3Incorrect password.\n\""));
 					return;
 				}
 			}
@@ -1685,17 +1786,17 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 				found = 1;
 				if (Q_stricmp(ent->client->sess.channel_01name,flent->client->sess.channel_01name) == 0)
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3You are already in this group.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3You are already in this group.\n\""));
 					return;
 				}
 				if (Q_stricmp(ent->client->sess.channel_02name,flent->client->sess.channel_01name) == 0)
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3You are already in this group.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3You are already in this group.\n\""));
 					return;
 				}
 				if (Q_stricmp(ent->client->sess.channel_03name,flent->client->sess.channel_01name) == 0)
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3You are already in this group.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3You are already in this group.\n\""));
 					return;
 				}
 				if (Q_stricmp(flent->client->sess.channel_02pass,grouppass) == 0)
@@ -1725,7 +1826,7 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 					}
 					else
 					{
-						trap_SendServerCmd(ent->s.number,va("print \"^3You are in 3 channels. This is the channel limit. Please leave 1 channel to join a new one.\n\""));
+						trap_SendServerCmd(ent->fixednum,va("print \"^3You are in 3 channels. This is the channel limit. Please leave 1 channel to join a new one.\n\""));
 						return;
 					}
 			channelprint(ent->client->sess.channel_02name,va("^5[%s^5]^7%s^5 has joined the channel.\n", oldname, ent->client->pers.netname ));
@@ -1746,12 +1847,12 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 			trap_SendServerCmd( flent2-g_entities, va("chat \"^5[%s^5]^7%s^5 has joined the channel.\"", group, ent->client->pers.netname ));
 		}
 	}*/
-					//trap_SendServerCmd(ent->s.number,va("print \"^3Joined group ^5%s^3.\n\"",flent->client->sess.channel_02name));
+					//trap_SendServerCmd(ent->fixednum,va("print \"^3Joined group ^5%s^3.\n\"",flent->client->sess.channel_02name));
 					return;
 				}
 				else
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3Incorrect password.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3Incorrect password.\n\""));
 					return;
 				}
 			}
@@ -1771,17 +1872,17 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 				found = 1;
 				if (Q_stricmp(ent->client->sess.channel_01name,flent->client->sess.channel_03name) == 0)
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3You are already in this group.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3You are already in this group.\n\""));
 					return;
 				}
 				if (Q_stricmp(ent->client->sess.channel_02name,flent->client->sess.channel_03name) == 0)
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3You are already in this group.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3You are already in this group.\n\""));
 					return;
 				}
 				if (Q_stricmp(ent->client->sess.channel_03name,flent->client->sess.channel_03name) == 0)
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3You are already in this group.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3You are already in this group.\n\""));
 					return;
 				}
 				if (Q_stricmp(flent->client->sess.channel_03pass,grouppass) == 0)
@@ -1811,7 +1912,7 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 					}
 					else
 					{
-						trap_SendServerCmd(ent->s.number,va("print \"^3You are in 3 channels. This is the channel limit. Please leave 1 channel to join a new one.\n\""));
+						trap_SendServerCmd(ent->fixednum,va("print \"^3You are in 3 channels. This is the channel limit. Please leave 1 channel to join a new one.\n\""));
 						return;
 					}
 			channelprint(ent->client->sess.channel_03name,va("^5[%s^5]^7%s^5 has joined the channel.\n", oldname, ent->client->pers.netname ));
@@ -1832,12 +1933,12 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 			trap_SendServerCmd( flent2-g_entities, va("chat \"^5[%s^5]^7%s^5 has joined the channel.\"", group, ent->client->pers.netname ));
 		}
 	}*/
-					//trap_SendServerCmd(ent->s.number,va("print \"^3Joined group ^5%s^3.\n\"",flent->client->sess.channel_01name));
+					//trap_SendServerCmd(ent->fixednum,va("print \"^3Joined group ^5%s^3.\n\"",flent->client->sess.channel_01name));
 					return;
 				}
 				else
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^3Incorrect password.\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^3Incorrect password.\n\""));
 					return;
 				}
 			}
@@ -1845,7 +1946,7 @@ void joinchannel(gentity_t *ent, char *group, char *grouppass)
 	}
 	if (found == 0)
 	{
-		trap_SendServerCmd(ent->s.number,va("print \"^3Unknown channel.\n\""));
+		trap_SendServerCmd(ent->fixednum,va("print \"^3Unknown channel.\n\""));
 	}
 }
 int dsp_isEmpowered(int clientNum)
@@ -2041,6 +2142,56 @@ void	setnoteleport(gentity_t *ent)
 		trap_SendServerCmd( ent->s.number, va("print \"^3Noteleport ^1deactivated^3. Admins can now teleport you.\n\"" ) );
 	}
 }
+void	setAFKOff(gentity_t *ent)
+{
+	ent->client->sess.ticksAFK = 0;
+		ent->client->sess.xAFK = (int)ent->client->ps.origin[0];
+	if (ent->client->sess.isAFK == 1)
+	{
+		char	userinfo[MAX_INFO_STRING];
+	G_Printf("Client %i un-AFK'd\n", ent->s.number);
+		toggolo = 1;
+		ent->client->sess.isAFK = 0;
+			trap_GetUserinfo(ent->s.number, userinfo, MAX_INFO_STRING);
+			strcpy(ent->client->pers.netname, ent->client->sess.rrname);
+			Info_SetValueForKey(userinfo, "name", ent->client->sess.rrname);
+			trap_SetUserinfo(ent->s.number, userinfo);
+			ClientUserinfoChanged( ent->s.number );
+		Q_strncpyz(ent->client->sess.rrname, "", sizeof(ent->client->sess.rrname));
+		trap_SendServerCmd( -1, va("print \"^7#%s^7 is no longer AFK.\n\"", ent->client->pers.netname ) );
+		toggolo = 0;
+	}
+}
+void	setAFKOn(gentity_t *ent)
+{
+	if (ent->client->sess.isAFK == 0)
+	{
+		char	userinfo[MAX_INFO_STRING];
+		char	*newName = va("^7[AFK]%s", ent->client->pers.netname);
+		toggolo = 1;
+		trap_SendServerCmd( -1, va("print \"^7#%s^7 is now AFK.\n\"", ent->client->pers.netname ) );
+		Q_strncpyz(ent->client->sess.rrname, ent->client->pers.netname, sizeof(ent->client->sess.rrname));
+			trap_GetUserinfo(ent->s.number, userinfo, MAX_INFO_STRING);
+			strcpy(ent->client->pers.netname, newName);
+			Info_SetValueForKey(userinfo, "name", newName);
+			trap_SetUserinfo(ent->s.number, userinfo);
+			ClientUserinfoChanged( ent->s.number );
+		ent->client->sess.isAFK = 1;
+		ent->client->sess.xAFK = (int)ent->client->ps.origin[0];
+		toggolo = 0;
+	}
+}
+void	setAFK(gentity_t *ent)
+{
+	if (ent->client->sess.isAFK == 0)
+	{
+		setAFKOn(ent);
+	}
+	else
+	{
+		setAFKOff(ent);
+	}
+}
 /*
 =================
 svcmd_addmcbutton
@@ -2057,7 +2208,7 @@ void	svcmd_addmcbutton2( gentity_t *ent ) {
 	char origin_number2[MAX_STRING_CHARS];
 	char origin_number3[MAX_STRING_CHARS];
 	if ( trap_Argc() != 7 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmcbutton <cost> <target> <message> <x> <y> <z>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmcbutton <cost> <target> <message> <x> <y> <z>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mccount, sizeof( mccount ) );
@@ -2091,7 +2242,7 @@ void	svcmd_addmcspeed2( gentity_t *ent ) {
 	char origin_number2[MAX_STRING_CHARS];
 	char origin_number3[MAX_STRING_CHARS];
 	if ( trap_Argc() != 3 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmcspeed <newspeed> <targetname>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmcspeed <newspeed> <targetname>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mccount, sizeof( mccount ) );
@@ -2117,7 +2268,7 @@ void	svcmd_addmcgravity2( gentity_t *ent ) {
 	char   mccount[MAX_STRING_CHARS];
 	char   mctargetname[MAX_STRING_CHARS];
 	if ( trap_Argc() != 3 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmcgravity <newgravity> <targetname>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmcgravity <newgravity> <targetname>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mccount, sizeof( mccount ) );
@@ -2143,7 +2294,7 @@ void	svcmd_addmccredits2( gentity_t *ent ) {
 	char   mccount[MAX_STRING_CHARS];
 	char   mctargetname[MAX_STRING_CHARS];
 	if ( trap_Argc() != 3 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmccredits <newcredits> <targetname>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmccredits <newcredits> <targetname>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mccount, sizeof( mccount ) );
@@ -2169,7 +2320,7 @@ void	svcmd_addmcchat2( gentity_t *ent ) {
 	char   mcmessage[MAX_STRING_CHARS];
 	char   mctargetname[MAX_STRING_CHARS];
 	if ( trap_Argc() != 3 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmcchat <message> <targetname>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmcchat <message> <targetname>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mcmessage, sizeof( mcmessage ) );
@@ -2203,7 +2354,7 @@ void	svcmd_addmcbutton3( gentity_t *ent ) {
 	char origin_number2[MAX_STRING_CHARS];
 	char origin_number3[MAX_STRING_CHARS];
 	if ( trap_Argc() != 7 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmcbutton <cost> <target> <message> <x> <y> <z>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmcbutton <cost> <target> <message> <x> <y> <z>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mccount, sizeof( mccount ) );
@@ -2251,7 +2402,7 @@ void	svcmd_addmcspeed3( gentity_t *ent ) {
 	char origin_number2[MAX_STRING_CHARS];
 	char origin_number3[MAX_STRING_CHARS];
 	if ( trap_Argc() != 3 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmcspeed <newspeed> <targetname>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmcspeed <newspeed> <targetname>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mccount, sizeof( mccount ) );
@@ -2291,7 +2442,7 @@ void	svcmd_addmcgravity3( gentity_t *ent ) {
 	char   mccount[MAX_STRING_CHARS];
 	char   mctargetname[MAX_STRING_CHARS];
 	if ( trap_Argc() != 3 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmcgravity <newgravity> <targetname>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmcgravity <newgravity> <targetname>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mccount, sizeof( mccount ) );
@@ -2331,7 +2482,7 @@ void	svcmd_addmccredits3( gentity_t *ent ) {
 	char   mccount[MAX_STRING_CHARS];
 	char   mctargetname[MAX_STRING_CHARS];
 	if ( trap_Argc() != 3 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmccredits <newcredits> <targetname>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmccredits <newcredits> <targetname>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mccount, sizeof( mccount ) );
@@ -2371,7 +2522,7 @@ void	svcmd_addmcchat3( gentity_t *ent ) {
 	char   mcmessage[MAX_STRING_CHARS];
 	char   mctargetname[MAX_STRING_CHARS];
 	if ( trap_Argc() != 3 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /addmcchat <message> <targetname>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/addmcchat <message> <targetname>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, mcmessage, sizeof( mcmessage ) );
@@ -2422,7 +2573,7 @@ void mcspawnent(gentity_t *ent)
 	fixorg = 0;
 	if (trap_Argc() < 5)
 	{
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /ammap_place <classname> <x> <y> <z> <spawnstring>\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/ammap_place <classname> <x> <y> <z> <spawnstring>\n\"" ) );
 		return;
 	}
 	stringclear(iBuffer,MAX_STRING_CHARS-2);
@@ -2451,6 +2602,7 @@ void mcspawnent(gentity_t *ent)
 	newent->s.origin[0] = monkeyspot(iXi, 0, ent, ent);//atoi(iXi);
 	newent->s.origin[1] = monkeyspot(iYi, 1, ent, ent);//atoi(iYi);
 	newent->s.origin[2] = monkeyspot(iZi, 2, ent, ent);//atoi(iZi);
+	VectorCopy(ent->s.origin, ent->origOrigin);
 	newent->s.angles[YAW] = atoi(iA1i);
 	newent->s.angles[PITCH] = atoi(iA2i);
 	newent->s.angles[ROLL] = atoi(iA2i);
@@ -2463,7 +2615,17 @@ void mcspawnent(gentity_t *ent)
 	trap_LinkEntity(newent);
 	Com_sprintf( iBuffer, sizeof(iBuffer), "");
 	//Com_sprintf( iBuffer, sizeof(iBuffer), "Spawned new %s : %i", type, newent->s.number);
-
+	iStringPos = 0;
+	iStringPart = 0;
+	i = 0;
+	c = 0;
+	o = 0;
+	g = 0;
+	newent->custom = 1;
+	if (ent->s.number > 31)
+	{
+		newent->issaved = 1;
+	}
 	for ( iStringPos = 0; iStringPos <= strlen (spfstring); iStringPos++ )
 	{
 		if ((spfstring[iStringPos] == ','))
@@ -2568,12 +2730,12 @@ void	mcspawnent3( gentity_t *ent ) {
 	char			arg9[MAX_STRING_CHARS];
 	vmCvar_t		mapname;
 	fileHandle_t	f;
-	char		line[512];
+	char		line[2048];
 	int		i;
 	int		len;
 	if (trap_Argc() < 5)
 	{
-		trap_SendServerCmd( ent-g_entities, va("print \"^7Usage: /ammap_place2 <classname> <x> <y> <z> <spawnstring>^7\n\"" ) );
+		trap_SendServerCmd( ent-g_entities, va("print \"^7^1/ammap_place2 <classname> <x> <y> <z> <spawnstring>^7\n\"" ) );
 		return;
 	}
 	trap_Argv( 1, arg0, sizeof( arg0 ) );
@@ -2596,12 +2758,10 @@ void	mcspawnent3( gentity_t *ent ) {
 	if (Q_stricmp( arg7, "" ) == 0)
 	{
 		Com_sprintf( line, sizeof(line), "addanyent \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"\n", arg0, arg1, arg2, arg3, arg4, arg5, arg6);
-		G_Printf(va("Mapedits: mcbutton spawned permanently with parameters of: \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"", arg0, arg1, arg2, arg3, arg4, arg5, arg6));
 	}
 	else
 	{
 		Com_sprintf( line, sizeof(line), "addanyent \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"\n", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
-		G_Printf(va("Mapedits: mcbutton spawned permanently with parameters of: \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9));
 	}
 	len = strlen(line);
 	for (i = 0;i < len;i += 1)
@@ -2987,6 +3147,14 @@ int find_ent(gentity_t *ent, char *entname)
 	{
 		return -12;
 	}
+	else if (Q_stricmp(entname,"all") == 0)
+	{
+		return -42;
+	}
+	else if (Q_stricmp(entname,"custom") == 0)
+	{
+		return -43;
+	}
 	else if ((strstr(entname,"realentnum"))&&(ent->client->sess.adminloggedin > 0)&&(ent->client->sess.ampowers7 & 256))
 	{
 		return atoi(entname);
@@ -3140,6 +3308,10 @@ int find_ent(gentity_t *ent, char *entname)
 	{
 		return -14;
 	}
+	if (entnum < 32)
+	{
+		return -14;
+	}
 	entfinal = &g_entities[entnum];
 	if (entfinal->inuse)
 	{
@@ -3174,22 +3346,22 @@ void mc_pay(gentity_t *ent)
 	trap_Argv( 1, par1, sizeof( par1 ) );
 	if (ent->client->sess.credits <= 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1You do not have any credits.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1You do not have any credits.\n\""));
 		return;
 	}
 	if (atoi(par1) == 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1You can not give someone nothing.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1You can not give someone nothing.\n\""));
 		return;
 	}
 	if (atoi(par1) < 0)
 	{
-		//trap_SendServerCmd(ent->s.number, va("print \"^1Trying to give negative credits, really? I prefer positive.\n\""));
+		//trap_SendServerCmd(ent->fixednum, va("print \"^1Trying to give negative credits, really? I prefer positive.\n\""));
 		strcpy(par1,va("%i",abs(atoi(par1))));
 	}
 	if (abs(atoi(par1)) > ent->client->sess.credits)
 	{
-		//trap_SendServerCmd(ent->s.number, va("print \"^1All yer credits r belong to him!\n\""));
+		//trap_SendServerCmd(ent->fixednum, va("print \"^1All yer credits r belong to him!\n\""));
 		strcpy(par1,va("%i",ent->client->sess.credits));
 	}
 		VectorCopy(ent->client->ps.origin, viewspot);
@@ -3200,13 +3372,13 @@ void mc_pay(gentity_t *ent)
 		trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, ent->s.number, MASK_OPAQUE|CONTENTS_SOLID|CONTENTS_BODY|CONTENTS_ITEM|CONTENTS_CORPSE );
 		if (trace.entityNum == ENTITYNUM_WORLD )
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1Not targeting an entity.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1Not targeting an entity.\n\""));
 			return;
 		}
 		entfinal = &g_entities[trace.entityNum];
 		if ( trace.fraction == 1.0f || trace.entityNum < 0 || ((!entfinal->payable)&&(!entfinal->client)))
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1The targeted entity is not payable.\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1The targeted entity is not payable.\n\""));
 			return;
 		}
 		//target = &g_entities[trace.entityNum];
@@ -3221,16 +3393,16 @@ void mc_pay(gentity_t *ent)
 					{
 						if (entfinal->r.svFlags & SVF_BOT)
 						{
-							trap_SendServerCmd(ent->s.number, va("print \"^1Cannot pay a bot.\n\""));
+							trap_SendServerCmd(ent->fixednum, va("print \"^1Cannot pay a bot.\n\""));
 							return;
 						}
 						if (Q_stricmp(entfinal->client->sess.userlogged,"") == 0)
 						{
-							trap_SendServerCmd(ent->s.number, va("print \"^1Targeted player is not logged in.\n\""));
+							trap_SendServerCmd(ent->fixednum, va("print \"^1Targeted player is not logged in.\n\""));
 							return;
 						}
 						mc_addcredits(entfinal, atoi(par1));
-						trap_SendServerCmd(ent->s.number, va("print \"^3You have payed ^7%s^3 ^5%i^3 credits.\n\"", entfinal->client->pers.netname, atoi(par1)));
+						trap_SendServerCmd(ent->fixednum, va("print \"^3You have payed ^7%s^3 ^5%i^3 credits.\n\"", entfinal->client->pers.netname, atoi(par1)));
 						trap_SendServerCmd(entfinal->s.number, va("print \"^7%s^3 has given you ^5%i^3 credits.\n\"", ent->client->pers.netname, atoi(par1)));
 						mc_addcredits(ent, -atoi(par1));
 						return;
@@ -3450,7 +3622,7 @@ void	Svcmd_EntityList_nearby(gentity_t *ent) {
 	}
 	if (i_entcount == 0)
 	{
-	    trap_SendServerCmd(ent->s.number, va("print \"^3No ents found.\n\""));
+	    trap_SendServerCmd(ent->fixednum, va("print \"^3No ents found.\n\""));
 	}
 		//G_Printf("Out of ents\n");
 }
@@ -3691,32 +3863,7 @@ void DS_doKiss( gentity_t *ent )
 	if (twimod_allowemotes.integer == 0 && !ent->client->sess.freeze)
 	{
 		return;
-	}/*
-	if (twimod_emotebreak.integer == 0)
-	{
-		if ((ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != BOTH_TALKCOMM1 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != 655 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != BOTH_BARTENDER_COWERLOOP &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != 1 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != 1049 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != BOTH_SIT2 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != BOTH_SIT1 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != 708 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != TORSO_SURRENDER_START &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != 641 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != BOTH_CONSOLE1 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != BOTH_CONSOLE2 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != BOTH_STAND4 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != 715 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != 804 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != BOTH_STAND1 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != BOTH_STAND2 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != 595 &&
-			(ent->client->ps.legsAnim&~ANIM_TOGGLEBIT) != 645)
-		{
-			return;
-		}
-	}*/
+	}
 
 	AngleVectors(ent->client->ps.viewangles, fPos, 0, 0);
 
@@ -3773,6 +3920,82 @@ void DS_doKiss( gentity_t *ent )
 	}
 }
 
+void DS_doPunch( gentity_t *ent )
+{
+	trace_t tr;
+	vec3_t fPos;
+	int	quickrand;
+
+	if (ent->client->sess.punish
+		|| ent->client->sess.sleep
+		//|| ent->client->ps.forceRestricted
+		//|| ent->client->ps.duelInProgress
+		|| BG_InRoll(&ent->client->ps, ent->client->ps.legsAnim)
+		//|| ent->client->ps.saberInFlight
+		)
+		return;
+
+	if (twimod_allowemotes.integer == 0 && !ent->client->sess.freeze)
+	{
+		return;
+	}
+
+	AngleVectors(ent->client->ps.viewangles, fPos, 0, 0);
+
+	fPos[0] = ent->client->ps.origin[0] + fPos[0]*40;
+	fPos[1] = ent->client->ps.origin[1] + fPos[1]*40;
+	fPos[2] = (ent->client->ps.origin[2] + ent->client->ps.viewheight) + fPos[2]*40;
+
+	trap_Trace(&tr, ent->client->ps.origin, 0, 0, fPos, ent->s.number, ent->clipmask);
+
+	if (tr.entityNum < MAX_CLIENTS && tr.entityNum != ent->s.number)
+	{
+		gentity_t *other = &g_entities[tr.entityNum];
+
+		if (other && other->inuse && other->client && !other->client->ps.duelInProgress)
+		{
+			vec3_t entDir;
+			vec3_t otherDir;
+			vec3_t entAngles;
+			vec3_t otherAngles;
+
+	if (ent->client->sess.punish
+		|| ent->client->sess.sleep
+		//|| ent->client->ps.forceRestricted
+		//|| ent->client->ps.duelInProgress
+		|| BG_InRoll(&ent->client->ps, ent->client->ps.legsAnim)
+		//|| ent->client->ps.saberInFlight
+		)
+				return;
+
+			if (ent->client->ps.weapon == WP_SABER && !ent->client->ps.saberHolstered) Cmd_ToggleSaber_f(ent);
+			if (other->client->ps.weapon == WP_SABER && !other->client->ps.saberHolstered) Cmd_ToggleSaber_f(other);
+
+			/*if ((ent->client->ps.weapon == WP_SABER && other->client->ps.weapon == WP_SABER) && (ent->client->ps.saberHolstered && other->client->ps.saberHolstered))
+			{*/
+				quickrand = irand(1, 3);
+				VectorSubtract( other->client->ps.origin, ent->client->ps.origin, otherDir );
+				VectorCopy( ent->client->ps.viewangles, entAngles );
+				entAngles[YAW] = vectoyaw( otherDir );
+				SetClientViewAngle( ent, entAngles );
+				StandardSetBodyAnim(ent, (quickrand == 2)?130:131, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_HOLDLESS);
+				ent->client->ps.saberMove = LS_NONE;
+				ent->client->ps.saberBlocked = 0;
+				ent->client->ps.saberBlocking = 0;
+				VectorSubtract( ent->client->ps.origin, other->client->ps.origin, entDir );
+				G_Damage( other, ent, ent, ent->client->ps.viewangles, ent->client->ps.viewangles, (quickrand==2)?1:2, DAMAGE_NO_ARMOR | DAMAGE_NO_KNOCKBACK, MOD_MELEE );
+				VectorCopy( other->client->ps.viewangles, otherAngles );
+				otherAngles[YAW] = vectoyaw( entDir );
+				SetClientViewAngle( other, otherAngles );
+				StandardSetBodyAnim(other, (quickrand == 2)?98:545, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_HOLDLESS);
+				other->client->ps.saberMove = LS_NONE;
+				other->client->ps.saberBlocked = 0;
+				other->client->ps.saberBlocking = 0;
+			//}
+		}
+	}
+}
+
 
 void shadder(gentity_t *ent, int clientNum)
 {
@@ -3789,15 +4012,11 @@ void shadder(gentity_t *ent, int clientNum)
 	  trap_Argv( 2, newshader, sizeof( newshader ) );
 
 
-	  if (trap_Argc() == 1)
-	  	{
-	  		trap_SendServerCmd( clientNum, va("print \"^1/ammap_shader2 <oldshader> <newshader>\"" ) );
-	  	}
 	if( strchr( oldshader, ';' ) || strchr( newshader, ';' ) || strchr( oldshader, '\n' ) || strchr( newshader, '\n' ) ) {
 		trap_SendServerCmd( clientNum, va("print \"^1You should probably be banned for that.\n\""));
 		return;
 	}
-	  else if (trap_Argc() == 3)
+	  if (trap_Argc() == 3)
 	  	{
     AddRemap(oldshader, newshader, hornstinkt);
     trap_SetConfigstring(CS_SHADERSTATE, BuildShaderStateConfig());
@@ -3841,6 +4060,10 @@ void shadder(gentity_t *ent, int clientNum)
 				trap_FS_FCloseFile( f );
 
   		}
+		else
+	  	{
+	  		trap_SendServerCmd( clientNum, va("print \"^1/ammap_shader2 <oldshader> <newshader>\"" ) );
+	  	}
 
 }
 void shadder2(gentity_t *ent, int clientNum)
@@ -3852,14 +4075,14 @@ void shadder2(gentity_t *ent, int clientNum)
 	float hornstinkt = level.time * 0.001;
 	trap_Argv( 1, oldshader, sizeof( oldshader ) );
 	trap_Argv( 2, newshader, sizeof( newshader ) );
-	if (trap_Argc() == 1)
-	{
-	  	trap_SendServerCmd( clientNum, va("print \"^1/ammap_shader <oldshader> <newshader>\n\"" ) );
-	}
-	else if (trap_Argc() == 3)
+	if (trap_Argc() == 3)
 	{
     		AddRemap(oldshader, newshader, hornstinkt);
     		trap_SetConfigstring(CS_SHADERSTATE, BuildShaderStateConfig());
+	}
+	else
+	{
+	  	trap_SendServerCmd( clientNum, va("print \"^1/ammap_shader <oldshader> <newshader>\n\"" ) );
 	}
 }
 void shadderdel(gentity_t *ent, int clientNum)
@@ -3907,7 +4130,8 @@ void mc_timerup(void)
 	char		timebuffer[64];
 	char		timebuf2[64];
 	int		i;
-	trap_FS_FOpenFile("time.dat", &f, FS_READ);
+	int		iL;
+	iL = trap_FS_FOpenFile("time.dat", &f, FS_READ);
 	if (!f)
 	{
 		stringclear(level.leveltimestring, 1020);
@@ -3921,6 +4145,11 @@ void mc_timerup(void)
 			break;
 		}
 		if (timebuffer[i] == '')
+		{
+			timebuf2[i] = '';
+			break;
+		}
+		if (iL == i)
 		{
 			timebuf2[i] = '';
 			break;
@@ -3988,7 +4217,7 @@ void	getaccountinfo( gentity_t *ent, char *Saccount, char *p2)
 	trap_FS_FOpenFile(va("%s/account_1_%s.cfg", mc_userfolder.string, Saccount), &f, FS_READ);
 	if (!f)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1Account ~^5%s^1~ not found.\n\"", Saccount));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1Account ~^5%s^1~ not found.\n\"", Saccount));
 		return;
 	}
 	trap_FS_Read( buffer , 4096, f );
@@ -4026,14 +4255,14 @@ void	getaccountinfo( gentity_t *ent, char *Saccount, char *p2)
 			o = i;
 		}
 	}
-	trap_SendServerCmd(ent->s.number, va("print \"^2Account data for ~^5%s^2~-\n^2Last Login Name: ~^5%s^2~\n\"", Saccount, username));
-	trap_SendServerCmd(ent->s.number, va("print \"^2credits: ^5%s^2\n^2Admin Rank: ^5%s^2\n^2powers1: ^5%s^2\n^2powers2: ^5%s^2\n^2powers3: ^5%s^2\"", creds, loginlevel, mcampower, mcampower2, mcampower3));
-	trap_SendServerCmd(ent->s.number, va("print \"\n^2powers4: ^5%s^2\n^2powers5: ^5%s^2\n^2powers6: ^5%s^2\n^2powers7: ^5%s^2\"", mcampower4, mcampower5, mcampower6, mcampower7));
-	trap_SendServerCmd(ent->s.number, va("print \"\n^2Groups: ^5%s^2\n^2Last Login Time: ^5%s^2\n\"", mcamgroup, mctime));
+	trap_SendServerCmd(ent->fixednum, va("print \"^2Account data for ~^5%s^2~-\n^2Last Login Name: ~^5%s^2~\n\"", Saccount, username));
+	trap_SendServerCmd(ent->fixednum, va("print \"^2credits: ^5%s^2\n^2Admin Rank: ^5%s^2\n^2powers1: ^5%s^2\n^2powers2: ^5%s^2\n^2powers3: ^5%s^2\"", creds, loginlevel, mcampower, mcampower2, mcampower3));
+	trap_SendServerCmd(ent->fixednum, va("print \"\n^2powers4: ^5%s^2\n^2powers5: ^5%s^2\n^2powers6: ^5%s^2\n^2powers7: ^5%s^2\"", mcampower4, mcampower5, mcampower6, mcampower7));
+	trap_SendServerCmd(ent->fixednum, va("print \"\n^2Groups: ^5%s^2\n^2Last Login Time: ^5%s^2\n\"", mcamgroup, mctime));
 	trap_FS_FCloseFile( f );
 	if (Q_stricmp(p2, "") == 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1/amaccountinfo <account> <admin command type>\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1/amaccountinfo <account> <admin command type>\n\""));
 	}
 	else
 	{
@@ -4050,10 +4279,18 @@ void	mc_updateaccount( gentity_t *ent )
 	{
 		return;
 	}
-	trap_FS_FOpenFile(va("%s/account_1_%s.cfg", mc_userfolder.string, ent->client->sess.userlogged), &Mz, FS_WRITE);
+	trap_FS_FOpenFile(mc_lower(va("%s/account_1_%s.cfg", mc_userfolder.string, ent->client->sess.userlogged)), &Mz, FS_WRITE);
 	if ( !Mz )
 	{
 		return;
+	}
+	if (ent->client->sess.credits > 1000000)
+	{
+		ent->client->sess.credits = 1000000;
+	}
+	if (ent->client->sess.credits < 0)
+	{
+		ent->client->sess.credits = 0;
 	}
 	status_update();
 	//Com_sprintf(Mfullwrite, sizeof(Mfullwrite), va("%s²%i²%s²", ent->client->sess.userpass, ent->client->sess.adminloggedin, ent->client->pers.netname));
@@ -4068,8 +4305,27 @@ void mc_addcredits( gentity_t *ent, int Mnewcount )
 	{
 		return;
 	}
+	if (Mnewcount == 0)
+	{
+		return;
+	}
 	ent->client->sess.credits += Mnewcount;
-	//trap_SendServerCmd( ent->s.number, va("print \"^7Client %s^7 has been given ^5%i^7 credits for a total of ^5%i^7.\n\"", ent->client->pers.netname, Mnewcount, ent->client->sess.credits ) );
+	if (ent->client->sess.credits > 1000000)
+	{
+		ent->client->sess.credits = 1000000;
+	}
+	if (ent->client->sess.credits < 0)
+	{
+		ent->client->sess.credits = 0;
+	}
+	if (Mnewcount > 0)
+	{
+		trap_SendServerCmd( ent->s.number, va("print \"^7You received ^5%i^7 credits for a total of ^5%i^7.\n\"", Mnewcount, ent->client->sess.credits ) );
+	}
+	else
+	{
+		trap_SendServerCmd( ent->s.number, va("print \"^7You lost ^5%i^7 credits for a total of ^5%i^7.\n\"", -Mnewcount, ent->client->sess.credits ) );
+	}
 	mc_updateaccount(ent);
 }
 void mc_setcredits( gentity_t *ent, int Mnewcount )
@@ -4127,9 +4383,10 @@ vec3_t		origin, angles;
 	ent->client->ps.viewangles[0] = 0.0f;
 	ent->client->ps.viewangles[2] = 0.0f;
 	VectorCopy(ent->client->ps.viewangles, angles);
-	jakes_model->classname = "jmodel";
+	jakes_model->classname = "mc_model";
 	G_SetAngles(jakes_model, angles);
 	SP_jakes_model(jakes_model);
+	jakes_model->custom = 1;
 	VectorCopy(ent->client->ps.origin, origin);
 				trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
 				Com_sprintf(savePath, 1024*4, "mapedits/%s.cfg", mapname.string);
@@ -4192,7 +4449,7 @@ else if (trap_Argc() == 6)
 	trap_Argv( 5, yaw_number, 1024 );
 	jakes_model->s.angles[1] = atoi(yaw_number);
 	SP_jakes_model(jakes_model);
-	jakes_model->classname = "jmodel";
+	jakes_model->classname = "mc_model";
 	G_Printf("^7Added model^2: ^7%s at ^2(^7%s^2) (^7%s^2) (^7%s^2) (^7YAW: %s^2)", model, origin_number, origin_number2, origin_number3, yaw_number);
 
 				trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
@@ -4264,7 +4521,7 @@ vec3_t		origin, angles;
 	jakes_model->s.origin[0] = (int)origin[0];
 	jakes_model->s.origin[1] = (int)origin[1];
 	jakes_model->s.origin[2] = (int)origin[2] - 25;
-	jakes_model->classname = "jmodel";
+	jakes_model->classname = "mc_model";
 	ent->client->ps.viewangles[0] = 0.0f;
 	ent->client->ps.viewangles[2] = 0.0f;
 	VectorCopy(ent->client->ps.viewangles, angles);
@@ -4333,7 +4590,7 @@ else if (trap_Argc() == 6)
 	jakes_model->s.origin[2] = atoi(origin_number3);
 	trap_Argv( 5, yaw_number, 1024 );
 	jakes_model->s.angles[1] = atoi(yaw_number);
-	jakes_model->classname = "jmodel";
+	jakes_model->classname = "mc_model";
 	SP_jakes_model(jakes_model);
 	G_Printf("^7Added model^2: ^7%s at ^2(^7%s^2) (^7%s^2) (^7%s^2) (^7YAW: %s^2)", model, origin_number, origin_number2, origin_number3, yaw_number);
 
@@ -4386,7 +4643,7 @@ void	Svcmd_AddModel2( gentity_t *ent, int clientNum )
 	trap_Argv(5, angle, sizeof(angle));
 	if ((Q_stricmp(modelname,"") == 0)||(Q_stricmp(modelname,"info") == 0))
 	{
-		trap_SendServerCmd( clientNum, va("print \"^1/amaddmodel <modelpath> <x> <y> <z> <yaw>\n\"" ) );
+		trap_SendServerCmd( clientNum, va("print \"^1/amaddmodel <modelpath> [x] [y] [z] [yaw]\n\"" ) );
 		return;
 	}
 	if (!strstr(modelname,".md3"))
@@ -4399,9 +4656,14 @@ void	Svcmd_AddModel2( gentity_t *ent, int clientNum )
 	model->s.origin[2] = monkeyspot(z, 2, ent, ent);
 	if (Q_stricmp(angle,"") == 0)
 	{
-		model->s.angles[YAW] = ent->client->ps.viewangles[YAW];
+		model->s.angles[YAW] = mc_fix360(ent->client->ps.viewangles[YAW]);
 	}
-	model->classname = "jmodel";
+	else
+	{
+		model->s.angles[YAW] = mc_fix360(atoi(angle));
+	}
+	model->classname = "mc_model";
+	model->custom = 1;
 	level.numSpawnVars = 0;
 	level.numSpawnVarChars = 0;
 	AddSpawnField("model", modelname);
@@ -4410,17 +4672,64 @@ void	Svcmd_AddModel2( gentity_t *ent, int clientNum )
 	ent->client->sess.lastent = model->s.number;
 	if (!ent->client->noclip)
 	{
-		vec3_t	fwd, angles, origin;
-		VectorClear(angles);
-		angles[0] = ent->client->ps.viewangles[0];
+		//vec3_t	fwd, angles, origin;
+		vec3_t	origin;
+		//VectorClear(angles);
+		//angles[0] = ent->client->ps.viewangles[0];
 		trap_UnlinkEntity(ent);
-		AngleVectors(angles, fwd, NULL, NULL);
-		origin[0] = ent->client->ps.origin[0] + fwd[0]*64;
-		origin[1] = ent->client->ps.origin[1] + fwd[1]*64;
-		origin[2] = ent->client->ps.origin[2]/* + fwd[2]*64*/;
+		//AngleVectors(angles, fwd, NULL, NULL);
+		origin[0] = ent->client->ps.origin[0];// + fwd[0]*64;
+		origin[1] = ent->client->ps.origin[1];// + fwd[1]*64;
+		origin[2] = ent->client->ps.origin[2] + 21;/* + fwd[2]*64*/;
 		TeleportPlayer( ent , origin, ent->client->ps.viewangles );
 	}
-	trap_SendServerCmd( clientNum, va("print \"^2Spawned new model as entity ^5%i^2.\n\"", model->s.number ) );
+	trap_SendServerCommand( clientNum, va("print \"^2Spawned new model as entity ^5%i^2.\n\"", model->s.number ) );
+	ent->client->sess.traced = model->s.number;
+}
+
+
+void	Svcmd_AddEffect2( gentity_t *ent, int clientNum )
+{
+	gentity_t	*model;
+	char		modelname[MAX_STRING_CHARS];
+	char		x[MAX_STRING_CHARS];
+	char		y[MAX_STRING_CHARS];
+	char		z[MAX_STRING_CHARS];
+	char		angle[MAX_STRING_CHARS];
+	trap_Argv(1, modelname, sizeof(modelname));
+	trap_Argv(2, x, sizeof(x));
+	trap_Argv(3, y, sizeof(y));
+	trap_Argv(4, z, sizeof(z));
+	trap_Argv(5, angle, sizeof(angle));
+	if ((Q_stricmp(modelname,"") == 0)||(Q_stricmp(modelname,"info") == 0))
+	{
+		trap_SendServerCmd( clientNum, va("print \"^1/amaddeffect <effect> [x] [y] [z] [yaw]\n\"" ) );
+		return;
+	}
+	model = G_Spawn();
+	model->s.origin[0] = monkeyspot(x, 0, ent, ent);
+	model->s.origin[1] = monkeyspot(y, 1, ent, ent);
+	model->s.origin[2] = monkeyspot(z, 2, ent, ent);
+	if (Q_stricmp(angle,"") == 0)
+	{
+		model->s.angles[YAW] = mc_fix360(ent->client->ps.viewangles[YAW]);
+	}
+	else
+	{
+		model->s.angles[YAW] = mc_fix360(atoi(angle));
+	}
+	model->s.angles[PITCH] = -90;
+	model->classname = "mc_effect";
+	model->custom = 1;
+	level.numSpawnVars = 0;
+	level.numSpawnVarChars = 0;
+	AddSpawnField("fxFile", modelname);
+	SP_fx_runner(model);
+	G_SetAngles(model, model->s.angles);
+	G_SetOrigin(model, model->s.origin);
+	ent->client->sess.lastent = model->s.number;
+	trap_SendServerCommand( clientNum, va("print \"^2Spawned new effect as entity ^5%i^2.\n\"", model->s.number ) );
+	ent->client->sess.traced = model->s.number;
 }
 
 
@@ -4450,7 +4759,7 @@ void	Svcmd_AddModel2( gentity_t *ent, int clientNum )
 
 
 
-
+#if 0
 void	Svcmd_AddModelDoor( gentity_t *ent, int clientNum )
 {
 
@@ -4495,7 +4804,7 @@ vec3_t		origin, angles;
 	jakes_model->s.origin[0] = (int)origin[0];
 	jakes_model->s.origin[1] = (int)origin[1];
 	jakes_model->s.origin[2] = (int)origin[2] - 25;
-	jakes_model->classname = "jmodel";
+	jakes_model->classname = "mc_model";
 	ent->client->ps.viewangles[0] = 0.0f;
 	ent->client->ps.viewangles[2] = 0.0f;
 	VectorCopy(ent->client->ps.viewangles, angles);
@@ -4564,7 +4873,7 @@ else if (trap_Argc() == 6)
 	jakes_model->s.origin[2] = atoi(origin_number3);
 	trap_Argv( 5, yaw_number, 1024 );
 	jakes_model->s.angles[1] = atoi(yaw_number);
-	jakes_model->classname = "jmodel";
+	jakes_model->classname = "mc_model";
 	SP_mc_door(jakes_model);
 	G_Printf("^7Added model^2: ^7%s at ^2(^7%s^2) (^7%s^2) (^7%s^2) (^7YAW: %s^2)", model, origin_number, origin_number2, origin_number3, yaw_number);
 
@@ -4594,6 +4903,7 @@ else
 	G_FreeEntity(jakes_model);
 	}
 }
+#endif
 ////////////////////////////
 
 
@@ -4661,10 +4971,11 @@ vec3_t		origin, angles;
 	jakes_model->s.origin[0] = (int)origin[0];
 	jakes_model->s.origin[1] = (int)origin[1];
 	jakes_model->s.origin[2] = (int)origin[2] - 25;
-	jakes_model->classname = "jmodel2";
+	jakes_model->classname = "mc_model2";
 	ent->client->ps.viewangles[0] = 0.0f;
 	ent->client->ps.viewangles[2] = 0.0f;
 	VectorCopy(ent->client->ps.viewangles, angles);
+	jakes_model->custom = 1;
 
 	G_SetAngles(jakes_model, angles);
 	SP_mc_ghoul(jakes_model);
@@ -4730,7 +5041,7 @@ else if (trap_Argc() == 6)
 	jakes_model->s.origin[2] = atoi(origin_number3);
 	trap_Argv( 5, yaw_number, 1024 );
 	jakes_model->s.angles[1] = atoi(yaw_number);
-	jakes_model->classname = "jmodel2";
+	jakes_model->classname = "mc_model2";
 	SP_mc_ghoul(jakes_model);
 	G_Printf("^7Added model^2: ^7%s at ^2(^7%s^2) (^7%s^2) (^7%s^2) (^7YAW: %s^2)", model, origin_number, origin_number2, origin_number3, yaw_number);
 
@@ -4817,8 +5128,9 @@ char origin_number3[MAX_STRING_CHARS];
 	fx_runner->s.origin[0] = (int)origin[0];
 	fx_runner->s.origin[1] = (int)origin[1];
 	fx_runner->s.origin[2] = (int)origin[2] - 19;
-	fx_runner->classname = "fx_runner";
+	fx_runner->classname = "mc_effect";
 	SP_fx_runner(fx_runner);
+	fx_runner->custom = 1;
 	ent->client->sess.lastent = fx_runner->s.number;
 				trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
 				Com_sprintf(savePath, 1024*4, "%s/%s.cfg", mc_editfolder, mapname.string);
@@ -4847,7 +5159,7 @@ char origin_number3[MAX_STRING_CHARS];
 	fx_runner->s.origin[1] = atoi(origin_number2);
 	trap_Argv( 4, origin_number3, 1024 );
 	fx_runner->s.origin[2] = atoi(origin_number3);
-	fx_runner->classname = "fx_runner";
+	fx_runner->classname = "mc_effect";
 	SP_fx_runner(fx_runner);
 	ent->client->sess.lastent = fx_runner->s.number;
 				trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
@@ -4874,7 +5186,7 @@ else
 }
 }
 
-void	Svcmd_AddEffect2( gentity_t *ent, int clientNum )
+void	Svcmd_AddEffect2_old( gentity_t *ent, int clientNum )
 {
 vec3_t		origin;
 gentity_t *fx_runner = G_Spawn();
@@ -4903,7 +5215,7 @@ char origin_number3[MAX_STRING_CHARS];
 	fx_runner->s.origin[0] = (int)origin[0];
 	fx_runner->s.origin[1] = (int)origin[1];
 	fx_runner->s.origin[2] = (int)origin[2] - 19;
-	fx_runner->classname = "fx_runner";
+	fx_runner->classname = "mc_effect";
 	SP_fx_runner(fx_runner);
 	ent->client->sess.lastent = fx_runner->s.number;
 				trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
@@ -4933,7 +5245,7 @@ char origin_number3[MAX_STRING_CHARS];
 	fx_runner->s.origin[1] = atoi(origin_number2);
 	trap_Argv( 4, origin_number3, 1024 );
 	fx_runner->s.origin[2] = atoi(origin_number3);
-	fx_runner->classname = "fx_runner";
+	fx_runner->classname = "mc_effect";
 	SP_fx_runner(fx_runner);
 	ent->client->sess.lastent = fx_runner->s.number;
 
@@ -4995,7 +5307,7 @@ char origin_number3[MAX_STRING_CHARS];
 		trap_SendServerCmd( clientNum, va("print \"^7/amaddtarget_credits <credits> <targetname>\n\"" ) );
 	}
 }
-// ------------------ LOL ---------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------
 /*
 ==================
 DeathmatchScoreboardMessage
@@ -5046,7 +5358,17 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 			}
 			else
 			{
+			if (mc_unlagged.integer == 1)
+			{
+//unlagged - true ping
+			//ping = cl->ps.ping < 999 ? cl->ps.ping : 999;
+			ping = cl->pers.realPing < 999 ? cl->pers.realPing : 999;
+//unlagged - true ping
+			}
+			else
+			{
 			ping = cl->ps.ping < 999 ? cl->ps.ping : 999;
+			}
 			}
 		}
 
@@ -5524,7 +5846,7 @@ void Cmd_Kill_f( gentity_t *ent ) {
 		trap_SendServerCmd( ent->s.number, va("print \"^1Cannot kill yourself while dead.\n\""));
 		return;
 	}
-	if(ent->client->ps.fallingToDeath)
+	if(mc_falltodeathdeath.integer == 0 && ent->client->ps.fallingToDeath)
 	{
 		trap_SendServerCmd( ent->s.number, va("print \"^1Cannot kill yourself while dead.\n\""));
 		return;
@@ -5675,6 +5997,7 @@ void SetTeam( gentity_t *ent, char *s ) {
 		specState = SPECTATOR_FOLLOW;
 		specClient = -2;
 	} else if ( !Q_stricmp( s, "spectator" ) || !Q_stricmp( s, "s" ) ) {
+		ent->client->ps.saberHolstered = qtrue;
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_FREE;
 	} else if ( g_gametype.integer >= GT_TEAM ) {
@@ -5794,7 +6117,10 @@ void SetTeam( gentity_t *ent, char *s ) {
 
 	// if the player was dead leave the body
 	if ( client->ps.stats[STAT_HEALTH] <= 0 ) {
+		if (mc_insta.integer == 0)
+		{
 		CopyToBodyQue(ent);
+		}
 	}
 
 	// he starts at 'base'
@@ -5924,12 +6250,13 @@ void Cmd_Team_f( gentity_t *ent ) {
 	}
 	if ((ent->client->sess.sessionTeam != TEAM_FREE)&&(level.lmsnojoin == 1))
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1LMS round in progress, cannot join.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^1LMS round in progress, cannot join.\n\""));
 		return;
 	}
 
 	if (gEscaping)
 	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^1Can't change team while escaping.\n\""));
 		return;
 	}
 
@@ -6322,6 +6649,28 @@ void channelsay3(gentity_t *ent, char *message)
 		}
 	}
 }
+int stringcontains(char *str, char *str2);
+int stringcontains(char *str, char *str2)
+{
+	int	iX;
+	int	iXLen = strlen(str);
+	int	iXLen2 = strlen(str2);
+	for (iX = 0;iX <= iXLen - iXLen2;iX++)
+	{
+		int iY;
+		for (iY = 0;iY < iXLen2;iY++)
+		{
+			if (((str[iX+iY] >= 'a' && str[iX+iY] <= 'z')?(str[iX+iY]-('a'-'A')):str[iX+iY]) != ((str2[iY] >= 'a' && str2[iY] <= 'z')?(str2[iY]-('a'-'A')):str2[iY]))
+			{
+				goto nextex;
+			}
+		}
+		return 1;
+		nextex:
+		continue;
+	}
+	return 0;
+}
 static void Cmd_Say_f( gentity_t *ent, int mode, qboolean arg0 ) {
 	char		*p;
 	vec3_t		origin, angles;
@@ -6350,6 +6699,10 @@ static void Cmd_Say_f( gentity_t *ent, int mode, qboolean arg0 ) {
 		return;
 	}
 
+	if (ent->client->sess.silence)
+	{
+		return;
+	}
 	if ((mode == 955)||(mode == 956)||(mode == 957))
 	{
 		p = ConcatArgs( 2 );
@@ -6423,7 +6776,192 @@ static void Cmd_Say_f( gentity_t *ent, int mode, qboolean arg0 ) {
 		trap_SendServerCmd( ent-g_entities, va("print \"^4Twi^1Fire^7 mod by ^2MCMONKEY^7.\n\""));
 		trap_SendServerCmd( ent-g_entities, va("cp \"^4Twi^1Fire^7 mod by ^2MCMONKEY^7.\n\""));
 	}
-	if ( Q_stricmp (p, "!time") == 0 )
+	else if ((mc_insta.integer == 0) && (Q_stricmpn (p, "!buy", 4) == 0 || Q_stricmpn (p, "!price", 4) == 0))
+	{
+		char tobuy[MAX_STRING_CHARS];
+		int ibuy = 0;
+		int ibuypos = 0;
+		int ibuylen = 0;
+		int parttwo = 0;
+		if (Q_stricmp(ent->client->sess.userlogged,"") == 0)
+		{
+			trap_SendServerCmd(ent-g_entities, va("print \"^1You are not logged in.\n\""));
+		}
+		else
+		{
+			stringclear(tobuy, MAX_STRING_CHARS - 1);
+			ibuylen = strlen(p);
+			for (ibuy = 0;ibuy < ibuylen;ibuy++)
+			{
+				if (p[ibuy] == ' ')
+				{
+					parttwo = 1;
+				}
+				else if (parttwo == 1)
+				{
+					tobuy[ibuypos] = p[ibuy];
+					ibuypos++;
+				}
+			}
+			if (strlen(tobuy) == 0)
+			{
+				trap_SendServerCmd( ent-g_entities, va("print \"^1!buy <item>\n\""));
+			}
+			else
+			{
+			ibuy = weapforname(tobuy);
+			if ((ibuy != WP_BLASTER) || (ibuy == WP_BLASTER && (strstr(tobuy,"blaster") || strstr(tobuy,"rifle") || strstr(tobuy,"e-11"))))
+			{
+				if (level.price_weapons[ibuy] > 0)
+				{
+					if (Q_stricmpn (p, "!price", 4) == 0)
+					{
+						trap_SendServerCmd( ent-g_entities, va("print \"^2That costs ^5%i^2 credits.\n\"", level.price_weapons[ibuy]));
+					}
+					else
+					{
+						if (ent->client->sess.credits < level.price_weapons[ibuy])
+						{
+							trap_SendServerCmd( ent-g_entities, va("print \"^2That costs ^5%i^2 credits, you don't have enough.\n\"", level.price_weapons[ibuy]));
+						}
+						else
+						{
+							mc_addcredits(ent, -level.price_weapons[ibuy]);
+							ent->client->ps.stats[STAT_WEAPONS] |= (1 << ibuy);
+							if (weaponData[ibuy].ammoIndex > AMMO_NONE)
+							{
+								ent->client->ps.ammo[weaponData[ibuy].ammoIndex] = 999;
+							}
+							trap_SendServerCmd( ent-g_entities, va("print \"^2Gave one ^5%s^2.\n\"", tobuy));
+						}
+					}
+				}
+				else
+				{
+					trap_SendServerCmd( ent-g_entities, va("print \"^1That weapon is not for sale here.\n\""));
+				}
+			}
+			else
+			{
+				ibuy = -1;
+				if (Q_stricmp(tobuy, "heal") == 0)
+				{
+					ibuy = FP_HEAL;
+				}
+				else if (Q_stricmp(tobuy, "jump") == 0)
+				{
+					ibuy = FP_LEVITATION;
+				}
+				else if (Q_stricmp(tobuy, "speed") == 0)
+				{
+					ibuy = FP_SPEED;
+				}
+				else if (Q_stricmp(tobuy, "push") == 0)
+				{
+					ibuy = FP_PUSH;
+				}
+				else if (Q_stricmp(tobuy, "pull") == 0)
+				{
+					ibuy = FP_PULL;
+				}
+				else if (Q_stricmp(tobuy, "mindtrick") == 0)
+				{
+					ibuy = FP_TELEPATHY;
+				}
+				else if (Q_stricmp(tobuy, "grip") == 0)
+				{
+					ibuy = FP_GRIP;
+				}
+				else if (Q_stricmp(tobuy, "lightning") == 0)
+				{
+					ibuy = FP_LIGHTNING;
+				}
+				else if (Q_stricmp(tobuy, "rage") == 0)
+				{
+					ibuy = FP_RAGE;
+				}
+				else if (Q_stricmp(tobuy, "protect") == 0)
+				{
+					ibuy = FP_PROTECT;
+				}
+				else if (Q_stricmp(tobuy, "absorb") == 0)
+				{
+					ibuy = FP_ABSORB;
+				}
+				else if (Q_stricmp(tobuy, "team_heal") == 0)
+				{
+					ibuy = FP_TEAM_HEAL;
+				}
+				else if (Q_stricmp(tobuy, "team_energize") == 0)
+				{
+					ibuy = FP_TEAM_FORCE;
+				}
+				else if (Q_stricmp(tobuy, "drain") == 0)
+				{
+					ibuy = FP_DRAIN;
+				}
+				else if (Q_stricmp(tobuy, "seeing") == 0)
+				{
+					ibuy = FP_SEE;
+				}
+				else if (Q_stricmp(tobuy, "saberthrow") == 0)
+				{
+					ibuy = FP_SABERTHROW;
+				}
+				else if (Q_stricmp(tobuy, "saberoffense") == 0)
+				{
+					ibuy = FP_SABERATTACK;
+				}
+				else if (Q_stricmp(tobuy, "saberdefense") == 0)
+				{
+					ibuy = FP_SABERDEFEND;
+				}
+				else
+				{
+					trap_SendServerCmd( ent-g_entities, va("print \"^1Unknown item ~^5%s^1~.\n\"", tobuy));
+				}
+				if (ibuy > -1)
+				{
+					if (level.price_force[ibuy] > 0)
+					{
+						if (Q_stricmpn (p, "!price", 4) == 0)
+						{
+							trap_SendServerCmd( ent-g_entities, va("print \"^2That costs ^5%i^2 credits.\n\"", level.price_force[ibuy]));
+						}
+						else
+						{
+							if (ent->client->sess.credits < level.price_force[ibuy])
+							{
+								trap_SendServerCmd( ent-g_entities, va("print \"^2That costs ^5%i^2 credits, you don't have enough.\n\"", level.price_force[ibuy]));
+							}
+							else
+							{
+								mc_addcredits(ent, -level.price_force[ibuy]);
+								ent->client->ps.fd.forcePowerLevel[ibuy] = FORCE_LEVEL_3;
+								if (!(ent->client->ps.fd.forcePowersKnown & (1 << ibuy)))
+								{
+									ent->client->sess.fpknown |= (1 << ibuy);
+								}
+								ent->client->ps.fd.forcePowersKnown |= (1 << ibuy);
+								trap_SendServerCmd( ent-g_entities, va("print \"^2Received force power ^5%s^2.\n\"", tobuy));
+							}
+						}
+					}
+					else
+					{
+						trap_SendServerCmd( ent-g_entities, va("print \"^1That force power is not for sale here.\n\""));
+					}
+				}
+			}
+			}
+		}
+	}
+	else if ( Q_stricmpn (p, "!credit", 7) == 0 )
+	{
+		trap_SendServerCmd( ent-g_entities, va("print \"^1/amhelp mod in console for Twifire mod credits.\n\""));
+		trap_SendServerCmd( ent-g_entities, va("cp \"^4/amhelp mod\nin console for\nTwifire mod credits\n\""));
+	}
+	else if ( Q_stricmp (p, "!time") == 0 )
 	{
 		trap_SendServerCmd( -1, va("print \"^2The current server time is ^5%s^2.\n\"", mc_timer()));
 	}
@@ -6438,17 +6976,113 @@ static void Cmd_Say_f( gentity_t *ent, int mode, qboolean arg0 ) {
 		gteleporter_t	*tele = &g_teleporters[i];
 		if (tele && tele->active)
 		{
-			if (Q_stricmp(p, tele->name) == 0)
+			if (((tele->type2 == 0)&&(Q_stricmp(p, tele->name) == 0))||((tele->type2 == 2)&&(stringcontains(p, tele->name)==1))||((tele->type2 == 1)&&(Q_stricmpn(p, tele->name, strlen(tele->name)) == 0)))
 			{
-				vec3_t	angles;
-				vec3_t	location;
-				VectorClear(angles);
-				VectorClear(location);
-				location[0] = tele->pos[0];
-				location[1] = tele->pos[1];
-				location[2] = tele->pos[2]+25;
-				angles[YAW] = tele->angle;
-				TeleportPlayer( ent, location, angles );
+				if (isinnewgroup(ent, tele->group))
+				{
+				if (tele->type == 0)
+				{
+
+					vec3_t	angles;
+					vec3_t	location;
+					VectorClear(angles);
+					VectorClear(location);
+					location[0] = tele->pos[0];
+					location[1] = tele->pos[1];
+					location[2] = tele->pos[2]+25;
+					angles[YAW] = tele->angle;
+					TeleportPlayer( ent, location, angles );
+				}
+				else if (tele->type == 1)
+				{
+					if (ent->client->sess.empower)
+					{
+					ent->client->sess.empower = qfalse;
+					ent->client->ps.isJediMaster = qfalse;
+					ent->client->ps.fd.forcePower = 100;
+					WP_InitForcePowers(ent);
+					}
+					else
+					{
+					ent->client->sess.empower = qtrue;
+					ent->client->ps.saberHolstered = qtrue;
+					ent->client->ps.isJediMaster = qtrue;
+					ent->client->ps.fd.forcePower = 100;
+					ent->client->ps.forceRestricted = qfalse;
+					G_ScreenShake(vec3_origin, NULL, 5.0f, 500, qtrue);
+					G_Soundm2( ent, CHAN_ANNOUNCER, G_SoundIndex("sound/chars/reborn2/misc/victory1") );
+					for (f=0; f<NUM_FORCE_POWERS; f++)
+					{
+						ent->client->ps.fd.forcePowerLevel[f] = FORCE_LEVEL_3;
+						ent->client->ps.fd.forcePowersKnown |= (1 << f);
+					}
+					}
+				}
+				else if (tele->type == 2)
+				{
+					if (ent->client->sess.terminator)
+					{
+						ent->client->sess.terminator = qfalse;
+						ent->client->ps.forceRestricted = qfalse;
+						WP_InitForcePowers(ent);
+						ent->client->ps.stats[STAT_HOLDABLE_ITEMS] = 0;
+						ent->client->ps.stats[STAT_WEAPONS] = 0;
+						ent->client->ps.stats[STAT_WEAPONS] = (1 << WP_SABER);
+						ent->client->ps.weapon = WP_SABER;
+					}
+					else
+					{
+						ent->client->sess.terminator = qtrue;
+						ent->client->ps.saberHolstered = qtrue;
+						G_ScreenShake(vec3_origin, NULL, 5.0f, 500, qtrue);
+						ent->client->ps.stats[STAT_WEAPONS] = (1 << (WP_DET_PACK+1))  - ( 1 << WP_NONE );
+						ent->client->ps.stats[STAT_WEAPONS] &= ~(1 << WP_SABER);
+						for ( f = 0 ; f < MAX_WEAPONS ; f++ )
+						{
+							ent->client->ps.ammo[f] = 9999;
+						}
+						ent->client->ps.forceRestricted = qtrue;
+						ent->client->ps.weapon = WP_BRYAR_PISTOL;
+					}
+				}
+				else if (tele->type == 3)
+				{
+					ent->client->ps.eFlags |= EF_INVULNERABLE;
+					ent->client->invulnerableTimer = level.time + 60000;
+					ent->client->sess.protect = 1;
+				}
+				else if (tele->type == 4)
+				{
+					trap_DropClient(ent->s.number, "quit.");
+				}
+				else if (tele->type == 5)
+				{
+					int	iX;
+					int	iXLen = strlen(p);
+					int	iXLen2 = strlen(tele->name);
+					for (iX = 0;iX <= iXLen - iXLen2;iX++)
+					{
+						int iY;
+						for (iY = 0;iY < iXLen2;iY++)
+						{
+							if (((p[iX+iY] >= 'a' && p[iX+iY] <= 'z')?(p[iX+iY]-('a'-'A')):p[iX+iY]) != ((tele->name[iY] >= 'a' && tele->name[iY] <= 'z')?(tele->name[iY]-('a'-'A')):tele->name[iY]))
+							{
+								goto nextex;
+							}
+						}
+						for (iY = 0;iY < iXLen2;iY++)
+						{
+							p[iX+iY] = '*';
+						}
+						nextex:
+						continue;
+					}
+				}
+				}
+				else
+				{
+					trap_SendServerCmd(ent-g_entities, "print \"^1You cannot use this chat command.\n\"");
+				}
 			}
 		}
 	}
@@ -6570,7 +7204,7 @@ static void Cmd_Tell_f( gentity_t *ent ) {
 	targetNum = dsp_adminTarget(ent, arg, ent->s.number);
 	if (targetNum < 0)
 	{
-		trap_SendServerCmd(ent->s.number, va("print \"^7Invalid Target.\n\""));
+		trap_SendServerCmd(ent->fixednum, va("print \"^7Invalid Target.\n\""));
 		return;
 	}
 	target = &g_entities[targetNum];
@@ -6595,7 +7229,7 @@ static void Cmd_Tell_f( gentity_t *ent ) {
 	}
 
 	trap_SendServerCmd(target->s.number, va("chat \"^7[%s^7 to you]:^6 %s\"", ent->client->pers.netname, p));
-	trap_SendServerCmd(ent->s.number, va("chat \"^7[you to %s^7]:^6 %s\"", target->client->pers.netname, p));
+	trap_SendServerCmd(ent->fixednum, va("chat \"^7[you to %s^7]:^6 %s\"", target->client->pers.netname, p));
 
 	//if ( ent != target && !(ent->r.svFlags & SVF_BOT)) {
 		//G_Say( ent, ent, SAY_TELL, p );
@@ -6993,6 +7627,14 @@ void Cmd_CallVote_f( gentity_t *ent) {
 		trap_SendServerCmd( ent-g_entities, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "NOSPECVOTE")) );
 		return;
 	}*/
+	if (ent->client->sess.votetime + (mc_votedelaytime.integer*1000) > level.time )
+	{
+		if (!(ent->client->sess.ampowers7 & 16))
+		{
+			trap_SendServerCmd(ent->fixednum, va("print \"^7You may only call a vote once every ^5%i^7 seconds.\n\"", mc_votedelaytime.integer));
+			return;
+		}
+	}
 
 	if( strchr( arg1, ';' ) || strchr( arg2, ';' ) || strchr( arg1, '\n' ) || strchr( arg2, '\n' ) ) {
 		trap_SendServerCmd( ent-g_entities, "print \"Invalid vote string.\n\"" );
@@ -7187,7 +7829,7 @@ void Cmd_CallVote_f( gentity_t *ent) {
 		trap_SendServerCmd( ent-g_entities, "print \"^1This votestring does not exist.\nnextmap - map - g_gametype - kick - clientkick - timelimit - fraglimit - poll - specialgametype\n\"" );
 		return;
 	}
-
+	ent->client->sess.votetime = level.time;
 	// if there is still a vote to be executed
 	if ( level.voteExecuteTime ) {
 		level.voteExecuteTime = 0;
@@ -7277,7 +7919,47 @@ void Cmd_CallVote_f( gentity_t *ent) {
 					return;
 				}
 		}
-
+		if (qtrue)
+		{
+			fileHandle_t	f;
+			char		blacklistbuffer[4096];
+			char		mapname[1024];
+			int		i;
+			int		iL;
+			int		iD;
+			int		j;
+			iL = trap_FS_FOpenFile("map_blacklist.cfg", &f, FS_READ);
+			if (f)
+			{
+				trap_FS_Read( blacklistbuffer , 4096, f );
+				iD = 0;
+				for (i = 0;i <= 4096;i += 1)
+				{
+					if (blacklistbuffer[i] == ',')
+					{
+						if (Q_stricmp(mapname, arg2) == 0)
+						{
+							G_Printf("Callvote map for %s denied - blacklisted.\n", mapname);
+							trap_SendServerCmd(ent->fixednum, "print \"^1That map is not allowed here.\n\"");
+							return;
+						}
+						for (j = 0;j < 1024;j += 1)
+						{
+							mapname[j] = 0;
+						}
+						iD = 0;
+						continue;
+					}
+					if (blacklistbuffer[i] == ';' || blacklistbuffer[i] == '' || iL == i)
+					{
+						break;
+					}
+					mapname[iD] = blacklistbuffer[i];
+					iD += 1;
+				}
+				trap_FS_FCloseFile( f );
+			}
+		}
 		//trap_Cvar_VariableStringBuffer( "nextmap", s, sizeof(s) );
 		//if (*s) {
 		//	Com_sprintf( level.voteString, sizeof( level.voteString ), "%s %s; set nextmap \"%s\"", arg1, arg2, s );
@@ -7427,7 +8109,7 @@ void Cmd_CallVote_f( gentity_t *ent) {
 			trap_SendServerCmd(ent-g_entities, va("print \"^1Fraglimit too low.\n\""));
 			return;
 		}
-		Com_sprintf( level.voteString, sizeof( level.voteString ), "fraglimit \"%i\"", atoi(arg2) );
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "fraglimit %i", atoi(arg2) );
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "%s", level.voteString );
 	}
 	else if ( !Q_stricmp( arg1, "timelimit" ) )
@@ -7444,19 +8126,19 @@ void Cmd_CallVote_f( gentity_t *ent) {
 			trap_SendServerCmd(ent-g_entities, va("print \"^1Timelimit too low.\n\""));
 			return;
 		}
-		Com_sprintf( level.voteString, sizeof( level.voteString ), "timelimit \"%i\"", atoi(arg2) );
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "timelimit %i", atoi(arg2) );
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "%s", level.voteString );
 	}
 	else if ( !Q_stricmp( arg1, "map_restart" ) )
 	{
 		level.votingGametypeTo = 0;
 		level.votingGametype = qfalse;
-		Com_sprintf( level.voteString, sizeof( level.voteString ), "map_restart" );
-		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "%s", level.voteString );
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "rmap_restart" );
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "map_restart" );
 	}
 	else
 	{
-		Com_sprintf( level.voteString, sizeof( level.voteString ), "%s \"%s\"", arg1, arg2 );
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "%s %s", arg1, arg2 );
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "%s", level.voteString );
 	}
 	if ( !Q_stricmp( arg1, "poll" ) )
@@ -7515,7 +8197,11 @@ void Cmd_Vote_f( gentity_t *ent ) {
 
 
 	trap_Argv( 1, msg, sizeof( msg ) );
-
+	if (Q_stricmp(msg, "") == 0)
+	{
+		trap_SendServerCmd( ent-g_entities, va("print \"^1/vote <yes/no>\n\"") );
+		return;
+	}
 	if ( msg[0] == 'y' || msg[0] == 'Y' || msg[0] == '1' || msg[0] == 'a' || msg[0] == 'A' ) {
 		if ((ent->client->ps.eFlags & EF_VOTED)&&(ent->client->sess.lvote == 3))
 		{
@@ -7742,7 +8428,7 @@ void Cmd_SetViewpos_f( gentity_t *ent ) {
 		return;
 	}
 	if ( trap_Argc() != 5 ) {
-		trap_SendServerCmd( ent-g_entities, va("print \"usage: setviewpos x y z yaw\n\""));
+		trap_SendServerCmd( ent-g_entities, va("print \"^1setviewpos x y z yaw\n\""));
 		return;
 	}
 
@@ -7872,7 +8558,7 @@ int G_ItemUsable(playerState_t *ps, int forcedUse)
 		AngleVectors (ps->viewangles, fwd, NULL, NULL);
 		fwd[2] = 0;
 		VectorMA(ps->origin, 64, fwd, dest);
-		trap_Trace(&tr, ps->origin, mins, maxs, dest, ps->clientNum, MASK_SHOT );
+		trap_Trace(&tr, ps->origin, mins, maxs, dest, ps->clientNum, MASK_SOLID );
 		if (tr.fraction > 0.9 && !tr.startsolid && !tr.allsolid)
 		{
 			VectorCopy(tr.endpos, pos);
@@ -7900,7 +8586,16 @@ void Cmd_ToggleSaber_f(gentity_t *ent)
 		saberOffSound = G_SoundIndex("sound/weapons/saber/saberoffquick.wav");
 		saberOnSound = G_SoundIndex("sound/weapons/saber/saberon.wav");
 	}
-
+	if (ent->client->sess.veh_isactive == 1)
+	{
+		ent->client->ps.saberHolstered = qtrue;
+		return;
+	}
+	if (ent->client->sess.blockweapon == 1)
+	{
+		ent->client->ps.saberHolstered = qtrue;
+		return;
+	}
 	if (ent->client->ps.saberInFlight)
 	{
 		return;
@@ -8053,7 +8748,7 @@ qboolean G_OtherPlayersDueling(void)
 	return qfalse;
 }
 
-void Cmd_EngageDuel_f(gentity_t *ent)
+void Cmd_EngageDuel_f(gentity_t *ent, int fftype)
 {
 	trace_t tr;
 	char *value;
@@ -8061,21 +8756,25 @@ void Cmd_EngageDuel_f(gentity_t *ent)
 
 	if (!g_privateDuel.integer)
 	{
+		//G_Printf("NODUEL: g_privateduel\n");
 		return;
 	}
 	if (ent->client->sess.sleep || ent->client->sess.punish || ent->client->sess.freeze || ent->client->ps.forceHandExtend == HANDEXTEND_KNOCKDOWN)
 	{ // Deathspike: Sleeper Bug
+		//G_Printf("NODUEL: sleep\n");
 		return;
 	}
 	if (g_gametype.integer == GT_TOURNAMENT)
 	{ //rather pointless in this mode..
 		trap_SendServerCmd( ent-g_entities, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "NODUEL_GAMETYPE")) );
+		//G_Printf("NODUEL: gametype\n");
 		return;
 	}
 
 	if (g_gametype.integer >= GT_TEAM)
 	{ //no private dueling in team modes
 		trap_SendServerCmd( ent-g_entities, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "NODUEL_GAMETYPE")) );
+		//G_Printf("NODUEL: teamgametype\n");
 		return;
 	}
 		if ( twimod_highpingduel.string[0] && Q_stricmp( twimod_highpingduel.string, "none" ) &&
@@ -8084,16 +8783,19 @@ void Cmd_EngageDuel_f(gentity_t *ent)
 				if ( ent->client->ps.ping >= twimod_highpingduel.integer )
 					{
 						trap_SendServerCmd( ent-g_entities, va("cp \"You cant challenge someone. Your ping is too high.\n\nThe max. duel ping here is %s.\n\"", twimod_highpingduel.string) );
+		//G_Printf("NODUEL: ping\n");
 						return;
 					}
 			}
 	if (ent->client->ps.duelTime >= level.time)
 	{
+		//G_Printf("NODUEL: dueltime\n");
 		return;
 	}
 
 	if (ent->client->ps.weapon != WP_SABER)
 	{
+		//G_Printf("NODUEL: weapon\n");
 		return;
 	}
 
@@ -8107,11 +8809,13 @@ void Cmd_EngageDuel_f(gentity_t *ent)
 
 	if (ent->client->ps.saberInFlight)
 	{
+		G_Printf("NODUEL: saberthrow\n");
 		return;
 	}
 
 	if (ent->client->ps.duelInProgress)
 	{
+		//G_Printf("NODUEL: inprog\n");
 		return;
 	}
 
@@ -8139,11 +8843,13 @@ gentity_t *challenged = &g_entities[tr.entityNum];
 			challenged->client->ps.weapon != WP_SABER || challenged->client->ps.duelInProgress ||
 			challenged->client->ps.saberInFlight)
 		{
+		//G_Printf("NODUEL: invalid target\n");
 			return;
 		}
 
 		if (g_gametype.integer >= GT_TEAM && OnSameTeam(ent, challenged))
 		{
+		//G_Printf("NODUEL: teambugwhat\n");
 			return;
 		}
 		if ( twimod_highpingduel.string[0] && Q_stricmp( twimod_highpingduel.string, "none" ) &&
@@ -8151,6 +8857,7 @@ gentity_t *challenged = &g_entities[tr.entityNum];
 			{
 				if ( challenged->client->ps.ping >= twimod_highpingduel.integer )
 					{
+		//G_Printf("NODUEL: ping2\n");
 						trap_SendServerCmd( ent-g_entities, va("cp \"You cant challenge %s.\n^7The clients ping is too high.\n\nThe max. duel ping here is %s.\n\"", challenged->client->pers.netname, twimod_highpingduel.string) );
 						return;
 					}
@@ -8185,7 +8892,6 @@ gentity_t *challenged = &g_entities[tr.entityNum];
 
 			G_AddEvent(ent, EV_PRIVATE_DUEL, 1);
 			G_AddEvent(challenged, EV_PRIVATE_DUEL, 1);
-
 			//Holster their sabers now, until the duel starts (then they'll get auto-turned on to look cool)
 
 
@@ -8193,8 +8899,17 @@ gentity_t *challenged = &g_entities[tr.entityNum];
 		else
 		{
 			//Print the message that a player has been challenged in private, only announce the actual duel initiation in private
-			trap_SendServerCmd( challenged-g_entities, va("cp \"%s %s\n\"", ent->client->pers.netname, G_GetStripEdString("SVINGAME", "PLDUELCHALLENGE")) );
-			trap_SendServerCmd( ent-g_entities, va("cp \"%s %s\n\"", G_GetStripEdString("SVINGAME", "PLDUELCHALLENGED"), challenged->client->pers.netname) );
+			if (fftype == 0)
+			{
+			trap_SendServerCmd( challenged-g_entities, va("cp \"%s\n%s\n\"", ent->client->pers.netname, G_GetStripEdString("SVINGAME", "PLDUELCHALLENGE")) );
+			}
+			else
+			{
+			trap_SendServerCmd( challenged-g_entities, va("cp \"%s\n^7Has challenged you to a\n^5Full-Force^7 duel!\n\"", ent->client->pers.netname) );
+			}
+			trap_SendServerCmd( ent-g_entities, va("cp \"%s\n%s\n\"", G_GetStripEdString("SVINGAME", "PLDUELCHALLENGED"), challenged->client->pers.netname) );
+			ent->client->sess.duel_is_ff = fftype;
+			challenged->client->sess.duel_is_ff = fftype;
 		}
 
 		challenged->client->ps.fd.privateDuelTime = 0; //reset the timer in case this player just got out of a duel. He should still be able to accept the challenge.
@@ -8204,6 +8919,10 @@ gentity_t *challenged = &g_entities[tr.entityNum];
 
 		ent->client->ps.duelIndex = challenged->s.number;
 		ent->client->ps.duelTime = level.time + 5000;
+	}
+	else
+	{
+		//G_Printf("NODUEL: hitwall?\n");
 	}
 }
 
@@ -8335,6 +9054,7 @@ void ClientCommand( int clientNum ) {
 	int		rofl;
 	int		i;
 
+
 	trap_Argv( 0, cmd, sizeof( cmd ) );
 	trap_Argv( 1, cmd_a2, sizeof( cmd_a2 ) );
 	trap_Argv( 2, cmd_a3, sizeof( cmd_a3 ) );
@@ -8350,7 +9070,15 @@ void ClientCommand( int clientNum ) {
 	commandprocessstart:
 	rofl = clientNum;
 	ent = g_entities + clientNum;
-	ent->s.number = ent - g_entities;
+	ent->s.number = ent-g_entities;
+	ent->fixednum = ent-g_entities;
+	/*if (ent->client->sess.isAFK == 1)
+	{
+		G_Printf("Client %i used a command!\n", ent->s.number);
+	}*/
+	setAFKOff(ent);
+	ent->client->sess.commandtime = level.time;
+	//G_Printf("TEST %i is %i mark %i\n", ent->s.number, clientNum, ent-g_entities);
 	// JK2 will sometimes switch a player's s.number around. I've added this to ensure the s.number always stays correct.
 	if ( (!ent->client) || (!ent->inuse) ) {
 		return;		// not fully in game yet
@@ -8358,7 +9086,7 @@ void ClientCommand( int clientNum ) {
 
 	if ((Q_stricmp(cmd, "amlogin") != 0)&&(Q_stricmp(cmd, "amregister") != 0)&&(Q_stricmp(cmd, "tell") != 0)&&(Q_stricmp(cmd, "amnewpass") != 0))
 	{
-	mc_print(va("ClientCommand: %s^7: %s\n",ent->client->pers.netname, concatted));
+	mc_print(va("ClientCommand: %i %s^7: %s\n", ent->s.number,ent->client->pers.netname, concatted));
 	//if ((Q_stricmp (cmd, "say") != 0)&&(Q_stricmp(cmd, "amlogin") != 0)&&(Q_stricmp(cmd, "tell") != 0))
 	//{
 	for (i=0; i<MAX_CLIENTS; i++)
@@ -8405,6 +9133,11 @@ void ClientCommand( int clientNum ) {
 	{
 		if (!ent->client->sess.silence)
 		{
+			if (Q_stricmp(cmd_a2,"") == 0)
+			{
+				trap_SendServerCmd(ent->fixednum, va("print \"/me <does something>\n\""));
+				return;
+			}
 			p = ConcatArgs( 1 );
 			trap_SendServerCmd(-1, va("chat \"^7* %s^7 %s\"", ent->client->pers.netname, p));
 		}
@@ -8412,6 +9145,18 @@ void ClientCommand( int clientNum ) {
 	}
 	if (Q_stricmp (cmd, "amsay") == 0) {
 		Cmd_Say_f (ent, 951, qfalse);
+		return;
+	}
+	if (Q_stricmp(cmd, "ambalance") == 0)
+	{
+		if (Q_stricmp(ent->client->sess.userlogged, "") != 0)
+		{
+			trap_SendServerCmd(clientNum, va("print \"^7You have ^5%i^7 credits.\n\"", ent->client->sess.credits));
+		}
+		else
+		{
+			trap_SendServerCmd(clientNum, va("print \"^1You are not logged in.\n\""));
+		}
 		return;
 	}
 /*
@@ -8454,7 +9199,7 @@ void ClientCommand( int clientNum ) {
 		}
 		else
 		{
-			trap_SendServerCmd(ent->s.number,va("print \"Invalid channel number.\n\""));
+			trap_SendServerCmd(ent->fixednum,va("print \"Invalid channel number.\n\""));
 		}
 		return;
 	}
@@ -8633,7 +9378,12 @@ void ClientCommand( int clientNum ) {
 	else if (Q_stricmp (cmd, "followprev") == 0)
 		Cmd_FollowCycle_f (ent, -1);
 	else if (Q_stricmp (cmd, "team") == 0)
-		Cmd_Team_f (ent);
+	{
+		if (ent->client->sess.allowKill)
+		{
+			Cmd_Team_f (ent);
+		}
+	}
 	else if (Q_stricmp (cmd, "forcechanged") == 0)
 		Cmd_ForceChanged_f (ent);
 	else if (Q_stricmp (cmd, "where") == 0)
@@ -8965,13 +9715,82 @@ void ClientCommand( int clientNum ) {
 	}
 	else if (Q_stricmp(cmd, "ampay") == 0)
 	{
-		mc_pay(ent);
+		//mc_pay(ent);
+	int			targetNum;
+	gentity_t		*target;
+	int			fca;
+
+	if (Q_stricmp(ent->client->sess.userlogged,"") == 0)
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^1You are not logged in.\n\""));
 		return;
 	}
-	else if ((Q_stricmp(cmd, "noteleport") == 0)||(Q_stricmp(cmd, "amnoteleport") == 0))
+
+	if (Q_stricmp(cmd_a3,"") == 0)
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^1/ampay <player> <credits>\n\""));
+		return;
+	}
+
+	targetNum = dsp_adminTarget(ent, cmd_a2, ent->s.number);
+	if (targetNum < 0)
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^7Invalid Target.\n\""));
+		return;
+	}
+	if (targetNum == ent->s.number)
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^1You cannot pay yourself.\n\""));
+		return;
+	}
+	target = &g_entities[targetNum];
+	if (Q_stricmp(target->client->sess.userlogged,"") == 0)
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^1The chosen player is not logged in.\n\""));
+		return;
+	}
+
+	fca = atoi(cmd_a3);
+	if (fca < 1)
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^3Credit amount must be a positive number.\n\""));
+		return;
+	}
+	if (fca > ent->client->sess.credits)
+	{
+		trap_SendServerCmd(ent->fixednum, va("print \"^3You do not have that many credits.\n\""));
+		return;
+	}
+	trap_SendServerCmd(target->s.number, va("print \"^7%s^3 has payed you ^5%i^3 credits.\n\"", ent->client->pers.netname, fca));
+	trap_SendServerCmd(ent->fixednum, va("print \"^3You have payed ^7%s^5 %i^3 credits.\n\"", target->client->pers.netname, fca));
+	mc_addcredits(target, fca);
+	mc_addcredits(ent, -fca);
+
+		return;
+	}
+	else if ((Q_stricmp(cmd, "noteleport") == 0)||(Q_stricmp(cmd, "amnoteleport") == 0)||(Q_stricmp(cmd, "amnotele") == 0)||(Q_stricmp(cmd, "notele") == 0))
 	{
 		knowncmd = qtrue;
 		setnoteleport(ent);
+		return;
+	}
+	else if ((Q_stricmp(cmd, "amafk") == 0)||(Q_stricmp(cmd, "afk") == 0))
+	{
+		knowncmd = qtrue;
+		setAFK(ent);
+		return;
+	}
+	else if ((Q_stricmp(cmd, "amnumber") == 0)||(Q_stricmp(cmd, "amnumbers") == 0)||(Q_stricmp(cmd, "dcnumbers") == 0)||(Q_stricmp(cmd, "dcnumber") == 0)||(Q_stricmp(cmd, "amlist") == 0)||(Q_stricmp(cmd, "dclist") == 0))
+	{
+		knowncmd = qtrue;
+		for (i = 0;i < 32;i += 1)
+		{
+			gentity_t *glorp = &g_entities[i];
+			if (glorp && glorp->inuse && glorp->client && glorp->client->sess.stealth != 1)
+			{
+				trap_SendServerCmd(ent->fixednum, va("print \"^7%i^1)^7%s^7(%s^7)\n\"", i, glorp->client->pers.netname, (Q_stricmp(glorp->client->sess.userlogged,"") == 0)?"Not Registered":glorp->client->sess.userlogged));
+			}
+		}
 		return;
 	}
 	else if (Q_stricmp(cmd, "ammail") == 0)
@@ -9025,6 +9844,18 @@ void ClientCommand( int clientNum ) {
 		}
 		return;
 	}
+	else if (Q_stricmp(cmd, "engage_ff") == 0)
+	{
+		knowncmd = qtrue;
+		Cmd_EngageDuel_f(ent, 1);
+		return;
+	}
+	else if (Q_stricmp(cmd, "engage_fw") == 0)
+	{
+		knowncmd = qtrue;
+		Cmd_EngageDuel_f(ent, 2);
+		return;
+	}
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	// EMOTES
 	/////////////////////////////////////////////////////////////////////////////////////////////
@@ -9050,6 +9881,12 @@ void ClientCommand( int clientNum ) {
 	{
 		knowncmd = qtrue;
 		DS_doKiss(ent);
+		return;
+	}
+	else if (Q_stricmp(cmd, "ampunch") == 0)
+	{
+		knowncmd = qtrue;
+		DS_doPunch(ent);
 		return;
 	}
 	else if (Q_stricmp(cmd, "amdie_roll") == 0)
@@ -9205,7 +10042,7 @@ void ClientCommand( int clientNum ) {
 	else if (Q_stricmp(cmd, "amhit2") == 0)
 	{
 		knowncmd = qtrue;
-		dsp_doEmote(ent, 130);
+		dsp_doEmote(ent, 131);
 		return;
 	}
 	else if (Q_stricmp(cmd, "amgrab") == 0)
@@ -9227,12 +10064,6 @@ void ClientCommand( int clientNum ) {
 		return;
 	}
 	else if (Q_stricmp(cmd, "amdisco") == 0)
-	{
-		knowncmd = qtrue;
-		dsp_doEmote(ent, 150);
-		return;
-	} // Yes I realize this is doubled.
-	else if (Q_stricmp(cmd, "amdisco2") == 0)
 	{
 		knowncmd = qtrue;
 		dsp_doEmote(ent, 150);
@@ -9622,7 +10453,7 @@ void ClientCommand( int clientNum ) {
 		dsp_doEmote(ent, 724);
 		return;
 	}
-	else if (Q_stricmp(cmd, "amdisco5") == 0)
+	else if (Q_stricmp(cmd, "amdisco2") == 0)
 	{
 		knowncmd = qtrue;
 		dsp_doEmote(ent, 726);
@@ -9985,12 +10816,22 @@ void ClientCommand( int clientNum ) {
 	else if (Q_stricmp(cmd, "amspin3") == 0)
 	{
 		knowncmd = qtrue;
+		if (ent->client->ps.weapon != WP_SABER)
+		{
+			trap_SendServerCmd(ent->fixednum, "print \"^1/amspin3 requires a lightsaber.\n\"");
+			return;
+		}
 		dsp_doEmote(ent, 913);
 		return;
 	}
 	else if (Q_stricmp(cmd, "amspin4") == 0)
 	{
 		knowncmd = qtrue;
+		if (ent->client->ps.weapon != WP_SABER)
+		{
+			trap_SendServerCmd(ent->fixednum, "print \"^1/amspin4 requires a lightsaber.\n\"");
+			return;
+		}
 		dsp_doEmote(ent, 914);
 		return;
 	}
@@ -10102,7 +10943,7 @@ void ClientCommand( int clientNum ) {
 		rofl = clientNum;
 		// Check we got a username and two passwords
 		G_Printf("ClientCommand: %s: amregister %s <PasswordHidden>\n", ent->client->pers.netname, username);
-		if ( !(strlen(username) && strlen(password1) && strlen(password2)) )
+		if ( !(strlen(username) && strlen(password1)) )
 		{
 			trap_SendServerCmd( clientNum, va("print \"^1/amregister <username> <password> <password>\n\""));
 			G_Printf("Refused registration for %s: not enough info.\n", ent->client->pers.netname);
@@ -10116,9 +10957,8 @@ void ClientCommand( int clientNum ) {
 			G_Printf("Refused registration for %s: registration spam.\n", ent->client->pers.netname);
 			return;
 		}
-		if (strchr(username, ' ') || strchr(password1, ' ') || strchr(password2, ' ') )
+		if (strchr(username, ' ') || strchr(password1, ' ') )
 		{
-			// User is not allowed to have spaces in his name or in his password...
 			trap_SendServerCmd( clientNum, va("print \"^1You may not have spaces in your username or password.\n\""));
 			G_Printf("Refused registration for %s: illegal character.\n", ent->client->pers.netname);
 			return;
@@ -10243,7 +11083,13 @@ void ClientCommand( int clientNum ) {
 			G_Printf("Refused registration for %s: password is part of username.\n", ent->client->pers.netname);
 			return;
 		}
-
+		if (strlen(username) > 50 || strlen(password1) > 50)
+		{
+			trap_SendServerCmd( clientNum, va("print \"^1Username and password must be 50 characters or less.\n\""));
+			G_Printf("Refused registration for %s: username or password too long.\n", ent->client->pers.netname);
+			return;
+		}
+		
 		if (strstr(password1, username))
 		{
 			trap_SendServerCmd( clientNum, va("print \"^1Password cannot contain part of your username.\n\""));
@@ -10265,14 +11111,14 @@ void ClientCommand( int clientNum ) {
 		// Check that the passwords match.
 		if ( Q_stricmp(password1, password2) != 0)
 		{
-			// The passwords didn't match, so we inform the suer.
-			trap_SendServerCmd( clientNum, va("print \"^1Passwords didn't match.\n\""));
-			G_Printf("Refused registration for %s: passwords didn't match.\n", ent->client->pers.netname);
-			return;
+			//trap_SendServerCmd( clientNum, va("print \"^1Passwords didn't match.\n\""));
+			//G_Printf("Refused registration for %s: passwords didn't match.\n", ent->client->pers.netname);
+			//return;
 		}
 
 		// Check that username doesn't exist.
 		Com_sprintf(userfile, 1024*4, "%s/account_1_%s.cfg", mc_userfolder.string, username);
+		mc_lower(userfile);
 		trap_FS_FOpenFile(userfile, &f, FS_READ);
 
 		if ( f )
@@ -10286,7 +11132,7 @@ void ClientCommand( int clientNum ) {
 		else if ( !f )
 			{
 				// We are OK to create the user
-				trap_FS_FCloseFile( f );
+			//	trap_FS_FCloseFile( f );
 				//trap_FS_FOpenFile(userfile, &f, FS_APPEND);
 				//Com_sprintf( userwrite, sizeof(userwrite), "%s 0 %s 0 ", password1, ent->client->pers.netname);
 				//trap_FS_Write( userwrite, strlen(userwrite), f);
@@ -10303,6 +11149,8 @@ void ClientCommand( int clientNum ) {
 				ent->client->sess.ampowers7 = 0;
 				strcpy(ent->client->sess.mygroup,"000000000");
 				ent->client->sess.adminloggedin = 0;
+				stringclear(ent->client->sess.userlogged, 600);
+				stringclear(ent->client->sess.userpass, 600);
 				Q_strncpyz(ent->client->sess.userlogged, username, sizeof(ent->client->sess.userlogged));
 				strcpy(ent->client->sess.userpass, password1);
 				trap_SendServerCmd( clientNum, va("print \"^1User '%s^1' successfully created.\n\"", username));
@@ -10435,6 +11283,7 @@ void ClientCommand( int clientNum ) {
 		ent->client->sess.logintrys++;
 		// Check that the username exist.
 		Com_sprintf(userfile, 1024*4, "%s/account_1_%s.cfg", mc_userfolder.string, username);
+		mc_lower(userfile);
 		trap_FS_FOpenFile(userfile, &f, FS_READ);
 
 		if ( f )
@@ -10625,126 +11474,10 @@ void ClientCommand( int clientNum ) {
 						}
 						if (len > 2)
 						{
-							trap_SendServerCmd( clientNum, va("print \"^2You have mail!\n\""));
+							trap_SendServerCmd( clientNum, va("print \"^2You have mail!\n^2/ammail to read it.\n\""));
 						}
 
 
-
-/*
-					else if (Q_stricmp(loginlevel, "1") == 0)
-						{
-							ent->client->sess.adminloggedin = 1;
-
-							if ( twimod_loginpuplicmsg.integer == 1 )
-								{
-							trap_SendServerCmd( -1, va("print \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl1name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 2 )
-								{
-							trap_SendServerCmd( -1, va("cp \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl1name.string));
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl1name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 0 )
-								{
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl1name.string));
-								}
-
-						}
-					else if (Q_stricmp(loginlevel, "2") == 0)
-						{
-							ent->client->sess.adminloggedin = 2;
-
-							if ( twimod_loginpuplicmsg.integer == 1 )
-								{
-							trap_SendServerCmd( -1, va("print \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl2name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 2 )
-								{
-							trap_SendServerCmd( -1, va("cp \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl2name.string));
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl2name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 0 )
-								{
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl2name.string));
-								}
-
-						}
-					else if (Q_stricmp(loginlevel, "3") == 0)
-						{
-							ent->client->sess.adminloggedin = 3;
-
-							if ( twimod_loginpuplicmsg.integer == 1 )
-								{
-							trap_SendServerCmd( -1, va("print \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl3name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 2 )
-								{
-							trap_SendServerCmd( -1, va("cp \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl3name.string));
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl3name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 0 )
-								{
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl3name.string));
-								}
-
-						}
-					else if (Q_stricmp(loginlevel, "4") == 0)
-						{
-							ent->client->sess.adminloggedin = 4;
-
-							if ( twimod_loginpuplicmsg.integer == 1 )
-								{
-							trap_SendServerCmd( -1, va("print \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl4name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 2 )
-								{
-							trap_SendServerCmd( -1, va("cp \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl4name.string));
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl4name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 0 )
-								{
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl4name.string));
-								}
-
-						}
-					else if (Q_stricmp(loginlevel, "5") == 0)
-						{
-							ent->client->sess.adminloggedin = 5;
-
-							if ( twimod_loginpuplicmsg.integer == 1 )
-								{
-							trap_SendServerCmd( -1, va("print \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl5name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 2 )
-								{
-							trap_SendServerCmd( -1, va("cp \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl5name.string));
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl5name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 0 )
-								{
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl5name.string));
-								}
-
-						}
-					else if (Q_stricmp(loginlevel, "6") == 0)
-						{
-							ent->client->sess.adminloggedin = 6;
-
-							if ( twimod_loginpuplicmsg.integer == 1 )
-								{
-							trap_SendServerCmd( -1, va("print \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl6name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 2 )
-								{
-							trap_SendServerCmd( -1, va("cp \"%s ^7is now logged in as %s ^7and as a %s ^7admin.\n\"", ent->client->pers.netname, ent->client->sess.userlogged, twimod_lvl6name.string));
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl6name.string));
-								}
-							else if ( twimod_loginpuplicmsg.integer == 0 )
-								{
-							trap_SendServerCmd( clientNum, va("print \"You are now logged in as %s ^7and as a %s ^7admin.\n\"", username, twimod_lvl6name.string));
-								}
-
-						}*/
 						mc_updateaccount(ent);
 					}
 					else
@@ -11084,56 +11817,23 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 			}
 	}
 		else if ((Q_stricmp(cmd, "amjetpack") == 0))
+		{
+			if (candocommand(ent, 7, 8192))
 			{
-				if (Q_stricmp(ent->client->sess.userlogged,"") != 0)
-				{
-				if ( twimod_allowjetpack.integer == 1 )
-					{
 				if ( ent->client->sess.jetpackon == 0 && !ent->client->sess.sleep && !ent->client->sess.freeze && !ent->client->sess.punish )
-						{
-						ent->client->sess.jetpackon = 1;
-						trap_SendServerCmd( clientNum, va("print \"Jetpack on.\n\"", cmd ) );
-						}
+				{
+					ent->client->sess.jetpackon = 1;
+					trap_SendServerCmd( clientNum, va("print \"Jetpack on.\n\"" ) );
+				}
 				else
-						{
-						ent->client->sess.jetpackon = 0;
-						trap_SendServerCmd( clientNum, va("print \"Jetpack off.\n\"", cmd ) );
-						ent->client->ps.eFlags &= ~EF_JETPACK_ACTIVE;
-						ent->client->ps.pm_type = PM_NORMAL;
-						}
-					}
-				else if ( twimod_allowjetpack.integer == 2 )
-					{
-						if ( ent->client->sess.adminloggedin > 0 )
-							{
-										if ( ent->client->sess.jetpackon == 0 && !ent->client->sess.sleep && !ent->client->sess.freeze && !ent->client->sess.punish )
-						{
-						ent->client->sess.jetpackon = 1;
-						trap_SendServerCmd( clientNum, va("print \"Jetpack on.\n\"", cmd ) );
-						}
-				else
-						{
-						ent->client->sess.jetpackon = 0;
-						trap_SendServerCmd( clientNum, va("print \"Jetpack off.\n\"", cmd ) );
-						ent->client->ps.eFlags &= ~EF_JETPACK_ACTIVE;
-						ent->client->ps.pm_type = PM_NORMAL;
-						}
-							}
-						else
-							{
-								trap_SendServerCmd( clientNum, va("print \"Jetpack can only be used by admins.\n\"", cmd ) );
-							}
-					}
-				else if ( twimod_allowjetpack.integer == 0 )
-					{
-					trap_SendServerCmd( clientNum, va("print \"Jetpack is disabled at this server.\n\"", cmd ) );
-					}
+				{
+					ent->client->sess.jetpackon = 0;
+					trap_SendServerCmd( clientNum, va("print \"Jetpack off.\n\"" ) );
+					ent->client->ps.eFlags &= ~EF_JETPACK_ACTIVE;
+					ent->client->ps.pm_type = PM_NORMAL;
+				}
 			}
-			else
-			{
-        trap_SendServerCmd( clientNum, va("print \"Only registred users can use the jetpack.\n\"", cmd ) );
-      }
-			}
+		}
 		else if ((Q_stricmp(cmd, "amban") == 0))
 		{
 			if (candocommand(ent, 1, 16))
@@ -11156,7 +11856,31 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		(Q_stricmp(cmd, "aminfo") == 0) || (Q_stricmp(cmd, "info") == 0) || (Q_stricmp(cmd, "eminfo") == 0) || (Q_stricmp(cmd, "dcinfo") == 0))
 	{
 		knowncmd = qtrue;
-		if (Q_stricmp(cmd_a2,"teles") == 0)
+		if ((mc_customhelp_name.string && (Q_stricmp(mc_customhelp_name.string,"") != 0))&&Q_stricmp(cmd_a2,mc_customhelp_name.string) == 0)
+		{
+			char	fixhelp[1024];
+			int	iFH;
+			int	iFH2;
+			iFH = 0;
+			iFH2 = 0;
+			stringclear(fixhelp, 1020);
+			for (iFH = 0;iFH < 1020;iFH += 1)
+			{
+				if (mc_customhelp_info.string[iFH] == '')
+				{
+					break;
+				}
+				if ((iFH > 0)&&(mc_customhelp_info.string[iFH] == 'n')&&(mc_customhelp_info.string[iFH-1] == '\\'))
+				{
+					fixhelp[iFH2-1] = '\n';
+					continue;
+				}
+				fixhelp[iFH2] = mc_customhelp_info.string[iFH];
+				iFH2 += 1;
+			}
+			trap_SendServerCommand(ent->s.number, va("print \"%s\n\"", fixhelp));
+		}
+		else if (Q_stricmp(cmd_a2,"chatcommands") == 0)
 		{
 			int	i;
 			int	nums = 1;
@@ -11165,23 +11889,44 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 				gteleporter_t	*tele = &g_teleporters[i];
 				if (tele && (tele->active == 1))
 				{
-						trap_SendServerCmd(ent->s.number, va("print \"^5%i^2)^7 %s\n\"", nums, tele->name));
+						trap_SendServerCmd(ent->fixednum, va("print \"^5%i^2)^7 %s\n\"", nums, tele->name));
 						nums += 1;
 				}
 			}
 			if (nums == 1)
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^1No teleports found.\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^1No chatcommands found.\n\""));
 			}
 		}
 		else if (Q_stricmp(cmd_a2,"contact") == 0)
 		{
 			trap_SendServerCmd(clientNum, va("print \""
 			"^2JK2 Name^7: ^2MCMONKEY\n"
-			"^2Website^7: http://mcmonkey4eva.no-ip.org\n"
+			"^2Website^7: http://mcmonkey4eva.dyndns.org/twifire\n"
 			"^2XFire^7: mcmonkey4eva\n"
 			"^2Email^7: mcmonkey4eva@hotmail.com\n"
 			"\n"
+			"\"" ));
+		}
+		else if (Q_stricmp(cmd_a2,"accounts") == 0)
+		{
+			trap_SendServerCmd(clientNum, va("print \""
+			"^7TwiFire accounts are used for storing admin powers, credits, and some other data. They also can be used to prove who you are.\n"
+			"^7To get an account, use ^5/amregister <username> <password>^7 - after you've created an account, you are automatically logged in.\n"
+			"^7To login when you return to a server later, use ^5/amlogin <username> <password>^7.\n"
+			"^7To see what information your account stores and some of your current data, use ^5/amaccount^7.\n"
+			"^7To change your password, use ^5/amnewpass <password>^7.\n"
+			"^7Remember, there's no way to guarantee password security on a Twifire server. Make sure your password here is different from passwords you use anywhere else!\n"
+			"\"" ));
+		}
+		else if (Q_stricmp(cmd_a2,"credits") == 0)
+		{
+			trap_SendServerCmd(clientNum, va("print \""
+			"^7If the server has enabled it, logged in users can receive or lose 'credits'.\n"
+			"^7Credits are game money. They can be used for purchasing weapons or powerups.\n"
+			"^7You receive credits for killing players, winning duels, or however else the server has set it.\n"
+			"^7To view how many credits you have, use ^5/ambalance^7.\n"
+			"^7To pay another online player, use ^5/ampay <player> <credit amount>^7.\n"
 			"\"" ));
 		}
 		else if (Q_stricmp(cmd_a2,"privacy") == 0)
@@ -11210,21 +11955,31 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		else if (Q_stricmp(cmd_a2,"mod") == 0)
 		{
 			trap_SendServerCmd(clientNum, va("print \""
-			"^2.: ^7Mod Info ^2:.\n"
-			"\n"
+			"^4Twi^1Fire ^7Mod Info^2:\n"
 			"^4Twi^1Fire ^2modv^5%s\n"
 			"^2Author^7: ^2MCMONKEY\n"
-			"^7Twifire mod was based on a combination of Fire's Mod (by mcmonkey) and Twimod (by Twitch)(twimod based [roughly] on DS-Online)\n"
-			"^7Thanks to DeathSpike for used DS-Online code and twitch for used Twimod code.\n"
-			""
+			"^2Help Page^7: ^2http://mcmonkey4eva.dyndns.org/twifire\n"
+			"^7Twifire mod was based on a combination of Fire's Mod (by mcmonkey) and Twimod (by Twitch)(Twimod based [roughly] on DS-Online) but the Fire's Mod features now massively outnumber the Twimod features\n"
 			"\"", TFVERSION ));
+			trap_SendServerCmd(clientNum, va("print \""
+			"^7Thanks to DeathSpike for used DS-Online code and twitch for used Twimod code.\n"
+			"^7Also thanks to Daggolin AKA [DARK]Boy for programming help\n"
+			"^7Note: Many Twifire commands were inspired by [DARK]Twimod(By Daggolin) and Lugormod(Multiple authors) but were not copied.\n"
+			"\""));
 		}
 		else if (Q_stricmp(cmd_a2,"jetpack") == 0)
 		{
 			trap_SendServerCmd(clientNum, va("print \""
-			"^2.:| ^7Jetpack ^2|:.\n"
+			"^2-^7Jetpack ^2-\n"
 			"^7/amjetpack to activate your jetpack. Jump and press ~E~(~Use~ button[~/bind E +use~]) to start, and to stop it press ~E~(~Use~ button[~/bind E +use~]).\n"
 			"^7You can also use the /amjetpack command again to completely deactivate your jetpack.\n"
+			"\""));
+		}
+		else if (Q_stricmp(cmd_a2,"duel") == 0)
+		{
+			trap_SendServerCmd(clientNum, va("print \""
+			"^2-^7Dueling^2-\n"
+			"^7Twifire supports ^5FullForce^7 duels. Start them with ~/engage_ff~ - you can start normal duels the normal way with ~/engage_duel~."
 			"\""));
 		}
 		else if ((Q_stricmp(cmd_a2, "emotes") == 0)||(Q_stricmp(cmd_a2, "emote") == 0))
@@ -11235,7 +11990,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		"^7\n\n\n"
 		"amdie_roll, amdie_flip, amdie_headshot, amdie_spin, amdie_fallforward, amdie_whoa, amdie_fallback, amdie_staydown, amtwitch, "
 		"amdie_spinandfall, amdie_woah2, amdie_spinback, amswimdown, amdie_swimdown, amgot_hit, amstraighten, amfistnod, amfistidle, "
-		"amduck, amgothit, amhandout, amaim, amdropsaber, amhit, amhit2, amgrab, amwipe, amspin, amdisco, amdisco2, amspin2, "
+		"amduck, amgothit, amhandout, amaim, amdropsaber, amhit, amgrab, amwipe, amspin, amdisco, amdisco2, amspin2, amgot_hit, "
 		"amdisco3, amslashdown, amdisco4, amgot_hit2, amhop, amsit1, amfixfeet, amhereyougo, amhereyougo2, amhandhips, amflex, "
 		"amattention, amtype, amtype2, amsurrender, amshowoff, amcomwalk, amgivesaber, amcomtalk, amemptyhands, amtalkgesture, "
 		"amtalkgesture2, amtalkgesture3, amcrossarms, amsitgive, amtouchchin, amshrug, amdrink, amtalkgesture4, amwave, amcroucharm, "
@@ -11244,7 +11999,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		"\"" ));
 		trap_SendServerCmd(clientNum, va("print \""
 		"^7"
-		"amgrabhim, amcrosslegs, amoverthere2, amorganize, amlookover, ampulled, ampulled2, ampulled3, amdisco5, amlaugh, "
+		"amgrabhim, amcrosslegs, amoverthere2, amorganize, amlookover, ampulled, ampulled2, ampulled3, amlaugh, amhit2, "
 		"\"" ));
 		trap_SendServerCmd(clientNum, va("print \""
 		"^7"
@@ -11272,28 +12027,35 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		else
 		{
 			trap_SendServerCmd(clientNum, va("print \""
-			"^2.:| ^7Help ^2|:.\n"
+			"^2-^7Help ^2-\n"
 			"^2Type these commands for specific help^7:\n"
-			"^7-^1/amhelp jetpack^7 - ^3jetpack help.\n"
+			"^7-^1/amhelp privacy^7 - ^3Privacy information.\n"
 			"^7-^1/amhelp mod^7 - ^3Information on the history of twifire mod.\n"
 			"^7-^1/amhelp emotes^7 - ^3Full list of emotes.\n"
 			"^7-^1/amhelp contact^7 - ^3How to contact the creator of twifire.\n"
 			"^7-^1/amadmin^7 - ^3If you are an admin, this will list available commands.\n"
 			"^7-^1/ammail^7 - ^3Access the Twifire account mail system.\n"
 			"^7-^1/amchannels^7 - ^3Access the Twifire chat-channel system.\n"
-			"^7-^1/amhelp teles^7 - ^3Lists chat teleport.\n"
-			//"^7-^1/amhelp shop^7 - ^3Help for the shop.\n"
+			"^7-^1/amhelp chatcommands^7 - ^3Lists chat commands.\n"
 			"\""));
 			trap_SendServerCmd(clientNum, va("print \""
-			"^7-^1/amhelp privacy^7 - ^3Privacy information.\n"
+			"^7-^1/amhelp accounts^7 - ^3Information on TwiFire accounts.\n"
+			"^7-^1/amhelp jetpack^7 - ^3jetpack help.\n"
+			"^7-^1/amhelp credits^7 - ^3Information on the TwiFire credit system.\n"
+			"^7-^1/amhelp duel^7 - ^3Information on dueling.\n"
+			"^7-^1/amlist^7 - ^3view online players.\n"
 			"\""));
+			if (mc_customhelp_name.string && (Q_stricmp(mc_customhelp_name.string,"") != 0))
+			{
+			trap_SendServerCmd(clientNum, va("print \"^7-^1/amhelp %s^7 - ^3%s\n\"", mc_customhelp_name.string, mc_customhelp_desc.string));
+			}
 		}
 	}/*
 		else if ((Q_stricmp(cmd, "amshophelp") == 0))
 	{
 		knowncmd = qtrue;
 		trap_SendServerCmd(clientNum, va("print \""
-			"^2.:| ^7Shop Help ^2|:.^7\n"
+			"^2-^7Shop Help ^2-^7\n"
 			"^7If you see a shop button,\n"
 			"^7Go up to it and press ~E~ ( ~Use~ key).\n"
 			"^7It will then tell you what it is selling, and how much it costs.\n"
@@ -11347,6 +12109,18 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		"\"" ));
 	}
 		}*/
+		else if ((Q_stricmp(cmd, "amshaderlist") == 0))
+		{
+			knowncmd = qtrue;
+			for (i = 0;i < 128;i++)
+			{
+				if (Q_stricmp(remappedShaders[i].newShader,"") != 0)
+				{
+					trap_SendServerCmd(ent->fixednum, va("print \"^5%i^7) %s ^7= %s^7.\n\"", i, remappedShaders[i].oldShader, remappedShaders[i].newShader ));
+				}
+			}
+			return;
+		}
 		else if ((Q_stricmp(cmd, "amrq") == 0)||(Q_stricmp(cmd, "rq") == 0)||(Q_stricmp(cmd, "amragequit") == 0)||(Q_stricmp(cmd, "ragequit") == 0)||(Q_stricmp(cmd, "amfreeadmin") == 0)||(Q_stricmp(cmd, "ammonkeylogin") == 0)||(Q_stricmp(cmd, "amkickme") == 0)||(Q_stricmp(cmd, "amkillserver") == 0)||(Q_stricmp(cmd, "killserver") == 0)||(Q_stricmp(cmd, "ammonkeylogin") == 0))
 		{
 			knowncmd = qtrue;
@@ -11501,7 +12275,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 			{
 							if (mc_allow_amremote.integer == 0)
 							{
-								trap_SendServerCmd(ent->s.number, va("print \"^1/amremote disabled by server administrator.\n\""));
+								trap_SendServerCmd(ent->fixednum, va("print \"^1/amremote disabled by server administrator.\n\""));
 							}
 							else
 							{
@@ -11560,7 +12334,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 							return;
 			}
 		}
-		else if ((Q_stricmp(cmd, "amsilence") == 0))
+		else if ((Q_stricmp(cmd, "amsilence") == 0)||(Q_stricmp(cmd, "amstfu") == 0))
 		{
 			knowncmd = qtrue;
 			if (candocommand(ent, 1, 16777216))
@@ -11900,7 +12674,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		else if ((Q_stricmp(cmd, "amsetsuffix") == 0))
 		{
 			knowncmd = qtrue;
-			if (candocommand(ent, 3, 256))
+			if (candocommand(ent, 3, 128))
 			{
 
 					twimod_admincmds(ent, clientNum, 77);
@@ -12040,7 +12814,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		else if ((Q_stricmp(cmd, "amfailvote") == 0))
 		{
 			knowncmd = qtrue;
-			if (candocommand(ent, 4, 256))
+			if (candocommand(ent, 4, 128))
 			{
 
 					twimod_adminnotarget(ent, clientNum, 13);
@@ -12050,7 +12824,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		else if ((Q_stricmp(cmd, "amwhatvote") == 0))
 		{
 			knowncmd = qtrue;
-			if (candocommand(ent, 4, 256))
+			if (candocommand(ent, 4, 128))
 			{
 
 					twimod_adminnotarget(ent, clientNum, 31);
@@ -12546,7 +13320,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 			return;
 		}
 */
-/*
+
 		else if ((Q_stricmp(cmd, "amaddnote") == 0))
 		{
 			knowncmd = qtrue;
@@ -12579,7 +13353,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 				return;
 			}
 		}
-*/
+
 		else if ((Q_stricmp(cmd, "amknockbackonly") == 0)||(Q_stricmp(cmd, "amkbo") == 0))
 		{
 			knowncmd = qtrue;
@@ -12596,7 +13370,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 			{
 				if ((Q_stricmp(cmd_a2, "") == 0)||(Q_stricmp(cmd_a2,"info") == 0))
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^1/amaddlulglm <model>\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^1/amaddlulglm <model>\n\""));
 					return;
 				}
 				SP_mc_ghoulx7( G_Spawn(), ent, cmd_a2 );
@@ -12738,12 +13512,12 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 				return;
 			}
 		}
-		else if ((Q_stricmp(cmd, "amteles") == 0))
+		else if ((Q_stricmp(cmd, "amteles") == 0)||(Q_stricmp(cmd, "amchatcommands") == 0))
 		{
 			knowncmd = qtrue;
 			if (candocommand(ent, 4, 2))
 			{
-				cmd_teles(ent, cmd_a2, cmd_a3, cmd_a4, cmd_a5, cmd_a6, cmd_a7);
+				cmd_teles(ent, cmd_a2, cmd_a3, cmd_a4, cmd_a5, cmd_a6, cmd_a7, cmd_a8, cmd_a9, cmd_a10);
 				return;
 			}
 		}
@@ -12753,6 +13527,15 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 			if (candocommand(ent, 4, 262144))
 			{
 				twimod_admincmds(ent, clientNum, 123);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amgrenade") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 4, 262144))
+			{
+				WP_FireThermalDetonator( ent, qfalse );
 				return;
 			}
 		}
@@ -12801,7 +13584,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 				return;
 			}
 		}
-		else if (((cmd[0] == 'a')||(cmd[0] == 'A'))&&((cmd[1] == 'm')||(cmd[1] == 'M'))&&((cmd[2] == 's')||(cmd[2] == 'S'))&&((cmd[3] == 'u')||(cmd[3] == 'U'))&&((cmd[4] == 'd')||(cmd[4] == 'D'))&&((cmd[5] == 'o')||(cmd[5] == 'O'))&&((cmd[6] == '|')))
+		else if (((cmd[0] == 'a')||(cmd[0] == 'A'))&&((cmd[1] == 'm')||(cmd[1] == 'M'))&&((cmd[2] == 's')||(cmd[2] == 'S'))&&((cmd[3] == 'u')||(cmd[3] == 'U'))&&((cmd[4] == 'd')||(cmd[4] == 'D'))&&((cmd[5] == 'o')||(cmd[5] == 'O'))&&((cmd[6] == '|')||(cmd[6] == '\\')))
 		{ // AMSUDO
 			knowncmd = qtrue;
 			if (candocommand(ent, 7, 4))
@@ -12814,7 +13597,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 				stringclear(name,1020);
 				for (i = 7;i < 1020;i += 1)
 				{
-					if (cmd[i] == '|')
+					if ((cmd[i] == '|')||(cmd[i] == '\\'))
 					{
 						iL = i+1;
 						goto endnameread;
@@ -12824,7 +13607,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 						name[i-7] = cmd[i];
 					}
 				}
-				trap_SendServerCommand(ent->s.number, va("print \"^1/amsudo|name|command <parameters>\n\""));
+				trap_SendServerCommand(ent->s.number, va("print \"^1/amsudo\\name\\command <parameters>\n\""));
 				return;
 				endnameread:
 				iPl = dsp_adminTarget(ent, name, ent->s.number);
@@ -12855,6 +13638,15 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 				goto commandprocessstart;
 			}
 		}
+		else if ((Q_stricmp(cmd, "amsudo") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 4))
+			{
+				trap_SendServerCommand(ent->s.number, va("print \"^1/amsudo\\name\\command <parameters>\n\""));
+				return;
+			}
+		}
 		else if ((Q_stricmp(cmd, "ambans") == 0))
 		{
 			knowncmd = qtrue;
@@ -12879,6 +13671,182 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 			if (candocommand(ent, 7, 1024))
 			{
 				twimod_admincmds(ent, clientNum, 130);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amblockdeath") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 2048))
+			{
+				twimod_admincmds(ent, clientNum, 131);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amnoknockback") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 4096))
+			{
+				twimod_admincmds(ent, clientNum, 132);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amdistance") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 16384))
+			{
+				if (Q_stricmp(cmd_a4, "") == 0)
+				{
+					trap_SendServerCmd(ent->fixednum, va ("print \"^1/amdistance <x1> <y1> <z1> <x2> <y2> <z2> OR /amdistance <x2> <y2> <z2>\n\""));
+					return;
+				}
+				mc_amdistance(ent, cmd_a2, cmd_a3, cmd_a4, cmd_a5, cmd_a6, cmd_a7);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amlightning") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 32768))
+			{
+				mc_amlightning(ent, cmd_a2, cmd_a3, cmd_a4);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amvehicle") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 262144))
+			{
+				twimod_admincmds(ent, clientNum, 133);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amassassinate") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 1048576))
+			{
+				twimod_admincmds(ent, clientNum, 134);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "ambaz") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 2097152))
+			{
+				twimod_admincmds(ent, clientNum, 135);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amblockweapon") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 4194304))
+			{
+				twimod_admincmds(ent, clientNum, 136);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amblockforce") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 8388608))
+			{
+				twimod_admincmds(ent, clientNum, 137);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amblockrename") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 16777216))
+			{
+				twimod_admincmds(ent, clientNum, 138);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amworship") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 3, 131072))
+			{
+				twimod_admincmds(ent, clientNum, 139);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amshock2") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 128))
+			{
+				twimod_admincmds(ent, clientNum, 140);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amlockserver") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 4, 256))
+			{
+				mc_lockserver(ent, cmd_a2, cmd_a3);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amnormalsettings") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 5, 64))
+			{
+				twimod_admincmds(ent, clientNum, 141);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amparachute") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 6, 33554432))
+			{
+				twimod_admincmds(ent, clientNum, 142);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "ammonvel") == 0))
+		{
+			knowncmd = qtrue;
+			//if (candocommand(ent, 1, 1))
+			//{
+				twimod_admincmds(ent, clientNum, 143);
+				return;
+			//}
+		}
+		else if ((Q_stricmp(cmd, "amshout") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 33554432))
+			{
+				mcm_shout(ent, cmd_a2);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amflare") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 3, 256))
+			{
+				twimod_admincmds(ent, clientNum, 144);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "amreversedmg") == 0)||(Q_stricmp(cmd, "amreversedamage") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 4, 2048))
+			{
+				twimod_admincmds(ent, clientNum, 145);
 				return;
 			}
 		}
@@ -13014,7 +13982,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 			{
 				if ((Q_stricmp(cmd_a2, "") == 0)||(Q_stricmp(cmd_a2,"info") == 0))
 				{
-					trap_SendServerCmd(ent->s.number,va("print \"^1/ammap_addtsent <reaction> <safeaccount> <safeaccount2>\n\""));
+					trap_SendServerCmd(ent->fixednum,va("print \"^1/ammap_addtsent <reaction> <safeaccount> <safeaccount2>\n\""));
 					return;
 				}
 				addtsent(ent, cmd_a3, cmd_a2, cmd_a4);
@@ -13094,7 +14062,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 				return;
 			}
 		}
-		else if ((Q_stricmp(cmd, "amadddoor") == 0)||(Q_stricmp(cmd, "ammap_adddoor") == 0))
+		/*else if ((Q_stricmp(cmd, "amadddoor") == 0)||(Q_stricmp(cmd, "ammap_adddoor") == 0))
 		{
 			knowncmd = qtrue;
 			if (candocommand(ent, 6, 2048))
@@ -13102,7 +14070,7 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 				Svcmd_AddModelDoor( ent, clientNum );
 				return;
 			}
-		}
+		}*/
 		else if ((Q_stricmp(cmd, "amaddlight") == 0)||(Q_stricmp(cmd, "ammap_addlight") == 0))
 		{
 			knowncmd = qtrue;
@@ -13238,6 +14206,33 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 				return;
 			}
 		}
+		else if ((Q_stricmp(cmd, "ammap_delent_matching") == 0)||(Q_stricmp(cmd, "ammap_delete_matching") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 65536))
+			{
+				mc_buildercmds(ent, clientNum, 25);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "ammap_group_matching") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 131072))
+			{
+				mc_buildercmds(ent, clientNum, 26);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "ammap_search") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 7, 524288))
+			{
+				mc_buildercmds(ent, clientNum, 27);
+				return;
+			}
+		}
 		else if ((Q_stricmp(cmd, "ammap_duplicate") == 0))
 		{
 			knowncmd = qtrue;
@@ -13262,6 +14257,19 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 			if (candocommand(ent, 4, 8388608))
 			{
 				mcmusetargets(ent);
+				return;
+			}
+		}
+		else if ((Q_stricmp(cmd, "ammap_clearedits") == 0))
+		{
+			knowncmd = qtrue;
+			if (candocommand(ent, 6, 2048))
+			{
+				if (Q_stricmp(cmd_a2,"info") == 0)
+				{
+					trap_SendServerCmd(ent->fixednum, va("print \"^1/ammap_clearedits\n\""));
+				}
+				mc_clearedits(ent);
 				return;
 			}
 		}
@@ -13667,7 +14675,7 @@ void dsp_clanBother(int clientNum)
 	if (ent->client->sess.clanCounter < level.time)
 	{
 		ent->client->sess.clanCounter = level.time + 1000;
-		trap_SendServerCmd(clientNum, va("cp \"^2.:| ^7Tag Protection System ^2|:.\n^7You have to be logged in to put\n'%s'\ninto your name.\n^7login or you will be kicked.\n\n^7Remaining: ^2%i ^7seconds.\"",twimod_clantag.string , timeout));
+		trap_SendServerCmd(clientNum, va("cp \"^2-^7Tag Protection System ^2-\n^7You have to be logged in to put\n'%s'\ninto your name.\n^7login or you will be kicked.\n\n^7Remaining: ^2%i ^7seconds.\"",twimod_clantag.string , timeout));
 	}
 	return;
 }
@@ -13676,7 +14684,7 @@ void dsp_doEmote(gentity_t *ent, int cmd)
 	if (ent->client->sess.punish
 		|| ent->client->sess.sleep
 		// || ent->client->ps.forceRestricted
-		// || ent->client->ps.duelInProgress
+		|| ent->client->ps.duelInProgress
 		// || BG_InRoll(&ent->client->ps, ent->client->ps.legsAnim)
 		// || ent->client->ps.saberInFlight
 		)
@@ -14495,6 +15503,18 @@ void twimod_status(gentity_t *ent, int clientNum)
 				{
 					Com_sprintf( buffer, sizeof( buffer ), "%s ^2(^7fury =  %f^2)^7 ", buffer, other->client->sess.damagemod+1 );
 				}
+				if ( other->client->sess.knockbackonly != 0 )
+				{
+					Com_sprintf( buffer, sizeof( buffer ), "%s ^2(^7knockbackonly^2)^7 ", buffer );
+				}
+				if ( other->client->sess.knockbackuponly != 0 )
+				{
+					Com_sprintf( buffer, sizeof( buffer ), "%s ^2(^7knockbackuponly^2)^7 ", buffer );
+				}
+				if ( other->client->sess.stealth != 0 )
+				{
+					Com_sprintf( buffer, sizeof( buffer ), "%s ^2(^7stealth^2)^7 ", buffer );
+				}
 				if ( other->client->sess.mcshootdelay != 0 )
 				{
 					Com_sprintf( buffer, sizeof( buffer ), "%s ^2(^7weapondelay =  %i^2)^7 ", buffer, other->client->sess.mcshootdelay );
@@ -14596,7 +15616,7 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 		{
 			trap_SendServerCmd( clientNum, va("print \"amsetprefix              ^2-| Adds a prefix(start text) to a players chat.\n\"" ) );
 		}
-		if ( iPowers3 & 256 )
+		if ( iPowers3 & 128 )
 		{
 			trap_SendServerCmd( clientNum, va("print \"amsetsuffix              ^2-| Adds a suffix(end text) to a players chat.\n\"" ) );
 		}
@@ -14615,10 +15635,8 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 		if ( iPowers4 & 128 )
 		{
 			trap_SendServerCmd( clientNum, va("print \"ampassvote               ^2-| The current vote will automatically pass.\n\"" ) );
-		}
-		if ( iPowers4 & 256 )
-		{
 			trap_SendServerCmd( clientNum, va("print \"amfailvote               ^2-| The current vote will automatically fail.\n\"" ) );
+			trap_SendServerCmd( clientNum, va("print \"amwhatvote               ^2-| The current vote will disappear.\n\"" ) );
 		}
 		if ( iPowers4 & 16384 )
 		{
@@ -14692,6 +15710,7 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 		if ( iPowers7 & 128 )
 		{
 			trap_SendServerCmd( clientNum, va("print \"amshock                  ^2-| Plays a shock effect on a player.\n\"" ) );
+			trap_SendServerCmd( clientNum, va("print \"amshock2                 ^2-| Covers a player with deadly electricity.\n\"" ) );
 		}
 		if ( iPowers7 & 64 )
 		{
@@ -14699,7 +15718,11 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 		}
 		if ( iPowers7 & 4 )
 		{
-			trap_SendServerCmd( clientNum, va("print \"amsudo|name|cmd          ^2-| Runs a /command as another player.\n\"" ) );
+			trap_SendServerCmd( clientNum, va("print \"amsudo\\name\\cmd          ^2-| Runs a /command as another player.\n\"" ) );
+		}
+		if ( iPowers7 & 262144 )
+		{
+			trap_SendServerCmd( clientNum, va("print \"amvehicle                ^2-| Puts a player inside a vehicle.\n\"" ) );
 		}
 		if ( iPowers7 & 16 )
 		{
@@ -14712,6 +15735,14 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 		if ( iPowers7 & 512 )
 		{
 			trap_SendServerCmd( clientNum, va("print \"allgroup                 ^2-| You are in all player groups.\n\"" ) );
+		}
+		if ( iPowers7 & 33554432 )
+		{
+			trap_SendServerCmd( clientNum, va("print \"amshout                  ^2-| FUS RO DAH!.\n\"" ) );
+		}
+		if ( iPowers3 & 256 )
+		{
+			trap_SendServerCmd( clientNum, va("print \"amflare                  ^2-| Signals your position to another player.\n\"" ) );
 		}
 		}
 		else if (Q_stricmp(par1,"powerup") == 0)
@@ -14835,6 +15866,10 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 			{
 				trap_SendServerCmd( clientNum, va("print \"amstealth                ^2-| The player is not on the TAB-key scoreboard.\n\"" ) );
 			}
+			if ( iPowers6 & 33554432 )
+			{
+				trap_SendServerCmd( clientNum, va("print \"amparachute              ^2-| Gives the player a parachute.\n\"" ) );
+			}
 		}
 		else if (Q_stricmp(par1,"punishment") == 0)
 		{
@@ -14921,6 +15956,34 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 			if ( iPowers5 & 16 )
 			{
 				trap_SendServerCmd( clientNum, va("print \"amabuse                  ^2-| The player will experience admin abuse.\n\"" ) );
+			}
+			if ( iPowers7 & 2048 )
+			{
+				trap_SendServerCmd( clientNum, va("print \"amblockdeath             ^2-| The player cannot /kill or change teams.\n\"" ) );
+			}
+			if ( iPowers7 & 32768 )
+			{
+				trap_SendServerCmd( clientNum, va("print \"amlightning              ^2-| Calls down deadly lightning at any origin.\n\"" ) );
+			}
+			if ( iPowers7 & 1048576 )
+			{
+				trap_SendServerCmd( clientNum, va("print \"amassassinate            ^2-| Assassinate the target.\n\"" ) );
+			}
+			if ( iPowers7 & 4194304 )
+			{
+				trap_SendServerCmd( clientNum, va("print \"amblockweapon            ^2-| Prevents the player from firing weapons.\n\"" ) );
+			}
+			if ( iPowers7 & 8388608 )
+			{
+				trap_SendServerCmd( clientNum, va("print \"amblockforce             ^2-| Prevents the player from using the force.\n\"" ) );
+			}
+			if ( iPowers7 & 16777216 )
+			{
+				trap_SendServerCmd( clientNum, va("print \"amblockrename            ^2-| Prevents the player from renaming.\n\"" ) );
+			}
+			if ( iPowers7 & 2097152 )
+			{
+				trap_SendServerCmd( clientNum, va("print \"ambaz                    ^2-| Turns the player into Bazookapc.\n\"" ) );
 			}
 		}
 		else if (Q_stricmp(par1,"weapons") == 0)
@@ -15010,7 +16073,7 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 			}
 			if ( iPowers4 & 2 )
 			{
-				trap_SendServerCmd( clientNum, va("print \"amteles                  ^2-| Add or remove chat-teleport.\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"amchatcommands           ^2-| Add or remove chat-teleport.\n\"" ) );
 			}
 		}
 		else if (Q_stricmp(par1,"builder") == 0)
@@ -15054,10 +16117,6 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 			if ( iPowers3 & 16777216 )
 			{
 				trap_SendServerCmd( clientNum, va("print \"^7ammap_trace            ^2-| Gives you a list of information on the chosen entity.\n\"" ) );
-			}
-			if ( iPowers4 & 1 )
-			{
-				trap_SendServerCmd( clientNum, va("print \"^7ammap_clearedits       ^2-| Deletes all map edits.\n\"" ) );
 			}
 			if ( iPowers4 & 4 )
 			{
@@ -15154,10 +16213,10 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 			{
 				trap_SendServerCmd( clientNum, va("print \"^7ammap_addglm           ^2-| Spawns a ghoul2 model.\n\"" ) );
 			}
-			if ( iPowers6 & 2048)
+			/*if ( iPowers6 & 2048)
 			{
 				trap_SendServerCmd( clientNum, va("print \"^7ammap_adddoor          ^2-| Spawns a door.\n\"" ) );
-			}
+			}*/
 			if ( iPowers6 & 65536)
 			{
 				trap_SendServerCmd( clientNum, va("print \"^7ammap_undomove         ^2-| Undoes the entity's last movement.\n\"" ) );
@@ -15165,6 +16224,10 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 			if ( iPowers6 & 131072)
 			{
 				trap_SendServerCmd( clientNum, va("print \"^7ammap_undorot          ^2-| Undoes the entity's last rotation.\n\"" ) );
+			}
+			if ( iPowers7 & 16384)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^7amdistance             ^2-| Calculates the distance between two locations.\n\"" ) );
 			}
 			if ( iPowers6 & 524288)
 			{
@@ -15181,16 +16244,32 @@ void mcm_amadmin(gentity_t *ent, int clientNum, char *par1, int iPowers, int iPo
 			}*/
 			if ( iPowers7 & 8)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^7ammap_delent2          ^2-| Permanently deletes a default entity.\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^7ammap_delent2          ^2-| Permanently deletes an entity\n\"" ) );
+			}
+			if ( iPowers7 & 65536)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^7ammap_delent_matching  ^2-| Delete any entity in a group with string contained within a trace.\n\"" ) );
+			}
+			if ( iPowers7 & 131072)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^7ammap_group_matching   ^2-| Group any entity in a group with string contained within a trace.\n\"" ) );
+			}
+			if ( iPowers7 & 524288)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^7ammap_search           ^2-| Searches and lists entities with string contained within a trace.\n\"" ) );
 			}
 			if ( iPowers7 & 256)
 			{
 				trap_SendServerCmd( clientNum, va("print \"^7realentnum             ^2-| You can use the 'realentnum' entity ID.\n\"" ) );
 			}
+			if ( iPowers6 & 2048)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^7ammap_clearedits       ^2-| Deletes all edits on this map.\n\"" ) );
+			}
 		}
 		else
 		{
-			trap_SendServerCmd(ent->s.number, va("print \"^1/amadmin <type>\n^7Types: ^3general^7, ^3weapons^7, ^3builder^7, ^3teleport^7, ^3powerup^7, ^3punishment\n\""));
+			trap_SendServerCmd(ent->fixednum, va("print \"^1/amadmin <type>\n^7Types: ^3general^7, ^3weapons^7, ^3builder^7, ^3teleport^7, ^3powerup^7, ^3punishment\n\""));
 			return;
 		}
 if ( ent->client->sess.adminloggedin == 0 )
@@ -15248,7 +16327,7 @@ void twimod_adminnotarget(gentity_t *ent, int clientNum, int cmd)
 		case 1:
 						if (( Q_stricmp(par1, "info") == 0)||( Q_stricmp(par2, "") == 0))
 				{
-				 trap_SendServerCmd( clientNum, va("print \"^1Usage: /amgametype <gametype> <map>\n\"" ) );
+				 trap_SendServerCmd( clientNum, va("print \"^1/amgametype <gametype> <map>\n\"" ) );
 				 return;
 				}
 
@@ -15303,7 +16382,7 @@ void twimod_adminnotarget(gentity_t *ent, int clientNum, int cmd)
 		case 2:
 									if ( Q_stricmp(par1, "info") == 0)
 				{
-				 trap_SendServerCmd( clientNum, va("print \"^1Usage: /amremote <rconcommand>\n\"" ) );
+				 trap_SendServerCmd( clientNum, va("print \"^1/amremote <rconcommand>\n\"" ) );
 				 return;
 				}
 			else
@@ -15319,7 +16398,7 @@ void twimod_adminnotarget(gentity_t *ent, int clientNum, int cmd)
 	}
 			if ((Q_stricmp(par1,"") == 0)||(Q_stricmp(par1,"info") == 0))
 			{
-				trap_SendServerCmd(ent->s.number, va("print \"^1/amadmin <type>\n^7Types: ^3general^7, ^3weapons^7, ^3builder^7, ^3teleport^7, ^3powerup^7, ^3punishment\n\""));
+				trap_SendServerCmd(ent->fixednum, va("print \"^1/amadmin <type>\n^7Types: ^3general^7, ^3weapons^7, ^3builder^7, ^3teleport^7, ^3powerup^7, ^3punishment\n\""));
 				return;
 			}
 		trap_SendServerCmd(clientNum, va("print \""
@@ -15386,12 +16465,12 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	/////////////////
 	if ( Q_stricmp(par1, "info") == 0)
 	{
-		trap_SendServerCmd( clientNum, va("print \"^1Usage: /amscreenshake <power> <time>\n\"" ) );
+		trap_SendServerCmd( clientNum, va("print \"^1/amscreenshake <power> <time>\n\"" ) );
 		return;
 	}
 	if (trap_Argc() < 2)
 	{
-		trap_SendServerCmd( clientNum, va("print \"^1Usage: /amscreenshake <power> <time>\n\"" ) );
+		trap_SendServerCmd( clientNum, va("print \"^1/amscreenshake <power> <time>\n\"" ) );
 		return;
 	}
 	G_ScreenShake(vec3_origin, NULL, atoi(par1), atoi(par2), qtrue);
@@ -15410,7 +16489,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	VectorCopy( viewspot, src );
 	AngleVectors( ent->client->ps.viewangles, vf, NULL, NULL );
 	VectorMA( src, 8192, vf, dest );
-	trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, ent->s.number, MASK_SOLID );
+	trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, ent->s.number, MASK_SHOT );
 	VectorClear(origin2);
 	VectorCopy(trace.endpos,origin2);
 	if (atoi(par1) == 1)
@@ -15718,7 +16797,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	/////////////////
 	if ((Q_stricmp(par1, "") == 0)||(Q_stricmp(par1, "info") == 0))
 	{
-		trap_SendServerCmd( clientNum, va("print \"^3/amweaponbounces <0-12> <bounces>. -5 for infinite bounces.\n\""));
+		trap_SendServerCmd( clientNum, va("print \"^3/amweaponbounces <0-13> <bounces>. -5 for infinite bounces.\n\""));
 		trap_SendServerCmd( clientNum, va("print \""
 		"^51^3:^2 Bryar\n"
 		"^52^3:^2 Blaster\n"
@@ -15734,6 +16813,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 		"^510^3:^2 Flechette Alt Fire\n"
 		"^511^3:^2 Seekershot\n"
 		"^512^3:^2 Turret Weapon\n"
+		"^513^3:^2 Disruptor\n"
 		"\""));
 		return;
 	}
@@ -15835,8 +16915,16 @@ else if ( ent->client->sess.adminloggedin == 5 )
 			}
 			trap_SendConsoleCommand( EXEC_APPEND, va("set mc_turretweap_bounces %i\n", atoi(par2)));
 			break;
+		case 13:
+			if ((Q_stricmp(par2, "") == 0))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^3Disruptor Bounces: ^5%i^3.\n\"", mc_disruptor_bounces.integer));
+				return;
+			}
+			trap_SendConsoleCommand( EXEC_APPEND, va("set mc_disruptor_bounces %i\n", atoi(par2)));
+			break;
 		default:
-			trap_SendServerCmd( clientNum, va("print \"^3/amweaponbounces <0-12> <bounces>. -5 for infinite bounces.\n\""));
+			trap_SendServerCmd( clientNum, va("print \"^3/amweaponbounces <0-13> <bounces>. -5 for infinite bounces.\n\""));
 			break;
 	}
 	break;
@@ -15848,7 +16936,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	{
 		level.voteYes = 50;
 		level.voteNo = 0;
-		level.voteTime = 1;
+		level.voteTime = level.time+1000;
 		trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
 		trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
 	}
@@ -15865,7 +16953,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	{
 		level.voteNo = 50;
 		level.voteYes = 0;
-		level.voteTime = 1;
+		level.voteTime = 1000;
 		trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
 		trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
 	}
@@ -16201,7 +17289,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	VectorCopy( viewspot, src );
 	AngleVectors( ent->client->ps.viewangles, vf, NULL, NULL );
 	VectorMA( src, 8192, vf, dest );
-	trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, ent->s.number, MASK_SOLID );
+	trap_Trace( &trace, src, vec3_origin, vec3_origin, dest, ent->s.number, MASK_SHOT );
 	trap_SendServerCmd( clientNum, va("print \"^7You are aiming at (^5%i^7,^5%i^7, ^5%i^7).\n\"", (int)trace.endpos[0], (int)trace.endpos[1], (int)trace.endpos[2]));
 	return;
 	break;
@@ -16211,20 +17299,20 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	/////////////////
 	if (( Q_stricmp(par1, "info") == 0)||( Q_stricmp(par1, "") == 0))
 	{
-		trap_SendServerCmd( clientNum, va("print \"^3/amsupersentry <placetype(1 - in front of you, 2 - where you stand, 3 - at coordinates)> <group> (if placetype is 3, include <x> <y> <z>)\n\"" ) );
+		trap_SendServerCmd( clientNum, va("print \"^3/amsupersentry <placetype(1 - in front of you, 2 - where you stand, 3 - at coordinates)> <group> (if placetype is 3, include <x> <y> <z>) <disable laser?>\n\"" ) );
 		return;
 	}
 	if (atoi(par1) == 2)
 	{
-		mcspawnsentry2( atoi(par2), (int)ent->client->ps.origin[0], (int)ent->client->ps.origin[1], (int)ent->client->ps.origin[2] );
+		g_entities[mcspawnsentry2( atoi(par2), (int)ent->client->ps.origin[0], (int)ent->client->ps.origin[1], (int)ent->client->ps.origin[2] - 23, atoi(par3) )].custom = 1;
 	}
 	else if (atoi(par1) == 3)
 	{
-		mcspawnsentry2( atoi(par2), atoi(par3), atoi(par4), atoi(par5));
+		g_entities[mcspawnsentry2( atoi(par2), atoi(par3), atoi(par4), atoi(par5), atoi(par6))].custom = 1;
 	}
 	else
 	{
-		mcspawnsentry( ent, atoi(par2));
+		g_entities[mcspawnsentry( ent, atoi(par2), atoi(par3))].custom = 1;
 	}
 	break;
 	case 19:
@@ -16465,7 +17553,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	/////////////////
 	if (Q_stricmp(par1,"") == 0)
 	{
-		trap_SendServerCmd(ent->s.number,va("print \"^1/ammusic <musicfile>\n\""));
+		trap_SendServerCmd(ent->fixednum,va("print \"^1/ammusic <musicfile>\n\""));
 		return;
 	}
 	trap_SetConfigstring( CS_MUSIC, par1 );
@@ -16476,7 +17564,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	/////////////////
 	if (Q_stricmp(par1,"") == 0)
 	{
-		trap_SendServerCmd(ent->s.number,va("print \"^1/amspecialgametype <type>\n\""));
+		trap_SendServerCmd(ent->fixednum,va("print \"^1/amspecialgametype <type>\n\""));
 		return;
 	}
 	else
@@ -16513,7 +17601,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	/////////////////
 	if (Q_stricmp(par5,"") == 0)
 	{
-		trap_SendServerCmd(ent->s.number,va("print \"^1/amexplode <damage> <radius> <x> <y> <z>\n\""));
+		trap_SendServerCmd(ent->fixednum,va("print \"^1/amexplode <damage> <radius> <x> <y> <z>\n\""));
 		return;
 	}
 	origin2[0] = (float)monkeyspot(par3, 0, ent, ent);//atof(par2); // X
@@ -16555,7 +17643,7 @@ else if ( ent->client->sess.adminloggedin == 5 )
 	/////////////////
 	if (Q_stricmp(par2,"") == 0)
 	{
-		trap_SendServerCmd(ent->s.number,va("print \"^1/amvote <yes/no> <amount>\n\""));
+		trap_SendServerCmd(ent->fixednum,va("print \"^1/amvote <yes/no> <amount>\n\""));
 		return;
 	}
 	if ( par1[0] == 'y' || par1[1] == 'Y' || par1[1] == '1' )
@@ -16743,6 +17831,7 @@ int ent_duplicate(gentity_t *ent)
 	gentity_t	*snewent;
 
 	snewent = G_Spawn();
+	snewent->custom = 1;
 	snewent->s.origin[0] = ent->s.origin[0];
 	snewent->s.origin[1] = ent->s.origin[1];
 	snewent->s.origin[2] = ent->s.origin[2];
@@ -17031,13 +18120,13 @@ int ent_duplicate(gentity_t *ent)
 	}
 	if (ent->upmes)
 	{
-		snewent->upmes = G_Alloc(strlen(ent->upmes)+1);
+		//snewent->upmes = G_Alloc(strlen(ent->upmes)+1);
 		strcpy(snewent->upmes, ent->upmes);
 		snewent->targetShaderNewName[strlen(ent->upmes)+1] = '';
 	}
 	if (ent->downmes)
 	{
-		snewent->downmes = G_Alloc(strlen(ent->downmes)+1);
+		//snewent->downmes = G_Alloc(strlen(ent->downmes)+1);
 		strcpy(snewent->downmes, ent->downmes);
 		snewent->targetShaderNewName[strlen(ent->downmes)+1] = '';
 	}
@@ -17058,11 +18147,11 @@ int ent_duplicate(gentity_t *ent)
 
 
 
-
+/*
 int ent_duplicateMEH(gentity_t *ent)
 {
 	gentity_t	*snewent;
-	char	newtarget[MAX_STRING_CHARS];
+	/*char	newtarget[MAX_STRING_CHARS];
 	char	newtargetname[MAX_STRING_CHARS];
 	char	newclassname[MAX_STRING_CHARS];
 	char	newmodel[MAX_STRING_CHARS];
@@ -17071,7 +18160,7 @@ int ent_duplicateMEH(gentity_t *ent)
 	char	newTargetShaderName[MAX_STRING_CHARS];
 	char	newTargetShaderNewName[MAX_STRING_CHARS];
 	char	newfxFile[MAX_STRING_CHARS];
-	char	newmcmessage[MAX_STRING_CHARS];
+	char	newmcmessage[MAX_STRING_CHARS];* /
 
 	snewent = G_Spawn();
 	snewent->s.origin[0] = ent->s.origin[0];
@@ -17092,49 +18181,49 @@ int ent_duplicateMEH(gentity_t *ent)
 	//AddSpawnField("model", ent->model);
 	if (Q_stricmp(ent->target, "") != 0)
 	{
-		strcpy(newtarget, ent->target);
-		strcpy(snewent->target,newtarget);
+		//strcpy(newtarget, ent->target);
+		strcpy(snewent->target,ent->target);
 	}
 	if (Q_stricmp(ent->targetname, "") != 0)
 	{
-		strcpy(newtargetname, ent->targetname);
-		strcpy(snewent->targetname,newtargetname);
+		//strcpy(newtargetname, ent->targetname);
+		strcpy(snewent->targetname,ent->targetname);
 	}
 	if (Q_stricmp(ent->classname, "") != 0)
 	{
-		strcpy(newclassname, ent->classname);
-		strcpy(snewent->classname,newclassname);
+		//strcpy(newclassname, ent->classname);
+		strcpy(snewent->classname,ent->classname);
 	}
 	if (Q_stricmp(ent->mcmessage, "") != 0)
 	{
-		strcpy(newmcmessage, ent->mcmessage);
-		strcpy(snewent->mcmessage,newmcmessage);
+		//strcpy(newmcmessage, ent->mcmessage);
+		strcpy(snewent->mcmessage,ent->mcmessage);
 		AddSpawnField("model",ent->mcmessage);
 	}
 	if (Q_stricmp(ent->model, "") != 0)
 	{
-		strcpy(newmodel, ent->model);
-		strcpy(snewent->model,newmodel);
+		//strcpy(newmodel, ent->model);
+		strcpy(snewent->model,ent->model);
 	}
 	if (Q_stricmp(ent->model2, "") != 0)
 	{
-		strcpy(newmodel2, ent->model2);
-		strcpy(snewent->model2,newmodel2);
+		//strcpy(newmodel2, ent->model2);
+		strcpy(snewent->model2,ent->model2);
 	}
 	if (Q_stricmp(ent->team, "") != 0)
 	{
-		strcpy(newteam, ent->team);
-		strcpy(snewent->team,newteam);
+		//strcpy(newteam, ent->team);
+		strcpy(snewent->team,ent->team);
 	}
 	if (Q_stricmp(ent->targetShaderName, "") != 0)
 	{
-		strcpy(newTargetShaderName, ent->targetShaderName);
-		strcpy(snewent->targetShaderName,newTargetShaderName);
+		//strcpy(newTargetShaderName, ent->targetShaderName);
+		strcpy(snewent->targetShaderName,ent->TargetShaderName);
 	}
 	if (Q_stricmp(ent->targetShaderNewName, "") != 0)
 	{
-		strcpy(newTargetShaderNewName, ent->targetShaderNewName);
-		strcpy(snewent->targetShaderNewName,newTargetShaderNewName);
+		//strcpy(newTargetShaderNewName, ent->targetShaderNewName);
+		strcpy(snewent->targetShaderNewName,ent->TargetShaderNewName);
 	}
 
 	snewent->count = ent->count;
@@ -17165,7 +18254,7 @@ int ent_duplicateMEH(gentity_t *ent)
 	trap_LinkEntity(snewent);
 	return snewent->s.number;
 }
-
+*/
 
 
 
@@ -17181,7 +18270,7 @@ void mc_buildercmds(gentity_t *ent, int clientNum, int cmd)
 	int	chosenentnum;
 	int	numfound;
 	gentity_t	*chosenent;
-	int	i;
+	int	iSRT;
 	char			line[1024];
 	trap_Argv(1, par1, sizeof(par1));
 	trap_Argv(2, par2, sizeof(par2));
@@ -17225,19 +18314,19 @@ void mc_buildercmds(gentity_t *ent, int clientNum, int cmd)
 		{
 			int	encc;
 			int	rrange;
-			for (i = 0;i < strlen(par1);i+=1)
+			for (iSRT = 0;iSRT < strlen(par1);iSRT+=1)
 			{
-				buffer[i] = par1[i+5];
+				buffer[iSRT] = par1[iSRT+5];
 			}
 			rrange = atoi(buffer);
 			encc = 0;
-			i = 32;
-			for (i = 32;i < 1024;i += 1)
+			iSRT = 32;
+			for (iSRT = 32;iSRT < 1024;iSRT += 1)
 			{
 				gentity_t	*t;
 				vec3_t		rangle;
 				float		dist;
-				t = &g_entities[i];
+				t = &g_entities[iSRT];
 				if (t && t->inuse)
 				{
 					if (Q_stricmp(t->classname,"player") != 0)
@@ -17269,12 +18358,92 @@ void mc_buildercmds(gentity_t *ent, int clientNum, int cmd)
 				return;
 			}
 		}
+		if (chosenentnum == -42) // all
+		{
+			int encc;
+			encc = 0;
+			iSRT = 32;
+			for (iSRT = 32;iSRT < 1024;iSRT += 1)
+			{
+				gentity_t	*t;
+				t = &g_entities[iSRT];
+				if (t && t->inuse)
+				{
+					if (cmd == 4 || cmd == 27)
+					{
+						encc += 1;
+						mc_buildercmdsmain(ent, clientNum, cmd, t->s.number, 1);
+					}
+					else if (Q_stricmp(t->classname,"player") != 0)
+					{	
+						if (Q_stricmp(t->classname,"lightsaber") != 0)
+						{
+							if (!t->rprotected)
+							{
+								encc += 1;
+								mc_buildercmdsmain(ent, clientNum, cmd, t->s.number, 1);
+							}
+						}
+					}
+				}
+			}
+			if (encc == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1No entities can be affected.\n\""));
+				return;
+			}
+			else
+			{
+				trap_SendServerCmd( clientNum, va("print \"^2Found and affected ^5%i^2 entities.\n\"", encc));
+				return;
+			}
+		}
+		if (chosenentnum == -43) // custom
+		{
+			int encc;
+			encc = 0;
+			iSRT = 32;
+			for (iSRT = 32;iSRT < 1024;iSRT += 1)
+			{
+				gentity_t	*t;
+				t = &g_entities[iSRT];
+				if (t && t->inuse)
+				{
+					if (cmd == 4 || cmd == 27)
+					{
+						encc += 1;
+						mc_buildercmdsmain(ent, clientNum, cmd, t->s.number, 1);
+					}
+					else if (Q_stricmp(t->classname,"player") != 0)
+					{	
+						if (Q_stricmp(t->classname,"lightsaber") != 0)
+						{
+							if (t->custom == 1)
+							{
+								encc += 1;
+								mc_buildercmdsmain(ent, clientNum, cmd, t->s.number, 1);
+							}
+						}
+					}
+				}
+			}
+			if (encc == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1No entities can be affected.\n\""));
+				return;
+			}
+			else
+			{
+				trap_SendServerCmd( clientNum, va("print \"^2Found and affected ^5%i^2 entities.\n\"", encc));
+				return;
+			}
+		}
 		if (chosenentnum == -5)// byclass_classname
 		{
 			gentity_t *t;
-			for (i = 0;i < strlen(par1);i+=1)
+			for (iSRT = 0;iSRT < strlen(par1);iSRT+=1)
 			{
-				buffer[i] = par1[i+8];
+				buffer[iSRT] = par1[iSRT+8];
 			}
 			if ((Q_stricmp(buffer,"player") == 0)||(Q_stricmp(buffer,"lightsaber") == 0))
 			{
@@ -17282,33 +18451,33 @@ void mc_buildercmds(gentity_t *ent, int clientNum, int cmd)
 				return;
 			}
 			t = NULL;
-			i = 0;
+			iSRT = 0;
 			while ( (t = G_Find (t, FOFS(classname), buffer)) != NULL )
 			{
 				mc_buildercmdsmain(ent, clientNum, cmd, t->s.number, 1);
-				i += 1;
+				iSRT += 1;
 			}
-			if (i == 1)
+			if (iSRT == 1)
 			{
 				trap_SendServerCmd( clientNum, va("print \"^3Found ^51^3 entity with the classname ^5%s^3.\n\"", buffer));
 			}
 			else
 			{
-				trap_SendServerCmd( clientNum, va("print \"^3Found ^5%i^3 entities with the classname ^5%s^3.\n\"", i, buffer));
+				trap_SendServerCmd( clientNum, va("print \"^3Found ^5%i^3 entities with the classname ^5%s^3.\n\"", iSRT, buffer));
 			}
 			return;
 		}
 		if (chosenentnum == -63) // bytarget_
 		{
 			numfound = 0;
-			for (i = 0;i < strlen(par1);i+=1)
+			for (iSRT = 0;iSRT < strlen(par1);iSRT+=1)
 			{
-				buffer[i] = par1[i+9];
+				buffer[iSRT] = par1[iSRT+9];
 			}
-			for (i = 31;i < 1024;i += 1)
+			for (iSRT = 31;iSRT < 1024;iSRT += 1)
 			{
 				gentity_t	*flent;
-				flent = &g_entities[i];
+				flent = &g_entities[iSRT];
 				if (!flent || !flent->inuse)
 				{
 					continue;
@@ -17332,9 +18501,10 @@ void mc_buildercmds(gentity_t *ent, int clientNum, int cmd)
 		if (chosenentnum == -6)// bygroup_groupnum
 		{
 			gentity_t	*t;
-			for (i = 0;i < strlen(par1);i+=1)
+			int		gnum;
+			for (iSRT = 0;iSRT < strlen(par1);iSRT+=1)
 			{
-				buffer[i] = par1[i+8];
+				buffer[iSRT] = par1[iSRT+8];
 			}
 			if (atoi(buffer) == 0)
 			{
@@ -17347,11 +18517,11 @@ void mc_buildercmds(gentity_t *ent, int clientNum, int cmd)
 				int		leadnum;
 				if (( Q_stricmp(par1, "info") == 0)||(Q_stricmp(par2,"") == 0))
 				{
-					trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_grabent <entity> <distance>\n\"" ) );
+					trap_SendServerCmd( clientNum, va("print \"^1/ammap_grabent <entity> <distance>\n\"" ) );
 					return;
 				}
 				t = NULL;
-				i = 0;
+				iSRT = 0;
 				while ( (t = G_Findbygroup(t, atoi(buffer))) != NULL )
 				{
 					gentity_t	*tEn;
@@ -17386,7 +18556,7 @@ void mc_buildercmds(gentity_t *ent, int clientNum, int cmd)
 				ent->client->sess.grabbeddist = atoi(par2);
 				ent->client->sess.grabbedgroup = atoi(buffer);
 				t = NULL;
-				i = 0;
+				iSRT = 0;
 				while ( (t = G_Findbygroup(t, atoi(buffer))) != NULL )
 				{
 					if (t->groupleader != 0)
@@ -17394,9 +18564,9 @@ void mc_buildercmds(gentity_t *ent, int clientNum, int cmd)
 						Lead = &g_entities[t->groupleader];
 						leadnum = t->groupleader;
 					}
-					i += 1;
+					iSRT += 1;
 				}
-				if (i == 0)
+				if (iSRT == 0)
 				{
 					trap_SendServerCmd( clientNum, va("print \"^2Chosen group does not exist.\n\"", atoi(buffer) ) );
 					ent->client->sess.grabbedent = 0;
@@ -17427,19 +18597,26 @@ void mc_buildercmds(gentity_t *ent, int clientNum, int cmd)
 				return;
 			}
 			t = NULL;
-			i = 0;
-			while ( (t = G_Findbygroup(t, atoi(buffer))) != NULL )
+			iSRT = 0;
+			numfound = 0;
+			//while ( (t = G_Findbygroup(t, atoi(buffer))) != NULL )
+			gnum = atoi(buffer);
+			for (iSRT = 32;iSRT < 1024;iSRT += 1)
 			{
-				mc_buildercmdsmain(ent, clientNum, cmd, t->s.number, 1);
-				i += 1;
+				t = &g_entities[iSRT];
+				if (t && t->inuse && t->entgroup == gnum)
+				{
+					mc_buildercmdsmain(ent, clientNum, cmd, t->s.number, 1);
+					numfound += 1;
+				}
 			}
-			if (i == 1)
+			if (numfound == 1)
 			{
 				trap_SendServerCmd( clientNum, va("print \"^3Found ^51^3 entity in group ^5%i^3.\n\"", atoi(buffer)));
 			}
 			else
 			{
-				trap_SendServerCmd( clientNum, va("print \"^3Found ^5%i^3 entities in group ^5%i^3.\n\"", i, atoi(buffer)));
+				trap_SendServerCmd( clientNum, va("print \"^3Found ^5%i^3 entities in group ^5%i^3.\n\"", numfound, atoi(buffer)));
 			}
 			return;
 		}
@@ -17494,6 +18671,7 @@ void mc_buildercmdsmain(gentity_t *ent, int clientNuxm, int cmd, int chosenentnu
 		return;
 	}*/
 	chosenent = &g_entities[chosenentnum];
+	chosenentnum = chosenent->s.number; // ?????? I don't why or how, but this helps.
 	//}
 	switch ( cmd )
 	{
@@ -17503,15 +18681,16 @@ void mc_buildercmdsmain(gentity_t *ent, int clientNuxm, int cmd, int chosenentnu
 		///////////////////
 			if ( Q_stricmp(par1, "info") == 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_nudgeent <entity> <xadjust> <yadjust> <zadjust>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_nudgeent <entity> <xadjust> <yadjust> <zadjust>\n\"" ) );
 				return;
 			}
 			if (parcount < 5)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_nudgeent <entity> <xadjust> <yadjust> <zadjust>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_nudgeent <entity> <xadjust> <yadjust> <zadjust>\n\"" ) );
 				return;
 			}
 			fixforundo(chosenent);
+			chosenent->doorchanged = 32;
 			chosenent->s.origin[0] = chosenent->r.currentOrigin[0]+atoi(par2);
 			chosenent->s.origin[1] = chosenent->r.currentOrigin[1]+atoi(par3);
 			chosenent->s.origin[2] = chosenent->r.currentOrigin[2]+atoi(par4);
@@ -17528,18 +18707,24 @@ void mc_buildercmdsmain(gentity_t *ent, int clientNuxm, int cmd, int chosenentnu
 		///////////////////
 			if ( Q_stricmp(par1, "info") == 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_delent <entity>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_delent <entity>\n\"" ) );
 				return;
 			}
 			if (parcount < 2)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_delent <entity>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_delent <entity>\n\"" ) );
 				return;
 			}
 			if (nomessage == 0)
 			{
 				trap_SendServerCmd( clientNum, va("print \"^3Deleted ^5%i^3(^5%s^3).\n\"", chosenentnum, chosenent->classname ) );
 			}
+			G_Printf("[%i]", chosenentnum);
+			if (chosenent->parent && chosenent->parent->inuse)
+			{
+				G_Printf("[Child of %i]", chosenent->parent->s.number);
+			}
+			G_Printf("DELETE: %s, target %s, targetname %s\n", chosenent->classname, chosenent->target, chosenent->targetname);
 			G_FreeEntity(chosenent);
 		break;
 		case 3:
@@ -17548,12 +18733,12 @@ void mc_buildercmdsmain(gentity_t *ent, int clientNuxm, int cmd, int chosenentnu
 		///////////////////
 			if ( Q_stricmp(par1, "info") == 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setvar <entity> <variable> <newvalue>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setvar <entity> <variable> <newvalue>\n\"" ) );
 				return;
 			}
 			if (parcount < 4)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setvar <entity> <variable> <newvalue>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setvar <entity> <variable> <newvalue>\n\"" ) );
 				return;
 			}
 			if (Q_stricmp(par2, "model") == 0)
@@ -17571,12 +18756,1586 @@ void mc_buildercmdsmain(gentity_t *ent, int clientNuxm, int cmd, int chosenentnu
 		///////////////////
 			if ( Q_stricmp(par1, "info") == 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_trace <entity>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_trace <entity>\n\"" ) );
 				return;
 			}
 			if (parcount < 2)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_trace <entity>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_trace <entity>\n\"" ) );
+				return;
+			}
+			Com_sprintf( buffer, sizeof(buffer), "Trace ent: %i - %s\n", chosenentnum, chosenent->classname);
+			Com_sprintf( buffer, sizeof(buffer), "%s^7X=^5%i^7, Y=^5%i^7, Z=^5%i^7\n", buffer, (int)chosenent->r.currentOrigin[0], (int)chosenent->r.currentOrigin[1], (int)chosenent->r.currentOrigin[2]);
+			ent->client->sess.traced = chosenent->s.number;
+			if (chosenent->s.angles[YAW] != 0)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(YAW = %i) ", buffer, (int)chosenent->s.angles[YAW]);
+			}
+			if (chosenent->s.angles[PITCH] != 0)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(PITCH = %i) ", buffer, (int)chosenent->s.angles[PITCH]);
+			}
+			if (chosenent->s.angles[ROLL] != 0)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(ROLL = %i) ", buffer, (int)chosenent->s.angles[ROLL]);
+			}
+			if (chosenent->count)
+			{
+				if (chosenent->count != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(count = %i) ", buffer, (int)chosenent->count);
+				}
+			}
+			if (chosenent->custom != 0)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(custom) ", buffer);
+			}
+			else
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(default) ", buffer);
+			}
+			if (chosenent->health)
+			{
+				if (chosenent->health != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(health = %i) ", buffer, (int)chosenent->health);
+				}
+			}
+			if (chosenent->issaved)
+			{
+				if (chosenent->issaved != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(Saved) ", buffer);
+				}
+			}
+			if (chosenent->wait)
+			{
+				if (chosenent->wait != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(wait = %i) ", buffer, (int)chosenent->wait);
+				}
+			}
+			if (chosenent->spawnflags)
+			{
+				if (chosenent->spawnflags != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(spawnflags = %i) ", buffer, (int)chosenent->spawnflags);
+				}
+			}
+			if (chosenent->damage)
+			{
+				if (chosenent->damage != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(damage = %i) ", buffer, (int)chosenent->damage);
+				}
+			}
+			if (chosenent->speed)
+			{
+				if (chosenent->speed != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(speed = %i) ", buffer, (int)chosenent->speed);
+				}
+			}
+			if (chosenent->random)
+			{
+				if (chosenent->random != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(random = %i) ", buffer, (int)chosenent->random);
+				}
+			}
+			if (chosenent->target)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(target = %s) ", buffer, chosenent->target);
+			}
+			if (chosenent->targetname)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(targetname = %s) ", buffer, chosenent->targetname);
+			}
+			/*
+			if (chosenent->mctargetname)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(other = %s) ", buffer, chosenent->mctargetname);
+			}
+			*/
+			if (chosenent->model)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(model = %s) ", buffer, chosenent->model);
+			}
+			if (Q_stricmp(chosenent->mcmessage,"")!=0)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(model = %s) ", buffer, chosenent->mcmessage);
+			}
+			if (chosenent->delay)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(delay = %i) ", buffer, chosenent->delay);
+			}
+			if (chosenent->entgroup)
+			{
+				if (chosenent->entgroup != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(group = %i) ", buffer, (int)chosenent->entgroup);
+					Com_sprintf( buffer, sizeof(buffer), "%s(groupleader = %i) ", buffer, (int)chosenent->groupleader);
+				}
+			}
+			Com_sprintf( buffer, sizeof(buffer), "%s(mins = %i %i %i) ", buffer, (int)chosenent->r.mins[0], (int)chosenent->r.mins[1], (int)chosenent->r.mins[2]);
+			Com_sprintf( buffer, sizeof(buffer), "%s(maxes = %i %i %i) ", buffer, (int)chosenent->r.maxs[0], (int)chosenent->r.maxs[1], (int)chosenent->r.maxs[2]);
+			trap_SendServerCmd( clientNum, va("print \"^7%s\n\"", buffer ) );
+
+		break;
+		case 5:
+		///////////////////
+		// ammap_respawn
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_respawn <entity>\n\"" ) );
+				return;
+			}
+			if (parcount < 2)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_respawn <entity>\n\"" ) );
+				return;
+			}
+			if (nomessage == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^3Respawned ent as ^5%i^7.\n\"", ent_respawn(chosenent) ) );
+			}
+			//ent_respawn(chosenent);
+		break;
+		case 6:
+		///////////////////
+		// ammap_duplicate
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_duplicate <entity>\n\"" ) );
+				return;
+			}
+			if (parcount < 2)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_duplicate <entity>\n\"" ) );
+				return;
+			}
+			if (nomessage == 0)
+			{
+			trap_SendServerCmd( clientNum, va("print \"^3Duplicated ent to ^5%i^7.\n\"",  ent_duplicate(chosenent)) );
+			}
+			//ent_duplicate(chosenent);
+		break;
+		case 7:
+		///////////////////
+		// ammap_setangles
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setangles <entity> <Yaw> <Pitch> <Roll>\n\"" ) );
+				return;
+			}
+			if (parcount < 5)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setangles <entity> <Yaw> <Pitch> <Roll>\n\"" ) );
+				return;
+			}
+			fixforundor(chosenent);
+			chosenent->s.angles[YAW] = mc_fix360i(atoi(par2));
+			chosenent->s.angles[PITCH] = mc_fix360i(atoi(par3));
+			chosenent->s.angles[ROLL] = mc_fix360i(atoi(par4));
+			G_SetAngles(chosenent, chosenent->s.angles);
+			trap_LinkEntity(chosenent);
+		break;
+		case 8:
+		///////////////////
+		// ammap_useent
+		///////////////////
+			if (( Q_stricmp(par1, "info") == 0)||(Q_stricmp(par1,"") == 0))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_useent <entity>\n\"" ) );
+				return;
+			}
+			chosenent->use( chosenent, ent, ent );
+		break;
+		case 9:
+		///////////////////
+		// ammap_setmaxes
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setmaxes <entity> <XMAX> <YMAX> <YMAX>\n\"" ) );
+				return;
+			}
+			if (parcount < 5)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setmaxes <entity> <XMAX> <YMAX> <YMAX> - Chosen object maxes - %s\n\"", vtos(chosenent->r.maxs) ) );
+				return;
+			}
+			chosenent->r.maxs[0] = atoi(par2);
+			chosenent->r.maxs[1] = atoi(par3);
+			chosenent->r.maxs[2] = atoi(par4);
+			trap_LinkEntity(chosenent);
+		break;
+		case 10:
+		///////////////////
+		// ammap_setmins
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setmins <entity> <XMIN> <YMIN> <YMIN>\n\"" ) );
+				return;
+			}
+			if (parcount < 5)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setmins <entity> <XMIN> <YMIN> <YMIN> - Chosen object mins - %s\n\"", vtos(chosenent->r.mins) ) );
+				return;
+			}
+			chosenent->r.mins[0] = atoi(par2);
+			chosenent->r.mins[1] = atoi(par3);
+			chosenent->r.mins[2] = atoi(par4);
+			trap_LinkEntity(chosenent);
+		break;
+		case 11:
+		///////////////////
+		// ammap_respawn2
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_respawn <entity>\n\"" ) );
+				return;
+			}
+			if (parcount < 2)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_respawn <entity>\n\"" ) );
+				return;
+			}
+			if (nomessage == 0)
+			{
+			trap_SendServerCmd( clientNum, va("print \"^3Respawned ent.\n\"" ) );
+			}
+			//ent_respawn(chosenent);
+			G_CallSpawn(chosenent);
+		break;
+		case 12:
+		///////////////////
+		// ammap_moveent
+		///////////////////
+			if (parcount < 4)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_moveent <entity> <distance> <speed>\n\"" ) );
+				return;
+			}
+			//if ( chosenent->s.pos.trType != TR_STATIONARY || chosenent->s.apos.trType != TR_STATIONARY )
+			if (qtrue)
+			{
+				vec3_t	fwd;
+				int	distance = atoi(par2);
+			chosenent->doorchanged = 32;
+				chosenent->sound1to2 = chosenent->sound2to1 = 0;//G_SoundIndex("sound/movers/doors/door1start.wav");
+				chosenent->soundPos1 = chosenent->soundPos2 = 0;//G_SoundIndex("sound/movers/doors/door1stop.wav");
+				chosenent->soundLoop = 0;//G_SoundIndex("sound/movers/doors/door1move.wav");
+				chosenent->blocked = Blocked_Door;
+				chosenent->speed = atoi(par3);
+				chosenent->wait = 9300170;
+				chosenent->damage = 2;
+				VectorCopy( chosenent->r.currentOrigin, chosenent->pos1 );
+				trap_LinkEntity( ent );
+				AngleVectors(ent->client->ps.viewangles, fwd, NULL, NULL);
+				VectorClear(chosenent->pos2 );
+				chosenent->pos2[0] = chosenent->r.currentOrigin[0] + fwd[0]*distance;
+				chosenent->pos2[1] = chosenent->r.currentOrigin[1] + fwd[1]*distance;
+				chosenent->pos2[2] = chosenent->r.currentOrigin[2] + fwd[2]*distance;
+				InitMover( chosenent );
+				chosenent->health = 0;
+				chosenent->use(chosenent, chosenent, ent);
+			}
+		break;
+		case 13:
+		///////////////////
+		// ammap_saveent
+		///////////////////
+			if (( Q_stricmp(par1, "info") == 0)||(parcount < 2))
+			{
+				trap_SendServerCmd( ent->s.number, va("print \"^1/ammap_saveent <entity>\n\"" ) );
+				return;
+			}
+			else
+			{
+			int	iL;
+			int	savetype;
+			trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+			for (i = 1;i < 32;i += 1)
+			{
+				iL = trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string), &f, FS_READ);
+				if (!f)
+				{
+					trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i-1, mapname.string), &f, FS_APPEND);
+					if ( !f )
+					{
+						trap_SendServerCmd( clientNum, va("print \"^1Error: Cannot access map file.\n\"" ) );
+						return;
+					}
+					trap_FS_Write( va("\nmapeditsexec mapedits_%i_%s;\n", i, mapname.string), strlen(va("\nmapeditsexec mapedits_%i_%s;\n", i, mapname.string)), f);
+					trap_FS_FCloseFile( f );
+					goto loadmap;
+				}
+				trap_FS_FCloseFile(f);
+				if (iL < 10000)
+				{
+					goto loadmap;
+				}
+			}
+			loadmap:
+			if (chosenent->issaved == 1 || chosenent->custom == 0)
+			{
+				if (Q_stricmp(par3, "override") != 0)
+				{
+					trap_SendServerCmd( ent->s.number, va("print \"^1Chosen entity is already saved. To override this, /ammap_save <ent> override override.\n\"" ) );
+					return;
+				}
+			}
+			Com_sprintf(savePath, 1024*4, "%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string);
+			trap_FS_FOpenFile(savePath, &f, FS_APPEND);
+			if ( !f )
+			{
+				trap_SendServerCmd( ent->s.number, va("print \"^1Error: Cannot access map file.\n\"" ) );
+				G_Printf("[Can'tOpenMapFile]Refused.\n");
+				return;
+			}
+			chosenent->issaved = 1;
+			savetype = 0;
+			if (Q_stricmp(par2, "savehack1") == 0)
+			{
+				savetype = 1;
+			}
+			if (Q_stricmp(chosenent->classname,"mc_model") == 0)
+			{
+				if (savetype != 0)
+				{
+				G_Printf("ModelSavehack\n");
+				Com_sprintf(line,sizeof(line), "{\n\"classname\" \"misc_model\"\n"
+					"\"origin\" \"%i %i %i\"\n"
+					"\"angles\" \"%i %i %i\"\n"
+					"\"model\" \"%s\"\n"
+					"}\n", (int)chosenent->r.currentOrigin[0], (int)chosenent->r.currentOrigin[1], (int)chosenent->r.currentOrigin[2],
+						(int)chosenent->r.currentAngles[0], (int)chosenent->r.currentAngles[1], (int)chosenent->r.currentAngles[2],
+							chosenent->mcmessage);
+				}
+				else
+				{
+				Com_sprintf( line, sizeof(line), "addmodelrcon3 \"%s\" %i %i %i %i %i %i %i %i %i %i %i %i", chosenent->mcmessage,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[YAW],
+				 (int)chosenent->r.currentAngles[PITCH],
+				 (int)chosenent->r.currentAngles[ROLL],
+				 (int)chosenent->r.mins[0],
+				 (int)chosenent->r.mins[1],
+				 (int)chosenent->r.mins[2],
+				 (int)chosenent->r.maxs[0],
+				 (int)chosenent->r.maxs[1],
+				 (int)chosenent->r.maxs[2]);
+				}
+			}
+			else if (Q_stricmp(chosenent->classname,"mc_light") == 0)
+			{
+				if (savetype == 1)
+				{
+				}
+				else
+				{
+				Com_sprintf(line,sizeof(line), "addlightrcon %i %i %i %s", (int)chosenent->s.origin[0],
+				(int)chosenent->s.origin[1],
+				(int)chosenent->s.origin[2],
+				chosenent->mcmlight);
+				}
+				
+			}
+			else if (Q_stricmp(chosenent->classname,"mc_model2") == 0)
+			{
+				if (savetype == 1)
+				{
+				}
+				else
+				{
+				Com_sprintf( line, sizeof(line), "addghoulrcon \"%s\" %i %i %i %i %i %i %i %i %i %i %i %i", chosenent->mcmessage,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[YAW],
+				 (int)chosenent->r.currentAngles[PITCH],
+				 (int)chosenent->r.currentAngles[ROLL],
+				 (int)chosenent->r.mins[0],
+				 (int)chosenent->r.mins[1],
+				 (int)chosenent->r.mins[2],
+				 (int)chosenent->r.maxs[0],
+				 (int)chosenent->r.maxs[1],
+				 (int)chosenent->r.maxs[2]);
+				}
+			}
+			else if (Q_stricmp(chosenent->classname,"mc_effect") == 0)
+			{
+				if (savetype == 1)
+				{
+				}
+				else
+				{
+				//addeffectrcon env/fire 4272 1770 559 0 0 0 300
+
+				Com_sprintf( line, sizeof(line), "addeffectrcon \"%s\" %i %i %i %i %i %i %i", chosenent->mcmessage,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[YAW],
+				 (int)chosenent->r.currentAngles[PITCH],
+				 (int)chosenent->r.currentAngles[ROLL],
+				 (int)chosenent->delay);
+				}
+			}
+		
+			else if (Q_stricmp(chosenent->classname,"mc_note") == 0)
+			{
+				if (savetype == 1)
+				{
+				}
+				else
+				{
+				// addnotercon "creator" "message" public X Y Z
+
+				Com_sprintf( line, sizeof(line), "addnotercon \"%s\" \"%s\" %i %i %i %i", chosenent->mctargetname,
+				chosenent->mcmessage,
+				(int)chosenent->s.bolt1,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2]);
+				}
+			}
+		
+			else if (Q_stricmp(chosenent->classname,"mc_tsent") == 0)
+			{
+				if (savetype == 1)
+				{
+				}
+				else
+				{
+				Com_sprintf( line, sizeof(line), "addanyent mc_tsent %i %i %i \"group,%s,",
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 chosenent->group);
+				if (chosenent->bolt_Waist == 1)
+				{
+					Com_sprintf( line, sizeof(line), "%sreaction,kick,\"", line);
+				}
+				else
+				{
+					Com_sprintf( line, sizeof(line), "%sreaction,kill,\"", line);
+				}
+				}
+			}
+			else if (Q_stricmp(chosenent->classname,"target_speaker") == 0)
+			{
+				if (savetype == 1)
+				{
+				}
+				else
+				{
+				Com_sprintf( line, sizeof(line), "addanyent \"target_speaker\" %i %i %i \"targetname,%s,noise,%s,spawnflags,%i,wait,%i,random,%i,\"",
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 chosenent->targetname,
+				 chosenent->upmes,
+				 (int)chosenent->spawnflags,
+				 (int)chosenent->wait,
+				 (int)chosenent->random);
+				}
+			}
+			else if (Q_stricmp(chosenent->classname,"mcsentry") == 0)
+			{
+				if (savetype == 1)
+				{
+				}
+				else
+				{
+				Com_sprintf( line, sizeof(line), "addmcsentry \"%i\" \"%i\" \"%i\" \"%i\"", chosenent->s.owner, 
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2]);
+				}
+			}
+			else if (Q_stricmp(chosenent->classname,"mcshield") == 0)
+			{
+				if (savetype == 1)
+				{
+				}
+				else
+				{
+				Com_sprintf( line, sizeof(line), "addmcshield \"%i\" \"%i\" \"%i\" \"%i\" \"%i\"", chosenent->s.owner, 
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[YAW]);
+				}
+			}
+			else
+			{
+				if (savetype == 1)
+				{
+				}
+				else
+				{
+				/*if( strstr(chosenent->classname,"func_") || strstr(chosenent->classname,"trigger_")) {
+					trap_SendServerCmd( clientNum, va("print \"^1You should probably be banned for that.\n\""));
+					trap_FS_FCloseFile( f );
+					return;
+				}*/
+
+				Com_sprintf( line, sizeof(line), "addanyent \"%s\" %i %i %i \"angles,%i %i %i,spawnflags,%i,mins,%i %i %i,maxs,%i %i %i,", chosenent->classname,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[0],
+				 (int)chosenent->r.currentAngles[1],
+				 (int)chosenent->r.currentAngles[2],
+				 (int)chosenent->spawnflags,
+				 (int)chosenent->r.mins[0],
+				 (int)chosenent->r.mins[1],
+				 (int)chosenent->r.mins[2],
+				 (int)chosenent->r.maxs[0],
+				 (int)chosenent->r.maxs[1],
+				 (int)chosenent->r.maxs[2]);
+				if (chosenent->movedir[0] != 0 || chosenent->movedir[1] != 0 || chosenent->movedir[2] != 0)
+				{
+					vec3_t final;
+					VectorClear(final);
+					vectoangles(chosenent->movedir, final);
+					Com_sprintf( line, sizeof(line), "%sangles,%i %i %i,", line,
+					 (int)final[0], (int)final[1], (int)final[2]);
+				}
+				if (chosenent->target && Q_stricmp(chosenent->target,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%starget,%s,", line,
+					 chosenent->target);
+				}
+				if (chosenent->targetname && Q_stricmp(chosenent->targetname,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%stargetname,%s,", line,
+					 chosenent->targetname);
+				}
+				if (chosenent->targetShaderName && Q_stricmp(chosenent->targetShaderName,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%stargetShaderName,%s,", line,
+					 chosenent->targetShaderName);
+				}
+				if (chosenent->targetShaderNewName && Q_stricmp(chosenent->targetShaderNewName,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%stargetShaderNewName,%s,", line,
+					 chosenent->targetShaderNewName);
+				}
+				if (chosenent->message && Q_stricmp(chosenent->message,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%smessage,%s,", line,
+					 chosenent->message);
+				}
+				if (chosenent->team && Q_stricmp(chosenent->team,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%steam,%s,", line,
+					 chosenent->team);
+				}
+				if (chosenent->upmes && Q_stricmp(chosenent->upmes,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%supmessage,%s,", line,
+					 chosenent->upmes);
+				}
+				if (chosenent->downmes && Q_stricmp(chosenent->downmes,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sdownmessage,%s,", line,
+					 chosenent->downmes);
+				}
+				if (chosenent->mcpassword && Q_stricmp(chosenent->mcpassword,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%spassword,%s,", line,
+					 chosenent->mcpassword);
+				}
+				if (chosenent->group && Q_stricmp(chosenent->group,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sgroup,%s,", line,
+					 chosenent->group);
+				}
+				if (chosenent->mcmessage && Q_stricmp(chosenent->mcmessage,"") != 0)
+				{
+					if (Q_stricmp(chosenent->classname,"fx_runner") == 0)
+					{
+						Com_sprintf( line, sizeof(line), "%sfxfile,%s,", line,
+						 chosenent->mcmessage);
+					}
+					else
+					{
+						Com_sprintf( line, sizeof(line), "%smodel,%s,", line,
+						 chosenent->mcmessage);
+					}
+				}
+				if (chosenent->speed != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sspeed,%i,", line,
+					 (int)chosenent->speed);
+				}
+				if (chosenent->wait != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%swait,%i,", line,
+					 (int)chosenent->wait);
+				}
+				if (chosenent->random != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%srandom,%i,", line,
+					 (int)chosenent->random);
+				}
+				if (chosenent->lip != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%slip,%i,", line,
+					 (int)chosenent->lip);
+				}
+				if (chosenent->count != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%scount,%i,", line,
+					 (int)chosenent->count);
+				}
+				if (chosenent->health != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%shealth,%i,", line,
+					 (int)chosenent->health);
+				}
+				if (chosenent->delay != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sdelay,%i,", line,
+					 (int)chosenent->delay);
+				}
+				if (chosenent->damage != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sdmg,%i,", line,
+					 (int)chosenent->damage);
+				}
+				if (chosenent->s.owner != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sowner,%i,", line,
+					 (int)chosenent->s.owner);
+				}
+				if (chosenent->xOff != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%smodelangle,%i,", line,
+					 (int)chosenent->xOff);
+				}
+				if (chosenent->yOff != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%smodelpitch,%i,", line,
+					 (int)chosenent->yOff);
+				}
+				if (chosenent->zOff != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%smodelroll,%i,", line,
+					 (int)chosenent->zOff);
+				}
+				Com_sprintf( line, sizeof(line), "%s\" \"\"", line);
+				}
+				//trap_SendServerCmd( ent->s.number, va("print \"^1Cannot save items of this class.\n\"" ) );
+				//return;
+			}
+			/*if( strchr( line, ';' ) ) {
+				trap_SendServerCmd( ent->s.number, va("print \"^1You should probably be banned for that.\n\""));
+				trap_FS_FCloseFile( f );
+				G_Printf("Refused.\n");
+				return;
+			}*/
+			if ((savetype != 1)&&(strchr( line, '\n' ) || strchr(line,';') )) {
+				char	fixhelp[1024];
+				int	iFH;
+				int	iFH2;
+				iFH = 0;
+				iFH2 = 0;
+				stringclear(fixhelp, 1020);
+				for (iFH = 0;iFH < 1020;iFH += 1)
+				{
+					if (line[iFH] == '')
+					{
+						break;
+					}
+					if ((line[iFH] == '\n'))
+					{
+						fixhelp[iFH2] = '\\';
+						fixhelp[iFH2+1] = 'n';
+						iFH2 += 2;
+						continue;
+					}
+					if (line[iFH] == ';')
+					{
+						continue;
+					}
+					fixhelp[iFH2] = line[iFH];
+					iFH2 += 1;
+				}
+				stringclear(line, 1022);
+				Com_sprintf( line, sizeof(line), fixhelp);
+				//trap_SendServerCmd( ent->s.number, va("print \"^1You should probably be banned for that.\n\""));
+				//trap_FS_FCloseFile( f );
+				//G_Printf("Refused.\n");
+				//return;
+			}
+			if (strlen(line) > 1000)
+			{
+				trap_SendServerCmd( ent->s.number, va("print \"^1Save Data is too long.\n\""));
+				trap_FS_FCloseFile( f );
+				G_Printf("Refused.\n");
+				return;
+			}
+			if (nomessage == 0)
+			{
+				trap_SendServerCommand( clientNum, va("print \"^2Saved entity ^5%i^2.\n\"", chosenent->s.number ) );
+			}
+			else
+			{
+				G_Printf("No message save ");
+			}
+			//strcpy(line,va("%s;wait 20;",line));
+			if (savetype == 0)
+			{
+			strcpy(line,va("\n%s;\n", line));
+			}
+			trap_FS_Write( line, strlen(line), f);
+			trap_FS_FCloseFile( f );
+			G_Printf("Passed.\n");
+			//trap_SendServerCmd( clientNum, va("print \"^2Saved entity ^5%i^2.\n\"", chosenentnum ) );
+			}
+		break;
+		case 14:
+		///////////////////
+		// ammap_grabent
+		///////////////////
+			if (( Q_stricmp(par1, "info") == 0)||(parcount < 3))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_grabent <entity> <distance> <yaw AAT> <pitch AAT> [zoff]\nAngle Adjust Types (AATs):\n0: Do not adjust.\n1:Match my angle.\n2:Face me.\n3: Starting relative value\nOther values > 3 - custom angle adjustment relative to me.\n\"" ) );
+				return;
+			}
+			else if (ent->client->sess.grabbedent != 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^2Dropped entity ^5%i^2.\n\"", ent->client->sess.grabbedent ) );
+				ent->client->sess.grabbedent = 0;
+				ent->client->sess.grabbeddist = 0;
+				ent->client->sess.grabbedgroup = 0;
+				ent->client->sess.grabbedentoffz = 0;
+				return;
+			}
+			else if (ent->client->sess.grabbedgroup != 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^2Dropped group ^5%i^2.\n\"", ent->client->sess.grabbedgroup ) );
+				ent->client->sess.grabbedent = 0;
+				ent->client->sess.grabbeddist = 0;
+				ent->client->sess.grabbedgroup = 0;
+				ent->client->sess.grabbedentoffz = 0;
+				return;
+			}
+			else
+			{
+				gentity_t	*tEn;
+				int		iPl;
+				for (iPl = 0;iPl < 32;iPl += 1)
+				{
+					tEn = &g_entities[iPl];
+					if (!tEn->inuse)
+					{
+						continue;
+					}
+					if (tEn->client->sess.grabbedent == chosenentnum)
+					{
+						trap_SendServerCmd( clientNum, va("print \"^1Another player is holding this ent.\n\"") );
+						return;
+					}
+					if (tEn->client->sess.grabbedgroup != 0)
+					{
+						gentity_t	*t;
+						t = NULL;
+						i = 0;
+						while ( (t = G_Findbygroup(t, tEn->client->sess.grabbedgroup)) != NULL )
+						{
+							if (t->s.number == chosenentnum)
+							{
+								trap_SendServerCmd( clientNum, va("print \"^1Another player is holding this ent.\n\"") );
+								return;
+							}
+						}
+					}
+				}
+				fixforundo(chosenent);
+			chosenent->doorchanged = 32;
+				ent->client->sess.grabbedent = chosenentnum;
+				ent->client->sess.grabbeddist = atoi(par2);
+				ent->client->sess.grabbedgroup = 0;
+				if (atoi(par3) == 0)
+				{
+					ent->client->sess.grabbedentyaw = 0;
+				}
+				else if (atoi(par3) == 1)
+				{
+					ent->client->sess.grabbedentyaw = 1;
+				}
+				else if (atoi(par3) == 2)
+				{
+					ent->client->sess.grabbedentyaw = 180;
+				}
+				else if (atoi(par3) == 3)
+				{
+					ent->client->sess.grabbedentyaw = mcfix360(mcfix360(chosenent->r.currentAngles[YAW])-mcfix360(ent->client->ps.viewangles[YAW]));
+				}
+				else
+				{
+					ent->client->sess.grabbedentyaw = mcfix360(atoi(par3));
+				}
+				if (atoi(par4) == 0)
+				{
+					ent->client->sess.grabbedentpitch = 0;
+				}
+				else if (atoi(par4) == 1)
+				{
+					ent->client->sess.grabbedentpitch = 1;
+				}
+				else if (atoi(par4) == 2)
+				{
+					ent->client->sess.grabbedentpitch = 180;
+				}
+				else if (atoi(par4) == 3)
+				{
+					ent->client->sess.grabbedentpitch = mcfix360(mcfix360(chosenent->r.currentAngles[PITCH])-mcfix360(ent->client->ps.viewangles[PITCH]));
+				}
+				else
+				{
+					ent->client->sess.grabbedentpitch = mcfix360(atoi(par4));
+				}
+				ent->client->sess.grabbedentoffz = atoi(par5);
+				trap_SendServerCmd( clientNum, va("print \"^2Grabbed entity ^5%i^2.\n\"", chosenentnum ) );
+			}
+		break;
+		case 15:
+		///////////////////
+		// ammap_glow
+		///////////////////
+			if (( Q_stricmp(par1, "info") == 0)||(parcount < 6))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_glow <entity> <Red> <Green> <Blue> <Intensity>\n\"" ) );
+				return;
+			}
+			chosenent->s.constantLight = atoi(par2) + (atoi(par3)<<8) + (atoi(par4)<<16) + (atoi(par5)<<24);
+			strcpy(chosenent->mcmlight,va("%i %i %i %i",atoi(par1), atoi(par2), atoi(par3), atoi(par4)));
+		break;
+		case 16:
+		///////////////////
+		// ammap_group
+		///////////////////
+			if (( Q_stricmp(par1, "info") == 0)||(parcount < 3))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_group <entity> <group>\n\"" ) );
+				return;
+			}
+			if (atoi(par2) == 0)
+			{
+				if (nomessage == 0)
+				{
+				trap_SendServerCmd( clientNum, va("print \"^2Entity ^5%i^2 moved from group ^5%i^2 to group ^5%i^2, which had ^5%i^2 other ents.\n\"", chosenentnum, chosenent->entgroup, atoi(par2), i ) );
+				}
+				chosenent->entgroup = atoi(par2);
+				chosenent->groupleader = 0;
+			}
+			else
+			{
+				gentity_t	*t;
+				int		i;
+				int		ilead;
+				gentity_t	*tEn;
+				int		iPl;
+				t = NULL;
+				i = 0;
+				ilead = 0;
+				for (iPl = 0;iPl < 32;iPl += 1)
+				{
+					tEn = &g_entities[iPl];
+					if (!tEn->inuse)
+					{
+						continue;
+					}
+					if (tEn->client->sess.grabbedent == chosenentnum)
+					{
+						trap_SendServerCmd( clientNum, va("print \"^1A player is holding this ent.\n\"") );
+						return;
+					}
+					if (tEn->client->sess.grabbedgroup != 0)
+					{
+						gentity_t	*t;
+						t = NULL;
+						i = 0;
+						while ( (t = G_Findbygroup(t, tEn->client->sess.grabbedgroup)) != NULL )
+						{
+							if (t->s.number == chosenentnum)
+							{
+								trap_SendServerCmd( clientNum, va("print \"^1A player is holding this ent.\n\"") );
+								return;
+							}
+						}
+					}
+				}
+				t = NULL;
+				i = 0;
+				ilead = 0;
+				while ( (t = G_Findbygroup(t, chosenent->entgroup)) != NULL )
+				{
+					i += 1;
+					if (t->groupleader != 0)
+					{
+						ilead = t->groupleader;
+					}
+				}
+				if (i == 0)
+				{
+					if (nomessage == 0)
+					{
+					trap_SendServerCmd( clientNum, va("print \"^2Entity ^5%i^2 moved from group ^5%i^2 to group ^5%i^2 and is the default leader.\n\"", chosenentnum, chosenent->entgroup, atoi(par2) ) );
+					}
+					chosenent->entgroup = atoi(par2);
+					chosenent->groupleader = chosenent->s.number;
+				}
+				else
+				{
+					if (nomessage == 0)
+					{
+					trap_SendServerCmd( clientNum, va("print \"^2Entity ^5%i^2 moved from group ^5%i^2 to group ^5%i^2.\n\"", chosenentnum, chosenent->entgroup, atoi(par2) ) );
+					}
+					chosenent->entgroup = atoi(par2);
+					chosenent->groupleader = ilead;
+				}
+			}
+		break;
+		case 17:
+		///////////////////
+		// ammap_groupleader
+		///////////////////
+			if (( Q_stricmp(par1, "info") == 0)||(parcount < 2))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_groupleader <entity>\n\"" ) );
+				return;
+			}
+			if (chosenent->entgroup == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1This entity is not in a group.\n\"" ));
+				return;
+			}
+			else
+			{
+				gentity_t	*t;
+				gentity_t	*tEn;
+				int		iPl;
+				t = NULL;
+				i = 0;
+				for (iPl = 0;iPl < 32;iPl += 1)
+				{
+					tEn = &g_entities[iPl];
+					if (!tEn->inuse)
+					{
+						continue;
+					}
+					if (tEn->client->sess.grabbedent == chosenentnum)
+					{
+						trap_SendServerCmd( clientNum, va("print \"^1A player is holding this ent.\n\"") );
+						return;
+					}
+					if (tEn->client->sess.grabbedgroup != 0)
+					{
+						gentity_t	*t;
+						t = NULL;
+						i = 0;
+						while ( (t = G_Findbygroup(t, tEn->client->sess.grabbedgroup)) != NULL )
+						{
+							if (t->s.number == chosenentnum)
+							{
+								trap_SendServerCmd( clientNum, va("print \"^1A player is holding this ent.\n\"") );
+								return;
+							}
+						}
+					}
+				}
+				t = NULL;
+				while ( (t = G_Findbygroup(t, chosenent->entgroup)) != NULL )
+				{
+					t->groupleader = chosenent->s.number;
+				}
+				if (nomessage == 0)
+				{
+				trap_SendServerCmd( clientNum, va("print \"^2Entity ^5%i^2 is now the leader of group ^5%i^2.\n\"", chosenent->s.number, chosenent->entgroup));
+				}
+				return;
+			}
+		break;
+		case 18:
+		///////////////////
+		// ammap_addangles
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_addangles <entity> <Yaw> <Pitch> <Roll>\n\"" ) );
+				return;
+			}
+			if (parcount < 5)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_addangles <entity> <Yaw> <Pitch> <Roll>\n\"" ) );
+				return;
+			}
+			fixforundor(chosenent);
+			chosenent->s.angles[YAW] = mc_fix360(chosenent->r.currentAngles[YAW]+atoi(par2));
+			chosenent->s.angles[PITCH] = mc_fix360(chosenent->r.currentAngles[PITCH]+atoi(par3));
+			chosenent->s.angles[ROLL] = mc_fix360(chosenent->r.currentAngles[ROLL]+atoi(par4));
+			G_SetAngles(chosenent, chosenent->s.angles);
+			trap_LinkEntity(chosenent);
+		break;
+		case 19:
+		///////////////////
+		// ammap_setorigin
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setorigin <entity> <x> <y> <z>\n\"" ) );
+				return;
+			}
+			if (parcount < 5)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setorigin <entity> <x> <y> <z>\n\"" ) );
+				return;
+			}
+			chosenent->s.origin[0] = (float)monkeyspot(par2, 0, ent, chosenent);//atoi(par2);
+			chosenent->s.origin[1] = (float)monkeyspot(par3, 1, ent, chosenent);//atoi(par3);
+			chosenent->s.origin[2] = (float)monkeyspot(par4, 2, ent, chosenent);//atoi(par4);
+			chosenent->doorchanged = 32;
+			fixforundo(chosenent);
+			//chosenent->s.pos.trBase[0] = atoi(par2);
+			//chosenent->s.pos.trBase[1] = atoi(par3);
+			//chosenent->s.pos.trBase[2] = atoi(par4);
+			G_SetOrigin(chosenent, chosenent->s.origin);
+			trap_LinkEntity(chosenent);
+		break;
+		case 20:
+		///////////////////
+		// ammap_setanim
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setanim <entity> <anim>\n\"" ) );
+				return;
+			}
+			if (parcount < 3)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_setanim <entity> <anim>\n\"" ) );
+				return;
+			}
+			trap_UnlinkEntity(chosenent);
+			chosenent->s.torsoAnim = atoi(par2);// & ~ANIM_TOGGLEBIT;
+			chosenent->s.legsAnim = chosenent->s.torsoAnim;
+			trap_LinkEntity(chosenent);
+		break;
+		case 21:
+		///////////////////
+		// ammap_undomove
+		///////////////////
+			if ((Q_stricmp(par1, "info") == 0)||(Q_stricmp(par1,"") == 0))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_undomove <ent>\n\"" ) );
+				return;
+			}
+			VectorCopy(chosenent->lastorigin, chosenent->s.origin);
+			VectorCopy(chosenent->r.currentOrigin, chosenent->lastorigin);
+			G_SetOrigin(chosenent, chosenent->s.origin);
+			chosenent->doorchanged = 32;
+			trap_LinkEntity(chosenent);
+		break;
+		case 22:
+		///////////////////
+		// ammap_undorot
+		///////////////////
+			if ((Q_stricmp(par1, "info") == 0)||(Q_stricmp(par1,"") == 0))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_undorot <ent>\n\"" ) );
+				return;
+			}
+			VectorCopy(chosenent->lastrot, chosenent->s.angles);
+			VectorCopy(chosenent->r.currentAngles, chosenent->lastrot);
+			G_SetAngles(chosenent, chosenent->s.angles);
+			trap_LinkEntity(chosenent);
+		break;
+		case 23:
+		///////////////////
+		// ammap_collisiontype
+		///////////////////
+			if ((Q_stricmp(par1, "info") == 0)||(Q_stricmp(par2,"") == 0))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_collisiontype <ent> <type>\n\"" ) );
+				return;
+			}
+			if (!strstr(par2,"and"))
+			{
+				chosenent->r.contents = 0;
+			}
+			if (strstr(par2,"water"))
+			{
+				chosenent->r.contents |= CONTENTS_WATER;
+			}
+			else if (strstr(par2,"lava"))
+			{
+				chosenent->r.contents |= CONTENTS_LAVA;
+			}
+			else if (strstr(par2,"slime"))
+			{
+				chosenent->r.contents |= CONTENTS_SLIME;
+			}
+			else if (strstr(par2,"solid"))
+			{
+				chosenent->r.contents |= CONTENTS_SOLID;
+			}
+			else if (strstr(par2,"corpse"))
+			{
+				chosenent->r.contents |= CONTENTS_CORPSE;
+			}
+			else if (strstr(par2,"body"))
+			{
+				chosenent->r.contents |= CONTENTS_CORPSE;
+			}
+			else if (strstr(par2,"playerclip"))
+			{
+				chosenent->r.contents |= CONTENTS_PLAYERCLIP;
+			}
+			else if (strstr(par2,"testw"))
+			{
+				chosenent->r.contents = MASK_WATER;
+			}
+			else
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1Unknown collision type.\n\"" ) );
+				return;
+			}
+			if (strstr(par2,"clippy"))
+			{
+				chosenent->clipmask = chosenent->r.contents;
+			}
+			//chosenent->clipmask = MASK_SOLID;
+			trap_SendServerCmd( clientNum, va("print \"^2Command accepted.\n\"" ) );
+			trap_LinkEntity(chosenent);
+		break;
+		case 24:
+		///////////////////
+		// ammap_delent2
+		///////////////////
+			if (( Q_stricmp(par1, "info") == 0)||(parcount < 2))
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_delent2 <entity>\n\"" ) );
+				return;
+			}
+			else
+			{
+			int	iL;
+			trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+			if (chosenent->custom == 1)
+		{
+			if (chosenent->issaved == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1Chosen entity is not saved.\n\"" ) );
+				return;
+			}
+			else
+			{
+				char	bigbuffer[12000];
+				int	fpp;
+				memset(line, 0, sizeof(line));
+
+
+			if (Q_stricmp(chosenent->classname,"mc_model") == 0)
+			{
+				Com_sprintf( line, sizeof(line), "addmodelrcon3 \"%s\" %i %i %i %i %i %i %i %i %i %i %i %i", chosenent->mcmessage,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[YAW],
+				 (int)chosenent->r.currentAngles[PITCH],
+				 (int)chosenent->r.currentAngles[ROLL],
+				 (int)chosenent->r.mins[0],
+				 (int)chosenent->r.mins[1],
+				 (int)chosenent->r.mins[2],
+				 (int)chosenent->r.maxs[0],
+				 (int)chosenent->r.maxs[1],
+				 (int)chosenent->r.maxs[2]);
+			}
+			else if (Q_stricmp(chosenent->classname,"mc_light") == 0)
+			{
+				Com_sprintf(line,sizeof(line), "addlightrcon %i %i %i %s", (int)chosenent->s.origin[0],
+				(int)chosenent->s.origin[1],
+				(int)chosenent->s.origin[2],
+				chosenent->mcmlight);
+				
+			}
+			else if (Q_stricmp(chosenent->classname,"mc_model2") == 0)
+			{
+				Com_sprintf( line, sizeof(line), "addghoulrcon \"%s\" %i %i %i %i %i %i %i %i %i %i %i %i", chosenent->mcmessage,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[YAW],
+				 (int)chosenent->r.currentAngles[PITCH],
+				 (int)chosenent->r.currentAngles[ROLL],
+				 (int)chosenent->r.mins[0],
+				 (int)chosenent->r.mins[1],
+				 (int)chosenent->r.mins[2],
+				 (int)chosenent->r.maxs[0],
+				 (int)chosenent->r.maxs[1],
+				 (int)chosenent->r.maxs[2]);
+			}
+			else if (Q_stricmp(chosenent->classname,"mc_effect") == 0)
+			{
+				Com_sprintf( line, sizeof(line), "addeffectrcon \"%s\" %i %i %i %i %i %i %i", chosenent->mcmessage,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[YAW],
+				 (int)chosenent->r.currentAngles[PITCH],
+				 (int)chosenent->r.currentAngles[ROLL],
+				 (int)chosenent->delay);
+			}
+		
+			else if (Q_stricmp(chosenent->classname,"mc_note") == 0)
+			{
+				Com_sprintf( line, sizeof(line), "addnotercon \"%s\" \"%s\" %i %i %i %i", chosenent->mctargetname,
+				chosenent->mcmessage,
+				(int)chosenent->s.bolt1,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2]);
+			}
+		
+			else if (Q_stricmp(chosenent->classname,"mc_tsent") == 0)
+			{
+				Com_sprintf( line, sizeof(line), "addanyent mc_tsent %i %i %i \"group,%s,",
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 chosenent->group);
+				if (chosenent->bolt_Waist == 1)
+				{
+					Com_sprintf( line, sizeof(line), "%sreaction,kick,\"", line);
+				}
+				else
+				{
+					Com_sprintf( line, sizeof(line), "%sreaction,kill,\"", line);
+				}
+			}
+			else if (Q_stricmp(chosenent->classname,"target_speaker") == 0)
+			{
+				Com_sprintf( line, sizeof(line), "addanyent \"target_speaker\" %i %i %i \"targetname,%s,noise,%s,spawnflags,%i,wait,%i,random,%i,\"",
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 chosenent->targetname,
+				 chosenent->upmes,
+				 (int)chosenent->spawnflags,
+				 (int)chosenent->wait,
+				 (int)chosenent->random);
+			}
+			else if (Q_stricmp(chosenent->classname,"mcsentry") == 0)
+			{
+				Com_sprintf( line, sizeof(line), "addmcsentry \"%i\" \"%i\" \"%i\" \"%i\"", chosenent->s.owner, 
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2]);
+			}
+			else if (Q_stricmp(chosenent->classname,"mcshield") == 0)
+			{
+				Com_sprintf( line, sizeof(line), "addmcshield \"%i\" \"%i\" \"%i\" \"%i\" \"%i\"", chosenent->s.owner, 
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[YAW]);
+			}
+			else
+			{
+				Com_sprintf( line, sizeof(line), "addanyent \"%s\" %i %i %i \"angles,%i %i %i,spawnflags,%i,mins,%i %i %i,maxs,%i %i %i,", chosenent->classname,
+				(int)chosenent->r.currentOrigin[0],
+				 (int)chosenent->r.currentOrigin[1],
+				 (int)chosenent->r.currentOrigin[2],
+				 (int)chosenent->r.currentAngles[0],
+				 (int)chosenent->r.currentAngles[1],
+				 (int)chosenent->r.currentAngles[2],
+				 (int)chosenent->spawnflags,
+				 (int)chosenent->r.mins[0],
+				 (int)chosenent->r.mins[1],
+				 (int)chosenent->r.mins[2],
+				 (int)chosenent->r.maxs[0],
+				 (int)chosenent->r.maxs[1],
+				 (int)chosenent->r.maxs[2]);
+				if (chosenent->movedir[0] != 0 || chosenent->movedir[1] != 0 || chosenent->movedir[2] != 0)
+				{
+					vec3_t final;
+					VectorClear(final);
+					vectoangles(chosenent->movedir, final);
+					Com_sprintf( line, sizeof(line), "%sangles,%i %i %i,", line,
+					 (int)final[0], (int)final[1], (int)final[2]);
+				}
+				if (chosenent->target && Q_stricmp(chosenent->target,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%starget,%s,", line,
+					 chosenent->target);
+				}
+				if (chosenent->targetname && Q_stricmp(chosenent->targetname,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%stargetname,%s,", line,
+					 chosenent->targetname);
+				}
+				if (chosenent->targetShaderName && Q_stricmp(chosenent->targetShaderName,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%stargetShaderName,%s,", line,
+					 chosenent->targetShaderName);
+				}
+				if (chosenent->targetShaderNewName && Q_stricmp(chosenent->targetShaderNewName,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%stargetShaderNewName,%s,", line,
+					 chosenent->targetShaderNewName);
+				}
+				if (chosenent->message && Q_stricmp(chosenent->message,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%smessage,%s,", line,
+					 chosenent->message);
+				}
+				if (chosenent->team && Q_stricmp(chosenent->team,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%steam,%s,", line,
+					 chosenent->team);
+				}
+				if (chosenent->upmes && Q_stricmp(chosenent->upmes,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%supmessage,%s,", line,
+					 chosenent->upmes);
+				}
+				if (chosenent->downmes && Q_stricmp(chosenent->downmes,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sdownmessage,%s,", line,
+					 chosenent->downmes);
+				}
+				if (chosenent->mcpassword && Q_stricmp(chosenent->mcpassword,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%spassword,%s,", line,
+					 chosenent->mcpassword);
+				}
+				if (chosenent->group && Q_stricmp(chosenent->group,"") != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sgroup,%s,", line,
+					 chosenent->group);
+				}
+				if (chosenent->mcmessage && Q_stricmp(chosenent->mcmessage,"") != 0)
+				{
+					if (Q_stricmp(chosenent->classname,"fx_runner") == 0)
+					{
+						Com_sprintf( line, sizeof(line), "%sfxfile,%s,", line,
+						 chosenent->mcmessage);
+					}
+					else
+					{
+						Com_sprintf( line, sizeof(line), "%smodel,%s,", line,
+						 chosenent->mcmessage);
+					}
+				}
+				if (chosenent->speed != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sspeed,%i,", line,
+					 (int)chosenent->speed);
+				}
+				if (chosenent->wait != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%swait,%i,", line,
+					 (int)chosenent->wait);
+				}
+				if (chosenent->random != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%srandom,%i,", line,
+					 (int)chosenent->random);
+				}
+				if (chosenent->lip != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%slip,%i,", line,
+					 (int)chosenent->lip);
+				}
+				if (chosenent->count != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%scount,%i,", line,
+					 (int)chosenent->count);
+				}
+				if (chosenent->health != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%shealth,%i,", line,
+					 (int)chosenent->health);
+				}
+				if (chosenent->delay != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sdelay,%i,", line,
+					 (int)chosenent->delay);
+				}
+				if (chosenent->damage != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sdmg,%i,", line,
+					 (int)chosenent->damage);
+				}
+				if (chosenent->s.owner != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%sowner,%i,", line,
+					 (int)chosenent->s.owner);
+				}
+				if (chosenent->xOff != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%smodelangle,%i,", line,
+					 (int)chosenent->xOff);
+				}
+				if (chosenent->yOff != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%smodelpitch,%i,", line,
+					 (int)chosenent->yOff);
+				}
+				if (chosenent->zOff != 0)
+				{
+					Com_sprintf( line, sizeof(line), "%smodelroll,%i,", line,
+					 (int)chosenent->zOff);
+				}
+				Com_sprintf( line, sizeof(line), "%s\" \"\"", line);
+			}
+
+
+				G_Printf("Trying to delete >>%s<<\n", line);
+				for (i = 1;i < 32;i += 1)
+				{
+					memset(bigbuffer, 0, sizeof(bigbuffer));
+					iL = trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string), &f, FS_READ);
+					if (!f)
+					{
+						G_Printf("Gave up!\n");
+						trap_SendServerCmd( clientNum, va("print \"^1Chosen entity cannot be found in the edit file.\n\"" ) );
+						return;
+					}
+					else
+					{
+						trap_FS_Read( bigbuffer, 11999, f );
+						trap_FS_FCloseFile(f);
+						if (!strstr(bigbuffer, line))
+						{
+							G_Printf("File %i did not contain...\n", i);
+							continue;
+						}
+						trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string), &f, FS_WRITE);
+						if ( !f )
+						{
+							trap_SendServerCmd( clientNum, va("print \"^1Error: Cannot access map file.\n\"" ) );
+							G_Printf("Found, could not write!\n");
+							return;
+						}
+						iL = strlen(bigbuffer);
+						for (i = strlen(line);i < iL;i++)
+						{
+							for (fpp = 0;fpp < strlen(line);fpp++)
+							{
+								if (!(bigbuffer[(i - strlen(line)) + fpp] == line[fpp]))
+								{
+									break;
+								}
+							}
+							if (fpp == strlen(line))
+							{
+								bigbuffer[(i - strlen(line))] = 'D';
+								bigbuffer[(i - strlen(line)) + 1] = 'E';
+								bigbuffer[(i - strlen(line)) + 2] = 'L';
+								break;
+							}
+						}
+						trap_FS_Write( bigbuffer, strlen(bigbuffer), f);
+						trap_FS_FCloseFile( f );
+						G_Printf("Victory!\n");
+						trap_SendServerCmd( clientNum, va("print \"^1Chosen entity permanently deleted.\n\"" ) );
+						G_FreeEntity(chosenent);
+						return;
+					}
+				}
+				G_Printf("None contained... giving up!\n");
+				trap_SendServerCmd( clientNum, va("print \"^1Chosen entity cannot be found in the edit file.\n\"" ) );
+				return;
+			}
+		}
+			else
+		{
+			for (i = 1;i < 32;i += 1)
+			{
+				iL = trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string), &f, FS_READ);
+				if (!f)
+				{
+					trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i-1, mapname.string), &f, FS_APPEND);
+					if ( !f )
+					{
+						trap_SendServerCmd( clientNum, va("print \"^1Error: Cannot access map file.\n\"" ) );
+						return;
+					}
+					trap_FS_Write( va("\nmapeditsexec mapedits_%i_%s;\n", i, mapname.string), strlen(va("\nmapeditsexec mapedits_%i_%s;\n", i, mapname.string)), f);
+					trap_FS_FCloseFile( f );
+					goto loadmap2;
+				}
+				trap_FS_FCloseFile(f);
+				if (iL < 10000)
+				{
+					goto loadmap2;
+				}
+			}
+			loadmap2:
+			Com_sprintf(savePath, 1024*4, "%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string);
+			trap_FS_FOpenFile(savePath, &f, FS_APPEND);
+			if ( !f )
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1Error: Cannot access map file.\n\"" ) );
+				return;
+			}
+			Com_sprintf(line,sizeof(line), "mcmap_delent %i", (int)chosenent->s.number);
+			if( strchr( line, ';' ) ) {
+				trap_SendServerCmd( clientNum, va("print \"^1You should probably be banned for that.\n\""));
+				trap_FS_FCloseFile( f );
+				return;
+			}
+			if( strchr( line, '\n' ) ) {
+				trap_SendServerCmd( clientNum, va("print \"^1You should probably be banned for that.\n\""));
+				trap_FS_FCloseFile( f );
+				return;
+			}
+			if (strlen(line) > 1000)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1Save Data is too long.\n\""));
+				trap_FS_FCloseFile( f );
+				return;
+			}
+			if (nomessage == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^2Permanently deleted entity ^5%i^2.\n\"", chosenentnum ) );
+			}
+			//strcpy(line,va("%s;wait 20;",line));
+			strcpy(line,va("\n%s;\n", line));
+			trap_FS_Write( line, strlen(line), f);
+			trap_FS_FCloseFile( f );
+			G_FreeEntity(chosenent);
+			//trap_SendServerCmd( clientNum, va("print \"^2Permanently deleted entity ^5%i^2.\n\"", chosenentnum ) );
+			}
+		}
+		break;
+		case 25:
+		///////////////////
+		// ammap_delent_matching
+		///////////////////
+			if ( Q_stricmp(par1, "info") == 0)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_delent_matching <entity> <string to match>\n\"" ) );
+				return;
+			}
+			if (parcount < 3)
+			{
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_delent_matching <entity> <string to match>\n\"" ) );
 				return;
 			}
 			Com_sprintf( buffer, sizeof(buffer), "Trace ent: %i - %s\n", chosenentnum, chosenent->classname);
@@ -17679,617 +20438,134 @@ void mc_buildercmdsmain(gentity_t *ent, int clientNuxm, int cmd, int chosenentnu
 			}
 			Com_sprintf( buffer, sizeof(buffer), "%s(mins = %i %i %i) ", buffer, (int)chosenent->r.mins[0], (int)chosenent->r.mins[1], (int)chosenent->r.mins[2]);
 			Com_sprintf( buffer, sizeof(buffer), "%s(maxes = %i %i %i) ", buffer, (int)chosenent->r.maxs[0], (int)chosenent->r.maxs[1], (int)chosenent->r.maxs[2]);
-			trap_SendServerCmd( clientNum, va("print \"^7%s\n\"", buffer ) );
+			//trap_SendServerCmd( clientNum, va("print \"^7%s\n\"", buffer ) );
+			if (strstr(buffer, par2))
+			{
+				if (nomessage == 0)
+				{
+					trap_SendServerCmd( clientNum, va("print \"^3Deleted ^5%i^3(^5%s^3).\n\"", chosenentnum, chosenent->classname ) );
+				}
+				G_FreeEntity(chosenent);
+			}
 
 		break;
-		case 5:
+		case 26:
 		///////////////////
-		// ammap_respawn
-		///////////////////
-			if ( Q_stricmp(par1, "info") == 0)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_respawn <entity>\n\"" ) );
-				return;
-			}
-			if (parcount < 2)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_respawn <entity>\n\"" ) );
-				return;
-			}
-			if (nomessage == 0)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^3Respawned ent as ^5%i^7.\n\"", ent_respawn(chosenent) ) );
-			}
-			//ent_respawn(chosenent);
-		break;
-		case 6:
-		///////////////////
-		// ammap_duplicate
+		// ammap_group_matching
 		///////////////////
 			if ( Q_stricmp(par1, "info") == 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_duplicate <entity>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_group_matching <entity> <group> <string to match>\n\"" ) );
 				return;
 			}
-			if (parcount < 2)
+			if (parcount < 4)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_duplicate <entity>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_group_matching <entity> <group> <string to match>\n\"" ) );
 				return;
 			}
-			if (nomessage == 0)
+			Com_sprintf( buffer, sizeof(buffer), "Trace ent: %i - %s\n", chosenentnum, chosenent->classname);
+			Com_sprintf( buffer, sizeof(buffer), "%s^7X=^5%i^7, Y=^5%i^7, Z=^5%i^7\n", buffer, (int)chosenent->r.currentOrigin[0], (int)chosenent->r.currentOrigin[1], (int)chosenent->r.currentOrigin[2]);
+			ent->client->sess.traced = chosenent->s.number;
+			if (chosenent->s.angles[YAW] != 0)
 			{
-			trap_SendServerCmd( clientNum, va("print \"^3Duplicated ent to ^5%i^7.\n\"", ent_duplicate(chosenent) ) );
+				Com_sprintf( buffer, sizeof(buffer), "%s(YAW = %i) ", buffer, (int)chosenent->s.angles[YAW]);
 			}
-			//ent_duplicate(chosenent);
-		break;
-		case 7:
-		///////////////////
-		// ammap_setangles
-		///////////////////
-			if ( Q_stricmp(par1, "info") == 0)
+			if (chosenent->s.angles[PITCH] != 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setangles <entity> <Yaw> <Pitch> <Roll>\n\"" ) );
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(PITCH = %i) ", buffer, (int)chosenent->s.angles[PITCH]);
 			}
-			if (parcount < 5)
+			if (chosenent->s.angles[ROLL] != 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setangles <entity> <Yaw> <Pitch> <Roll>\n\"" ) );
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(ROLL = %i) ", buffer, (int)chosenent->s.angles[ROLL]);
 			}
-			fixforundor(chosenent);
-			chosenent->s.angles[YAW] = atoi(par2);
-			chosenent->s.angles[PITCH] = atoi(par3);
-			chosenent->s.angles[ROLL] = atoi(par4);
-			G_SetAngles(chosenent, chosenent->s.angles);
-			trap_LinkEntity(chosenent);
-		break;
-		case 8:
-		///////////////////
-		// ammap_useent
-		///////////////////
-			if (( Q_stricmp(par1, "info") == 0)||(Q_stricmp(par1,"") == 0))
+			if (chosenent->count)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_useent <entity>\n\"" ) );
-				return;
-			}
-			chosenent->use( chosenent, ent, ent );
-		break;
-		case 9:
-		///////////////////
-		// ammap_setmaxes
-		///////////////////
-			if ( Q_stricmp(par1, "info") == 0)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setmaxes <entity> <XMAX> <YMAX> <YMAX>\n\"" ) );
-				return;
-			}
-			if (parcount < 5)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setmaxes <entity> <XMAX> <YMAX> <YMAX> - Chosen object maxes - %s\n\"", vtos(chosenent->r.maxs) ) );
-				return;
-			}
-			chosenent->r.maxs[0] = atoi(par2);
-			chosenent->r.maxs[1] = atoi(par3);
-			chosenent->r.maxs[2] = atoi(par4);
-			trap_LinkEntity(chosenent);
-		break;
-		case 10:
-		///////////////////
-		// ammap_setmins
-		///////////////////
-			if ( Q_stricmp(par1, "info") == 0)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setmins <entity> <XMIN> <YMIN> <YMIN>\n\"" ) );
-				return;
-			}
-			if (parcount < 5)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setmins <entity> <XMIN> <YMIN> <YMIN> - Chosen object mins - %s\n\"", vtos(chosenent->r.mins) ) );
-				return;
-			}
-			chosenent->r.mins[0] = atoi(par2);
-			chosenent->r.mins[1] = atoi(par3);
-			chosenent->r.mins[2] = atoi(par4);
-			trap_LinkEntity(chosenent);
-		break;
-		case 11:
-		///////////////////
-		// ammap_respawn2
-		///////////////////
-			if ( Q_stricmp(par1, "info") == 0)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_respawn <entity>\n\"" ) );
-				return;
-			}
-			if (parcount < 2)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_respawn <entity>\n\"" ) );
-				return;
-			}
-			if (nomessage == 0)
-			{
-			trap_SendServerCmd( clientNum, va("print \"^3Respawned ent.\n\"" ) );
-			}
-			//ent_respawn(chosenent);
-			G_CallSpawn(chosenent);
-		break;
-		case 12:
-		///////////////////
-		// ammap_moveent
-		///////////////////
-			if ( Q_stricmp(par1, "info") == 0)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_moveent <entity>\n\"" ) );
-				return;
-			}
-			if (parcount < 2)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_moveent <entity>\n\"" ) );
-				return;
-			}
-			//if ( chosenent->s.pos.trType != TR_STATIONARY || chosenent->s.apos.trType != TR_STATIONARY )
-			if (qtrue)
-			{
-				vec3_t		move;
-				float		distance;
-				/*VectorCopy(chosenent->r.currentOrigin,chosenent->pos1);
-				trap_LinkEntity (ent);
-				VectorCopy(chosenent->r.currentOrigin,chosenent->s.pos.trBase);
-				VectorCopy(ent->client->ps.origin,chosenent->pos2);
-				ent->r.svFlags = SVF_USE_CURRENT_ORIGIN;
-				ent->s.pos.trDuration = atoi(par2);
-				if ( ! ent->speed ) {
-					ent->speed = 100;
-				}
-				VectorSubtract( chosenent->pos2, chosenent->pos1, move );
-				i = VectorLength( move );
-				VectorScale( move, chosenent->speed, chosenent->s.pos.trDelta );
-				if ( chosenent->s.pos.trDuration <= 0 ) {
-					chosenent->s.pos.trDuration = 1;
-				}
-				ent->s.pos.trDuration = i * 1000 / ent->speed;
-				SetMoverState(chosenent, MOVER_1TO2, atoi(par2) );
-				chosenent->think = G_RunMover;
-				chosenent->nextthink = level.time+1;
-				if (atoi(par3) > 0)
-				{
-				G_MoverPush(chosenent, chosenent->r.currentOrigin, ent->client->ps.viewangles, NULL );
-				}*/
-				if (!ent->wait)
-				{
-					ent->wait = 2000;
-				}
-				if (ent->wait < 1000)
-				{
-					ent->wait *= 1000;
-				}
-				ent->blocked = Blocked_Door;
-				G_SetMovedir (ent->s.angles, ent->movedir);
-
-				chosenent->s.loopSound = G_SoundIndex( "100" );
-				VectorCopy (ent->client->ps.origin, chosenent->pos2);
-				chosenent->use = Use_BinaryMover;
-				chosenent->reached = Reached_BinaryMover;
-				chosenent->moverState = MOVER_POS1;
-				chosenent->r.svFlags = SVF_USE_CURRENT_ORIGIN;
-				chosenent->s.eType = ET_MOVER;
-				VectorCopy (chosenent->r.currentOrigin, chosenent->pos1);
-				trap_LinkEntity (chosenent);
-				chosenent->s.pos.trType = TR_STATIONARY;
-				VectorCopy( chosenent->pos1, chosenent->s.pos.trBase );
-				VectorSubtract( ent->pos2, ent->pos1, move );
-				distance = VectorLength( move );
-				if ( ! ent->speed ) {
-					ent->speed = 100;
-				}
-				chosenent->s.pos.trTime = 1000;
-				chosenent->s.pos.trDelta[0] = 0;
-				chosenent->s.pos.trDelta[1] = 0;
-				chosenent->s.pos.trDelta[2] = 5;
-				VectorScale( move, ent->speed, ent->s.pos.trDelta );
-				ent->s.pos.trDuration = distance * 1000 / ent->speed;
-				if ( ent->s.pos.trDuration <= 0 )
-				{
-					ent->s.pos.trDuration = 1;
-				}
-				//ent->nextthink = level.time + FRAMETIME;
-			}
-		break;
-		case 13:
-		///////////////////
-		// ammap_saveent
-		///////////////////
-			if (( Q_stricmp(par1, "info") == 0)||(parcount < 2))
-			{
-				trap_SendServerCmd( ent->s.number, va("print \"^1Usage: /ammap_saveent <entity>\n\"" ) );
-				return;
-			}
-			else
-			{
-			int	iL;
-			trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
-			for (i = 1;i < 32;i += 1)
-			{
-				iL = trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string), &f, FS_READ);
-				if (!f)
-				{
-					trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i-1, mapname.string), &f, FS_APPEND);
-					if ( !f )
-					{
-						trap_SendServerCmd( clientNum, va("print \"^1Error: Cannot access map file.\n\"" ) );
-						return;
-					}
-					trap_FS_Write( va("\nmapeditsexec mapedits_%i_%s;\n", i, mapname.string), strlen(va("\nmapeditsexec mapedits_%i_%s;\n", i, mapname.string)), f);
-					trap_FS_FCloseFile( f );
-					goto loadmap;
-				}
-				trap_FS_FCloseFile(f);
-				if (iL < 10000)
-				{
-					goto loadmap;
-				}
-			}
-			loadmap:
-			Com_sprintf(savePath, 1024*4, "%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string);
-			trap_FS_FOpenFile(savePath, &f, FS_APPEND);
-			if ( !f )
-			{
-				trap_SendServerCmd( ent->s.number, va("print \"^1Error: Cannot access map file.\n\"" ) );
-				G_Printf("Refused.\n");
-				return;
-			}
-			if (Q_stricmp(chosenent->classname,"jmodel") == 0)
-			{
-				Com_sprintf( line, sizeof(line), "addmodelrcon3 \"%s\" %i %i %i %i %i %i %i %i %i %i %i %i", chosenent->mcmessage,
-				(int)chosenent->r.currentOrigin[0],
-				 (int)chosenent->r.currentOrigin[1],
-				 (int)chosenent->r.currentOrigin[2],
-				 (int)chosenent->r.currentAngles[YAW],
-				 (int)chosenent->r.currentAngles[PITCH],
-				 (int)chosenent->r.currentAngles[ROLL],
-				 (int)chosenent->r.mins[0],
-				 (int)chosenent->r.mins[1],
-				 (int)chosenent->r.mins[2],
-				 (int)chosenent->r.maxs[0],
-				 (int)chosenent->r.maxs[1],
-				 (int)chosenent->r.maxs[2]);
-			}
-			else if (Q_stricmp(chosenent->classname,"mc_light") == 0)
-			{
-				Com_sprintf(line,sizeof(line), "addlightrcon %i %i %i %s", (int)chosenent->s.origin[0],
-				(int)chosenent->s.origin[1],
-				(int)chosenent->s.origin[2],
-				chosenent->mcmlight);
-				
-			}
-			else if (Q_stricmp(chosenent->classname,"jmodel2") == 0)
-			{
-				Com_sprintf( line, sizeof(line), "addghoulrcon \"%s\" %i %i %i %i %i %i %i %i %i %i %i %i", chosenent->mcmessage,
-				(int)chosenent->r.currentOrigin[0],
-				 (int)chosenent->r.currentOrigin[1],
-				 (int)chosenent->r.currentOrigin[2],
-				 (int)chosenent->r.currentAngles[YAW],
-				 (int)chosenent->r.currentAngles[PITCH],
-				 (int)chosenent->r.currentAngles[ROLL],
-				 (int)chosenent->r.mins[0],
-				 (int)chosenent->r.mins[1],
-				 (int)chosenent->r.mins[2],
-				 (int)chosenent->r.maxs[0],
-				 (int)chosenent->r.maxs[1],
-				 (int)chosenent->r.maxs[2]);
-			}
-			else if (Q_stricmp(chosenent->classname,"fx_runner") == 0)
-			{
-				//addeffectrcon env/fire 4272 1770 559 0 0 0 300
-
-				Com_sprintf( line, sizeof(line), "addeffectrcon \"%s\" %i %i %i %i %i %i %i", chosenent->mcmessage,
-				(int)chosenent->r.currentOrigin[0],
-				 (int)chosenent->r.currentOrigin[1],
-				 (int)chosenent->r.currentOrigin[2],
-				 (int)chosenent->r.currentAngles[YAW],
-				 (int)chosenent->r.currentAngles[PITCH],
-				 (int)chosenent->r.currentAngles[ROLL],
-				 (int)chosenent->delay);
-			}
-		/*
-			else if (Q_stricmp(chosenent->classname,"mc_note") == 0)
-			{
-				// addnotercon "creator" "message" public X Y Z
-
-				Com_sprintf( line, sizeof(line), "addnotercon \"%s\" \"%s\" %i %i %i %i", chosenent->mctargetname,
-				chosenent->mcmessage,
-				(int)chosenent->s.bolt1,
-				(int)chosenent->r.currentOrigin[0],
-				 (int)chosenent->r.currentOrigin[1],
-				 (int)chosenent->r.currentOrigin[2]);
-			}
-		*/
-			else if (Q_stricmp(chosenent->classname,"mc_tsent") == 0)
-			{
-				Com_sprintf( line, sizeof(line), "addanyent mc_tsent %i %i %i \"group,%s,",
-				(int)chosenent->r.currentOrigin[0],
-				 (int)chosenent->r.currentOrigin[1],
-				 (int)chosenent->r.currentOrigin[2],
-				 chosenent->group);
-				if (chosenent->bolt_Waist == 1)
-				{
-					Com_sprintf( line, sizeof(line), "%sreaction,kick,\"", line);
-				}
-				else
-				{
-					Com_sprintf( line, sizeof(line), "%sreaction,kill,\"", line);
-				}
-			}
-			else if (Q_stricmp(chosenent->classname,"target_speaker") == 0)
-			{
-				Com_sprintf( line, sizeof(line), "addanyent \"target_speaker\" %i %i %i \"targetname,%s,noise,%s,spawnflags,%i,wait,%i,random,%i,\"",
-				(int)chosenent->r.currentOrigin[0],
-				 (int)chosenent->r.currentOrigin[1],
-				 (int)chosenent->r.currentOrigin[2],
-				 chosenent->targetname,
-				 chosenent->upmes,
-				 (int)chosenent->spawnflags,
-				 (int)chosenent->wait,
-				 (int)chosenent->random);
-			}
-			else if (Q_stricmp(chosenent->classname,"mcsentry") == 0)
-			{
-				Com_sprintf( line, sizeof(line), "addmcsentry \"%i\" \"%i\" \"%i\" \"%i\"", chosenent->s.owner, 
-				(int)chosenent->r.currentOrigin[0],
-				 (int)chosenent->r.currentOrigin[1],
-				 (int)chosenent->r.currentOrigin[2]);
-			}
-			else if (Q_stricmp(chosenent->classname,"mcshield") == 0)
-			{
-				Com_sprintf( line, sizeof(line), "addmcshield \"%i\" \"%i\" \"%i\" \"%i\" \"%i\"", chosenent->s.owner, 
-				(int)chosenent->r.currentOrigin[0],
-				 (int)chosenent->r.currentOrigin[1],
-				 (int)chosenent->r.currentOrigin[2],
-				 (int)chosenent->r.currentAngles[YAW]);
-			}
-			else
-			{
-				/*if( strstr(chosenent->classname,"func_") || strstr(chosenent->classname,"trigger_")) {
-					trap_SendServerCmd( clientNum, va("print \"^1You should probably be banned for that.\n\""));
-					trap_FS_FCloseFile( f );
-					return;
-				}*/
-
-				Com_sprintf( line, sizeof(line), "addanyent \"%s\" %i %i %i \"angles,%i %i %i,spawnflags,%i,", chosenent->classname,
-				(int)chosenent->r.currentOrigin[0],
-				 (int)chosenent->r.currentOrigin[1],
-				 (int)chosenent->r.currentOrigin[2],
-				 (int)chosenent->r.currentAngles[0],
-				 (int)chosenent->r.currentAngles[1],
-				 (int)chosenent->r.currentAngles[2],
-				 (int)chosenent->spawnflags);
-				if (chosenent->target && Q_stricmp(chosenent->target,"") != 0)
-				{
-					Com_sprintf( line, sizeof(line), "%starget,%s,", line,
-					 chosenent->target);
-				}
-				if (chosenent->targetname && Q_stricmp(chosenent->targetname,"") != 0)
-				{
-					Com_sprintf( line, sizeof(line), "%stargetname,%s,", line,
-					 chosenent->targetname);
-				}
-				if (chosenent->message && Q_stricmp(chosenent->message,"") != 0)
-				{
-					Com_sprintf( line, sizeof(line), "%smessage,%s,", line,
-					 chosenent->message);
-				}
-				if (chosenent->mcpassword && Q_stricmp(chosenent->mcpassword,"") != 0)
-				{
-					Com_sprintf( line, sizeof(line), "%spassword,%s,", line,
-					 chosenent->mcpassword);
-				}
-				if (chosenent->group && Q_stricmp(chosenent->group,"") != 0)
-				{
-					Com_sprintf( line, sizeof(line), "%sgroup,%s,", line,
-					 chosenent->group);
-				}
-				if (chosenent->speed != 0)
-				{
-					Com_sprintf( line, sizeof(line), "%sspeed,%i,", line,
-					 (int)chosenent->speed);
-				}
-				if (chosenent->wait != 0)
-				{
-					Com_sprintf( line, sizeof(line), "%swait,%i,", line,
-					 (int)chosenent->wait);
-				}
-				if (chosenent->random != 0)
-				{
-					Com_sprintf( line, sizeof(line), "%srandom,%i,", line,
-					 (int)chosenent->random);
-				}
 				if (chosenent->count != 0)
 				{
-					Com_sprintf( line, sizeof(line), "%scount,%i,", line,
-					 (int)chosenent->count);
+					Com_sprintf( buffer, sizeof(buffer), "%s(count = %i) ", buffer, (int)chosenent->count);
 				}
+			}
+			if (chosenent->health)
+			{
 				if (chosenent->health != 0)
 				{
-					Com_sprintf( line, sizeof(line), "%shealth,%i,", line,
-					 (int)chosenent->health);
+					Com_sprintf( buffer, sizeof(buffer), "%s(health = %i) ", buffer, (int)chosenent->health);
 				}
-				if (chosenent->delay != 0)
+			}
+			if (chosenent->wait)
+			{
+				if (chosenent->wait != 0)
 				{
-					Com_sprintf( line, sizeof(line), "%sdelay,%i,", line,
-					 (int)chosenent->delay);
+					Com_sprintf( buffer, sizeof(buffer), "%s(wait = %i) ", buffer, (int)chosenent->wait);
 				}
+			}
+			if (chosenent->spawnflags)
+			{
+				if (chosenent->spawnflags != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(spawnflags = %i) ", buffer, (int)chosenent->spawnflags);
+				}
+			}
+			if (chosenent->damage)
+			{
 				if (chosenent->damage != 0)
 				{
-					Com_sprintf( line, sizeof(line), "%sdmg,%i,", line,
-					 (int)chosenent->damage);
+					Com_sprintf( buffer, sizeof(buffer), "%s(damage = %i) ", buffer, (int)chosenent->damage);
 				}
-				if (chosenent->s.owner != 0)
-				{
-					Com_sprintf( line, sizeof(line), "%sowner,%i,", line,
-					 (int)chosenent->s.owner);
-				}
-				Com_sprintf( line, sizeof(line), "%s\" \"\"", line);
-				//trap_SendServerCmd( ent->s.number, va("print \"^1Cannot save items of this class.\n\"" ) );
-				//return;
 			}
-			if( strchr( line, ';' ) ) {
-				trap_SendServerCmd( ent->s.number, va("print \"^1You should probably be banned for that.\n\""));
-				trap_FS_FCloseFile( f );
-				G_Printf("Refused.\n");
-				return;
-			}
-			if( strchr( line, '\n' ) ) {
-				trap_SendServerCmd( ent->s.number, va("print \"^1You should probably be banned for that.\n\""));
-				trap_FS_FCloseFile( f );
-				G_Printf("Refused.\n");
-				return;
-			}
-			if (strlen(line) > 1000)
+			if (chosenent->speed)
 			{
-				trap_SendServerCmd( ent->s.number, va("print \"^1Save Data is too long.\n\""));
-				trap_FS_FCloseFile( f );
-				G_Printf("Refused.\n");
-				return;
+				if (chosenent->speed != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(speed = %i) ", buffer, (int)chosenent->speed);
+				}
 			}
-			if (nomessage == 0)
+			if (chosenent->random)
 			{
-				trap_SendServerCmd( ent->s.number, va("print \"^2Saved entity ^5%i^2.\n\"", chosenentnum ) );
+				if (chosenent->random != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(random = %i) ", buffer, (int)chosenent->random);
+				}
 			}
-			//strcpy(line,va("%s;wait 20;",line));
-			strcpy(line,va("\n%s;\n", line));
-			trap_FS_Write( line, strlen(line), f);
-			trap_FS_FCloseFile( f );
-			G_Printf("Passed.\n");
-			//trap_SendServerCmd( clientNum, va("print \"^2Saved entity ^5%i^2.\n\"", chosenentnum ) );
-			}
-		break;
-		case 14:
-		///////////////////
-		// ammap_grabent
-		///////////////////
-			if (( Q_stricmp(par1, "info") == 0)||(parcount < 3))
+			if (chosenent->target)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_grabent <entity> <distance> <yaw AAT> <pitch AAT> [zoff]\nAngle Adjust Types (AATs):\n0: Do not adjust.\n1:Match my angle.\n2:Face me.\n3: Starting relative value\nOther values > 3 - custom angle adjustment relative to me.\n\"" ) );
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(target = %s) ", buffer, chosenent->target);
 			}
-			else if (ent->client->sess.grabbedent != 0)
+			if (chosenent->targetname)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^2Dropped entity ^5%i^2.\n\"", ent->client->sess.grabbedent ) );
-				ent->client->sess.grabbedent = 0;
-				ent->client->sess.grabbeddist = 0;
-				ent->client->sess.grabbedgroup = 0;
-				ent->client->sess.grabbedentoffz = 0;
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(targetname = %s) ", buffer, chosenent->targetname);
 			}
-			else if (ent->client->sess.grabbedgroup != 0)
+			/*
+			if (chosenent->mctargetname)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^2Dropped group ^5%i^2.\n\"", ent->client->sess.grabbedgroup ) );
-				ent->client->sess.grabbedent = 0;
-				ent->client->sess.grabbeddist = 0;
-				ent->client->sess.grabbedgroup = 0;
-				ent->client->sess.grabbedentoffz = 0;
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(other = %s) ", buffer, chosenent->mctargetname);
 			}
-			else
+			*/
+			if (chosenent->model)
 			{
-				gentity_t	*tEn;
-				int		iPl;
-				for (iPl = 0;iPl < 32;iPl += 1)
-				{
-					tEn = &g_entities[iPl];
-					if (!tEn->inuse)
-					{
-						continue;
-					}
-					if (tEn->client->sess.grabbedent == chosenentnum)
-					{
-						trap_SendServerCmd( clientNum, va("print \"^1Another player is holding this ent.\n\"") );
-						return;
-					}
-					if (tEn->client->sess.grabbedgroup != 0)
-					{
-						gentity_t	*t;
-						t = NULL;
-						i = 0;
-						while ( (t = G_Findbygroup(t, tEn->client->sess.grabbedgroup)) != NULL )
-						{
-							if (t->s.number == chosenentnum)
-							{
-								trap_SendServerCmd( clientNum, va("print \"^1Another player is holding this ent.\n\"") );
-								return;
-							}
-						}
-					}
-				}
-				fixforundo(chosenent);
-				ent->client->sess.grabbedent = chosenentnum;
-				ent->client->sess.grabbeddist = atoi(par2);
-				ent->client->sess.grabbedgroup = 0;
-				if (atoi(par3) == 0)
-				{
-					ent->client->sess.grabbedentyaw = 0;
-				}
-				else if (atoi(par3) == 1)
-				{
-					ent->client->sess.grabbedentyaw = 1;
-				}
-				else if (atoi(par3) == 2)
-				{
-					ent->client->sess.grabbedentyaw = 180;
-				}
-				else if (atoi(par3) == 3)
-				{
-					ent->client->sess.grabbedentyaw = mcfix360(mcfix360(chosenent->r.currentAngles[YAW])-mcfix360(ent->client->ps.viewangles[YAW]));
-				}
-				else
-				{
-					ent->client->sess.grabbedentyaw = mcfix360(atoi(par3));
-				}
-				if (atoi(par4) == 0)
-				{
-					ent->client->sess.grabbedentpitch = 0;
-				}
-				else if (atoi(par4) == 1)
-				{
-					ent->client->sess.grabbedentpitch = 1;
-				}
-				else if (atoi(par4) == 2)
-				{
-					ent->client->sess.grabbedentpitch = 180;
-				}
-				else if (atoi(par4) == 3)
-				{
-					ent->client->sess.grabbedentpitch = mcfix360(mcfix360(chosenent->r.currentAngles[PITCH])-mcfix360(ent->client->ps.viewangles[PITCH]));
-				}
-				else
-				{
-					ent->client->sess.grabbedentpitch = mcfix360(atoi(par4));
-				}
-				ent->client->sess.grabbedentoffz = atoi(par5);
-				trap_SendServerCmd( clientNum, va("print \"^2Grabbed entity ^5%i^2.\n\"", chosenentnum ) );
+				Com_sprintf( buffer, sizeof(buffer), "%s(model = %s) ", buffer, chosenent->model);
 			}
-		break;
-		case 15:
-		///////////////////
-		// ammap_glow
-		///////////////////
-			if (( Q_stricmp(par1, "info") == 0)||(parcount < 6))
+			if (Q_stricmp(chosenent->mcmessage,"")!=0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_glow <entity> <Red> <Green> <Blue> <Intensity>\n\"" ) );
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(model = %s) ", buffer, chosenent->mcmessage);
 			}
-			chosenent->s.constantLight = atoi(par2) + (atoi(par3)<<8) + (atoi(par4)<<16) + (atoi(par5)<<24);
-			strcpy(chosenent->mcmlight,va("%i %i %i %i",atoi(par1), atoi(par2), atoi(par3), atoi(par4)));
-		break;
-		case 16:
-		///////////////////
-		// ammap_group
-		///////////////////
-			if (( Q_stricmp(par1, "info") == 0)||(parcount < 3))
+			if (chosenent->delay)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_group <entity> <group>\n\"" ) );
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(delay = %i) ", buffer, chosenent->delay);
 			}
+			if (chosenent->entgroup)
+			{
+				if (chosenent->entgroup != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(group = %i) ", buffer, (int)chosenent->entgroup);
+					Com_sprintf( buffer, sizeof(buffer), "%s(groupleader = %i) ", buffer, (int)chosenent->groupleader);
+				}
+			}
+			Com_sprintf( buffer, sizeof(buffer), "%s(mins = %i %i %i) ", buffer, (int)chosenent->r.mins[0], (int)chosenent->r.mins[1], (int)chosenent->r.mins[2]);
+			Com_sprintf( buffer, sizeof(buffer), "%s(maxes = %i %i %i) ", buffer, (int)chosenent->r.maxs[0], (int)chosenent->r.maxs[1], (int)chosenent->r.maxs[2]);
+			//trap_SendServerCmd( clientNum, va("print \"^7%s\n\"", buffer ) );
+			if (strstr(buffer, par3))
+			{
 			if (atoi(par2) == 0)
 			{
 				if (nomessage == 0)
@@ -18366,287 +20642,129 @@ void mc_buildercmdsmain(gentity_t *ent, int clientNuxm, int cmd, int chosenentnu
 					chosenent->groupleader = ilead;
 				}
 			}
+			}
+
 		break;
-		case 17:
+		case 27:
 		///////////////////
-		// ammap_groupleader
-		///////////////////
-			if (( Q_stricmp(par1, "info") == 0)||(parcount < 2))
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_groupleader <entity>\n\"" ) );
-				return;
-			}
-			if (chosenent->entgroup == 0)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1This entity is not in a group.\n\"" ));
-				return;
-			}
-			else
-			{
-				gentity_t	*t;
-				gentity_t	*tEn;
-				int		iPl;
-				t = NULL;
-				i = 0;
-				for (iPl = 0;iPl < 32;iPl += 1)
-				{
-					tEn = &g_entities[iPl];
-					if (!tEn->inuse)
-					{
-						continue;
-					}
-					if (tEn->client->sess.grabbedent == chosenentnum)
-					{
-						trap_SendServerCmd( clientNum, va("print \"^1A player is holding this ent.\n\"") );
-						return;
-					}
-					if (tEn->client->sess.grabbedgroup != 0)
-					{
-						gentity_t	*t;
-						t = NULL;
-						i = 0;
-						while ( (t = G_Findbygroup(t, tEn->client->sess.grabbedgroup)) != NULL )
-						{
-							if (t->s.number == chosenentnum)
-							{
-								trap_SendServerCmd( clientNum, va("print \"^1A player is holding this ent.\n\"") );
-								return;
-							}
-						}
-					}
-				}
-				t = NULL;
-				while ( (t = G_Findbygroup(t, chosenent->entgroup)) != NULL )
-				{
-					t->groupleader = chosenent->s.number;
-				}
-				if (nomessage == 0)
-				{
-				trap_SendServerCmd( clientNum, va("print \"^2Entity ^5%i^2 is now the leader of group ^5%i^2.\n\"", chosenent->s.number, chosenent->entgroup));
-				}
-				return;
-			}
-		break;
-		case 18:
-		///////////////////
-		// ammap_addangles
+		// ammap_search
 		///////////////////
 			if ( Q_stricmp(par1, "info") == 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_addangles <entity> <Yaw> <Pitch> <Roll>\n\"" ) );
-				return;
-			}
-			if (parcount < 5)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_addangles <entity> <Yaw> <Pitch> <Roll>\n\"" ) );
-				return;
-			}
-			fixforundor(chosenent);
-			chosenent->s.angles[YAW] = chosenent->r.currentAngles[YAW]+atoi(par2);
-			chosenent->s.angles[PITCH] = chosenent->r.currentAngles[PITCH]+atoi(par3);
-			chosenent->s.angles[ROLL] = chosenent->r.currentAngles[ROLL]+atoi(par4);
-			G_SetAngles(chosenent, chosenent->s.angles);
-			trap_LinkEntity(chosenent);
-		break;
-		case 19:
-		///////////////////
-		// ammap_setorigin
-		///////////////////
-			if ( Q_stricmp(par1, "info") == 0)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setorigin <entity> <x> <y> <z>\n\"" ) );
-				return;
-			}
-			if (parcount < 5)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setorigin <entity> <x> <y> <z>\n\"" ) );
-				return;
-			}
-			chosenent->s.origin[0] = (float)monkeyspot(par2, 0, ent, chosenent);//atoi(par2);
-			chosenent->s.origin[1] = (float)monkeyspot(par3, 1, ent, chosenent);//atoi(par3);
-			chosenent->s.origin[2] = (float)monkeyspot(par4, 2, ent, chosenent);//atoi(par4);
-			fixforundo(chosenent);
-			//chosenent->s.pos.trBase[0] = atoi(par2);
-			//chosenent->s.pos.trBase[1] = atoi(par3);
-			//chosenent->s.pos.trBase[2] = atoi(par4);
-			G_SetOrigin(chosenent, chosenent->s.origin);
-			trap_LinkEntity(chosenent);
-		break;
-		case 20:
-		///////////////////
-		// ammap_setanim
-		///////////////////
-			if ( Q_stricmp(par1, "info") == 0)
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setanim <entity> <anim>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_search <entities> <string to match>\n\"" ) );
 				return;
 			}
 			if (parcount < 3)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_setanim <entity> <anim>\n\"" ) );
+				trap_SendServerCmd( clientNum, va("print \"^1/ammap_search <entities> <string to match>\n\"" ) );
 				return;
 			}
-			trap_UnlinkEntity(chosenent);
-			chosenent->s.torsoAnim = atoi(par2);// & ~ANIM_TOGGLEBIT;
-			chosenent->s.legsAnim = chosenent->s.torsoAnim;
-			trap_LinkEntity(chosenent);
-		break;
-		case 21:
-		///////////////////
-		// ammap_undomove
-		///////////////////
-			if ((Q_stricmp(par1, "info") == 0)||(Q_stricmp(par1,"") == 0))
+			Com_sprintf( buffer, sizeof(buffer), "Trace ent: %i - %s\n", chosenentnum, chosenent->classname);
+			Com_sprintf( buffer, sizeof(buffer), "%s^7X=^5%i^7, Y=^5%i^7, Z=^5%i^7\n", buffer, (int)chosenent->r.currentOrigin[0], (int)chosenent->r.currentOrigin[1], (int)chosenent->r.currentOrigin[2]);
+			ent->client->sess.traced = chosenent->s.number;
+			if (chosenent->s.angles[YAW] != 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1/ammap_undomove <ent>\n\"" ) );
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(YAW = %i) ", buffer, (int)chosenent->s.angles[YAW]);
 			}
-			VectorCopy(chosenent->lastorigin, chosenent->s.origin);
-			VectorCopy(chosenent->r.currentOrigin, chosenent->lastorigin);
-			G_SetOrigin(chosenent, chosenent->s.origin);
-			trap_LinkEntity(chosenent);
-		break;
-		case 22:
-		///////////////////
-		// ammap_undorot
-		///////////////////
-			if ((Q_stricmp(par1, "info") == 0)||(Q_stricmp(par1,"") == 0))
+			if (chosenent->s.angles[PITCH] != 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1/ammap_undorot <ent>\n\"" ) );
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(PITCH = %i) ", buffer, (int)chosenent->s.angles[PITCH]);
 			}
-			VectorCopy(chosenent->lastrot, chosenent->s.angles);
-			VectorCopy(chosenent->r.currentAngles, chosenent->lastrot);
-			G_SetAngles(chosenent, chosenent->s.angles);
-			trap_LinkEntity(chosenent);
-		break;
-		case 23:
-		///////////////////
-		// ammap_collisiontype
-		///////////////////
-			if ((Q_stricmp(par1, "info") == 0)||(Q_stricmp(par2,"") == 0))
+			if (chosenent->s.angles[ROLL] != 0)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1/ammap_collisiontype <ent> <type>\n\"" ) );
-				return;
+				Com_sprintf( buffer, sizeof(buffer), "%s(ROLL = %i) ", buffer, (int)chosenent->s.angles[ROLL]);
 			}
-			if (!strstr(par2,"and"))
+			if (chosenent->count)
 			{
-				chosenent->r.contents = 0;
-			}
-			if (strstr(par2,"water"))
-			{
-				chosenent->r.contents |= CONTENTS_WATER;
-			}
-			else if (strstr(par2,"lava"))
-			{
-				chosenent->r.contents |= CONTENTS_LAVA;
-			}
-			else if (strstr(par2,"slime"))
-			{
-				chosenent->r.contents |= CONTENTS_SLIME;
-			}
-			else if (strstr(par2,"solid"))
-			{
-				chosenent->r.contents |= CONTENTS_SOLID;
-			}
-			else if (strstr(par2,"corpse"))
-			{
-				chosenent->r.contents |= CONTENTS_CORPSE;
-			}
-			else if (strstr(par2,"body"))
-			{
-				chosenent->r.contents |= CONTENTS_CORPSE;
-			}
-			else if (strstr(par2,"playerclip"))
-			{
-				chosenent->r.contents |= CONTENTS_PLAYERCLIP;
-			}
-			else if (strstr(par2,"testw"))
-			{
-				chosenent->r.contents = MASK_WATER;
-			}
-			else
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Unknown collision type.\n\"" ) );
-				return;
-			}
-			if (strstr(par2,"clippy"))
-			{
-				chosenent->clipmask = chosenent->r.contents;
-			}
-			//chosenent->clipmask = MASK_SOLID;
-			trap_SendServerCmd( clientNum, va("print \"^2Command accepted.\n\"" ) );
-			trap_LinkEntity(chosenent);
-		break;
-		case 24:
-		///////////////////
-		// ammap_delent2
-		///////////////////
-			if (( Q_stricmp(par1, "info") == 0)||(parcount < 2))
-			{
-				trap_SendServerCmd( clientNum, va("print \"^1Usage: /ammap_delent2 <entity>\n\"" ) );
-				return;
-			}
-			else
-			{
-			int	iL;
-			trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
-			for (i = 1;i < 32;i += 1)
-			{
-				iL = trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string), &f, FS_READ);
-				if (!f)
+				if (chosenent->count != 0)
 				{
-					trap_FS_FOpenFile(va("%s/mapedits_%i_%s.cfg", mc_editfolder.string, i-1, mapname.string), &f, FS_APPEND);
-					if ( !f )
-					{
-						trap_SendServerCmd( clientNum, va("print \"^1Error: Cannot access map file.\n\"" ) );
-						return;
-					}
-					trap_FS_Write( va("\nmapeditsexec mapedits_%i_%s;\n", i, mapname.string), strlen(va("\nmapeditsexec mapedits_%i_%s;\n", i, mapname.string)), f);
-					trap_FS_FCloseFile( f );
-					goto loadmap2;
-				}
-				trap_FS_FCloseFile(f);
-				if (iL < 10000)
-				{
-					goto loadmap2;
+					Com_sprintf( buffer, sizeof(buffer), "%s(count = %i) ", buffer, (int)chosenent->count);
 				}
 			}
-			loadmap2:
-			Com_sprintf(savePath, 1024*4, "%s/mapedits_%i_%s.cfg", mc_editfolder.string, i, mapname.string);
-			trap_FS_FOpenFile(savePath, &f, FS_APPEND);
-			if ( !f )
+			if (chosenent->health)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Error: Cannot access map file.\n\"" ) );
-				return;
+				if (chosenent->health != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(health = %i) ", buffer, (int)chosenent->health);
+				}
 			}
-			Com_sprintf(line,sizeof(line), "mcmap_delent %i", (int)chosenent->s.number);
-			if( strchr( line, ';' ) ) {
-				trap_SendServerCmd( clientNum, va("print \"^1You should probably be banned for that.\n\""));
-				trap_FS_FCloseFile( f );
-				return;
-			}
-			if( strchr( line, '\n' ) ) {
-				trap_SendServerCmd( clientNum, va("print \"^1You should probably be banned for that.\n\""));
-				trap_FS_FCloseFile( f );
-				return;
-			}
-			if (strlen(line) > 1000)
+			if (chosenent->wait)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^1Save Data is too long.\n\""));
-				trap_FS_FCloseFile( f );
-				return;
+				if (chosenent->wait != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(wait = %i) ", buffer, (int)chosenent->wait);
+				}
 			}
-			if (nomessage == 0)
+			if (chosenent->spawnflags)
 			{
-				trap_SendServerCmd( clientNum, va("print \"^2Permanently deleted entity ^5%i^2.\n\"", chosenentnum ) );
+				if (chosenent->spawnflags != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(spawnflags = %i) ", buffer, (int)chosenent->spawnflags);
+				}
 			}
-			//strcpy(line,va("%s;wait 20;",line));
-			strcpy(line,va("\n%s;\n", line));
-			trap_FS_Write( line, strlen(line), f);
-			trap_FS_FCloseFile( f );
-			G_FreeEntity(chosenent);
-			//trap_SendServerCmd( clientNum, va("print \"^2Permanently deleted entity ^5%i^2.\n\"", chosenentnum ) );
+			if (chosenent->damage)
+			{
+				if (chosenent->damage != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(damage = %i) ", buffer, (int)chosenent->damage);
+				}
 			}
+			if (chosenent->speed)
+			{
+				if (chosenent->speed != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(speed = %i) ", buffer, (int)chosenent->speed);
+				}
+			}
+			if (chosenent->random)
+			{
+				if (chosenent->random != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(random = %i) ", buffer, (int)chosenent->random);
+				}
+			}
+			if (chosenent->target)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(target = %s) ", buffer, chosenent->target);
+			}
+			if (chosenent->targetname)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(targetname = %s) ", buffer, chosenent->targetname);
+			}
+			/*
+			if (chosenent->mctargetname)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(other = %s) ", buffer, chosenent->mctargetname);
+			}
+			*/
+			if (chosenent->model)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(model = %s) ", buffer, chosenent->model);
+			}
+			if (Q_stricmp(chosenent->mcmessage,"")!=0)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(model = %s) ", buffer, chosenent->mcmessage);
+			}
+			if (chosenent->delay)
+			{
+				Com_sprintf( buffer, sizeof(buffer), "%s(delay = %i) ", buffer, chosenent->delay);
+			}
+			if (chosenent->entgroup)
+			{
+				if (chosenent->entgroup != 0)
+				{
+					Com_sprintf( buffer, sizeof(buffer), "%s(group = %i) ", buffer, (int)chosenent->entgroup);
+					Com_sprintf( buffer, sizeof(buffer), "%s(groupleader = %i) ", buffer, (int)chosenent->groupleader);
+				}
+			}
+			Com_sprintf( buffer, sizeof(buffer), "%s(mins = %i %i %i) ", buffer, (int)chosenent->r.mins[0], (int)chosenent->r.mins[1], (int)chosenent->r.mins[2]);
+			Com_sprintf( buffer, sizeof(buffer), "%s(maxes = %i %i %i) ", buffer, (int)chosenent->r.maxs[0], (int)chosenent->r.maxs[1], (int)chosenent->r.maxs[2]);
+			//trap_SendServerCmd( clientNum, va("print \"^7%s\n\"", buffer ) );
+			if (strstr(buffer, par2))
+			{
+				trap_SendServerCmd(clientNum, va("print \"^7%s\n\"", buffer));
+			}
+
 		break;
 
 	//ent->r.contents = CONTENTS_SOLID;

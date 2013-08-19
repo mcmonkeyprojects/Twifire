@@ -147,7 +147,7 @@ cd ..
 
 cd ..
 echo on
-//copy "C:\Program Files\Lucasarts\Star Wars JK II Jedi Outcast\GameData\code\base\vm\jk2mpgame.qvm" "C:\Program Files\Lucasarts\Star Wars JK II Jedi Outcast\GameData\twifire\vm\jk2mpgame.qvm"
+copy "code\base\vm\jk2mpgame.qvm" "twifire\vm\jk2mpgame.qvm"
 echo off
 pause
 exit

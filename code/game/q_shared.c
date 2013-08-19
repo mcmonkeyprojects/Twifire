@@ -916,7 +916,7 @@ int Q_strncmp (const char *s1, const char *s2, int n) {
 }
 
 int Q_stricmp (const char *s1, const char *s2) {
-	return (s1 && s2) ? Q_stricmpn (s1, s2, 99999) : -1;
+	return ((s1 && s2)&&(strlen(s1) == strlen(s2))) ? Q_stricmpn (s1, s2, 99999) : -1;
 }
 
 

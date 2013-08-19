@@ -669,7 +669,10 @@ void CopyToBodyQue( gentity_t *ent ) {
 	{
 		return;
 	}
-
+	if (mc_insta.integer == 1)
+	{
+		return;
+	}
 	trap_UnlinkEntity (ent);
 
 	// if client is in a nodrop area, don't leave the body
@@ -1209,6 +1212,7 @@ int dsp_doNameCheck( gentity_t *ent )
 	int		i, number = 0, found;
 	int		check = qtrue;
 	gentity_t *other;
+	memset(nameNew, 0, sizeof(nameNew));
 
 	dspSanitizeString( ent->client->pers.netname, nameClean );
 	strcpy(nameNew, nameClean);
@@ -1223,6 +1227,7 @@ int dsp_doNameCheck( gentity_t *ent )
 			other = &g_entities[i];
 			if (!(other->client && other->client->pers.connected == CON_CONNECTED)) continue;
 			if (other->s.number == ent->s.number) continue;
+			memset(otherClean, 0, sizeof(otherClean));
 			dspSanitizeString( other->client->pers.netname, otherClean );
 			if ( Q_stricmp( otherClean, nameNew ) == 0 ) 
 			{
@@ -1239,6 +1244,7 @@ int dsp_doNameCheck( gentity_t *ent )
 	//G_Printf(va("Checks ended, we must add %i!", number));
 	return number;
 }
+int toggolo = 0;
 void ClientUserinfoChanged( int clientNum ) {
 	gentity_t *ent;
 	int		teamTask, teamLeader, team, health;
@@ -1261,14 +1267,13 @@ void ClientUserinfoChanged( int clientNum ) {
 	int		iL;
 
 	//Twimod: Anti Name Crash declarations
-	static const char validChars[]  = " ~QqWwEeRrTtYyUuIiOoPpAaSsDdFfGgHhJjKkLlZzXxCcVvBbNnMm1234567890<>?,./';:][{}`-=!@#$^&*()_+|";
+	static const char validChars[]  = " ~QqWwEeRrTtYyUuIiOoPpAaSsDdFfGgHhJjKkLlZzXxCcVvBbNnMm1234567890<>?,./';:][{}`-=!@#$^&*()_+|";
 	static const char Replacement[] = ".";
 	int h, c, j, jdIllegalName;
 
 ent = g_entities + clientNum;
 
 	client = ent->client;
-
 
 
 	trap_GetUserinfo( clientNum, userinfo, sizeof( userinfo ) );
@@ -1321,6 +1326,43 @@ ent = g_entities + clientNum;
 		client->pers.predictItemPickup = qtrue;
 	}
 
+	
+//unlagged - client options
+	// see if the player has opted out
+	s = Info_ValueForKey( userinfo, "cg_delag" );
+	if ( !atoi( s ) ) {
+		client->pers.delag = 0;
+	} else {
+		client->pers.delag = atoi( s );
+	}
+
+	// see if the player is nudging his shots
+	s = Info_ValueForKey( userinfo, "cg_cmdTimeNudge" );
+	client->pers.cmdTimeNudge = atoi( s );
+
+	// see if the player wants to debug the backward reconciliation
+	s = Info_ValueForKey( userinfo, "cg_debugDelag" );
+	if ( !atoi( s ) ) {
+		client->pers.debugDelag = qfalse;
+	}
+	else {
+		client->pers.debugDelag = qtrue;
+	}
+
+	// see if the player is simulating incoming latency
+	s = Info_ValueForKey( userinfo, "cg_latentSnaps" );
+	client->pers.latentSnaps = atoi( s );
+
+	// see if the player is simulating outgoing latency
+	s = Info_ValueForKey( userinfo, "cg_latentCmds" );
+	client->pers.latentCmds = atoi( s );
+
+	// see if the player is simulating outgoing packet loss
+	s = Info_ValueForKey( userinfo, "cg_plOut" );
+	client->pers.plOut = atoi( s );
+//unlagged - client options
+
+
 	// set name
 //if (Q_stricmp(ent->client->sess.userlogged, "") == 0)
 //{
@@ -1365,18 +1407,38 @@ ent = g_entities + clientNum;
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
 		if ( client->sess.spectatorState == SPECTATOR_SCOREBOARD ) {
 			Q_strncpyz( client->pers.netname, "scoreboard", sizeof(client->pers.netname) );
-		}
+		} // ????????????????????????
 	}
 
 	if ( client->pers.connected == CON_CONNECTED ) {
 		if ( strcmp( oldname, client->pers.netname ) ) {
+		/*if (ent->client->sess.isAFK == 1)
+		{
+			G_Printf("Client renamed!\n");
+		}*/
+			if (toggolo == 0)
+			{
+				if (ent->client->sess.blockrename == 1)
+				{
+					Q_strncpyz(ent->client->pers.netname, oldname, sizeof(oldname));
+					goto afternamefix;
+				}
+		setAFKOff(ent);
 		mc_print(va("ClientCommand: %s^7: name %s\n",oldname, client->pers.netname));
+			if (client->sess.silence)
+			{
+			trap_SendServerCommand( ent->s.number, va("print \"^1You are silenced!\n\"" ) );
+			}
+			else
+			{
 			trap_SendServerCommand( -1, va("print \"%s" S_COLOR_WHITE " %s %s\n\"", oldname, G_GetStripEdString("SVINGAME", "PLRENAME"),
 				client->pers.netname) );
+			}
+			}
 		}
 	}
 
-
+	afternamefix:
 	if (dsp_FindTag(ent))
 	{
 		ent->client->sess.clanTag = qtrue;
@@ -1409,12 +1471,27 @@ ent = g_entities + clientNum;
 	// Anti Padawan
 
 	// /Anti Padawan
+
+	if (!(ent->r.svFlags & SVF_BOT))
+	{
 	Q_strncpyz( forcePowers, Info_ValueForKey (userinfo, "forcepowers"), sizeof( forcePowers ) );
 	if (strlen(forcePowers) != 22)
 	{
 		strcpy (forcePowers, "7-1-030000000000003332");
 		Info_SetValueForKey( userinfo, "forcepowers", forcePowers );
 		trap_SetUserinfo( clientNum, userinfo );
+		G_Printf("Fixed forcepowers\n");
+		trap_SendServerCommand(clientNum, "print \"^1Your forcepowers value is invalid. Please correct it.\n\"");
+	}
+	s = Info_ValueForKey (userinfo, "snaps");
+	{
+		if (atoi(s) > mc_maxsnaps.integer)
+		{
+			Info_SetValueForKey( userinfo, "snaps", mc_maxsnaps.string );
+			trap_SetUserinfo( clientNum, userinfo );
+			G_Printf("Forced snaps value\n");
+			trap_SendServerCommand(clientNum, "print \"^1Your snaps value exceeds the server's limit. Please lower it.\n\"");
+		}
 	}
 	// Twimod Forcecrash fixed.
 	if ( 1 )
@@ -1434,9 +1511,12 @@ ent = g_entities + clientNum;
 				strcpy (forcePowers, "7-1-030000000000003332");
 				Info_SetValueForKey( userinfo, "forcepowers", forcePowers );
 				trap_SetUserinfo( clientNum, userinfo );
+				G_Printf("Fixed forcepowers\n");
+				trap_SendServerCommand(clientNum, "print \"^1Your forcepowers value is invalid. Please correct it.\n\"");
 				break;
 			}
 		}
+	}
 	}
 	// [/Deathspike]
 	// bots set their team a few frames later
@@ -1570,6 +1650,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 
 	// check to see if they are on the banned IP list
 	value = Info_ValueForKey (userinfo, "ip");
+	G_Printf("NewConnection! Info: %s\n", userinfo);
 	if (!isBot)
 	{
 	if ( G_FilterPacket( value ) || ((firstTime)&&(ip_is_banned(value) == 1)) ) {
@@ -1622,9 +1703,10 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 		value = Info_ValueForKey (userinfo, "password");
 		if ( g_password.string[0] && Q_stricmp( g_password.string, "none" ) &&
 			strcmp( g_password.string, value) != 0) {
-			static char sTemp[1024];
-			Q_strncpyz(sTemp, G_GetStripEdString("SVINGAME","INVALID_PASSWORD"), sizeof (sTemp) );
-			return sTemp;// return "Invalid password";
+			//static char sTemp[1024];
+			//Q_strncpyz(sTemp, G_GetStripEdString("SVINGAME","INVALID_PASSWORD"), sizeof (sTemp) );
+			//return sTemp;// return "Invalid password";
+			return mc_lockmessage.string;
 		}
 	}
 	if (mc_nofakeplayers.integer == 1)
@@ -1724,7 +1806,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 		ent->client->sess.IP3 = 0;
 	}
 	status_update();
-	ent->s.number = ent - g_entities;
+	ent->s.number = clientNum;
 	// JK2 will sometimes switch a player's s.number around. I've added this to ensure the s.number always stays correct.
 	return NULL;
 }
@@ -1756,7 +1838,7 @@ void ClientBegin( int clientNum, qboolean allowTeamReset ) {
 		SetTeam(ent, "spectator");
 		return;
 	}
-	ent->s.number = ent - g_entities;
+	ent->s.number = clientNum;
 	// JK2 will sometimes switch a player's s.number around. I've added this to ensure the s.number always stays correct.
 	if ((ent->r.svFlags & SVF_BOT) && g_gametype.integer >= GT_TEAM)
 	{
@@ -2053,6 +2135,17 @@ void ClientSpawn(gentity_t *ent) {
 	flags = ent->client->ps.eFlags & (EF_TELEPORT_BIT | EF_VOTED | EF_TEAMVOTED);
 	flags ^= EF_TELEPORT_BIT;
 
+	if (mc_unlagged.integer == 1)
+	{
+//unlagged - backward reconciliation #3
+	// we don't want players being backward-reconciled to the place they died
+	G_ResetHistory( ent );
+	// and this is as good a time as any to clear the saved state
+	ent->client->saved.leveltime = 0;
+//unlagged - backward reconciliation #3
+	}
+	
+	
 	// clear everything but the persistant data
 
 	saved = client->pers;
@@ -2130,7 +2223,11 @@ void ClientSpawn(gentity_t *ent) {
 	client->ps.clientNum = index;
 	//give default weapons
 	client->ps.stats[STAT_WEAPONS] = ( 1 << WP_NONE );
-
+	if (client->sess.fpknown != 0)
+	{
+		ent->client->ps.fd.forcePowersKnown &= ~client->sess.fpknown;
+		client->sess.fpknown = 0;
+	}
 	if (g_gametype.integer == GT_TOURNAMENT)
 	{
 		wDisable = g_duelWeaponDisable.integer;
@@ -2146,12 +2243,13 @@ void ClientSpawn(gentity_t *ent) {
 		&& !AllForceDisabled( g_forcePowerDisable.integer )
 		&& g_trueJedi.integer )
 	{
+		/*
 		if ( g_gametype.integer >= GT_TEAM && (client->sess.sessionTeam == TEAM_BLUE || client->sess.sessionTeam == TEAM_RED) )
 		{//In Team games, force one side to be merc and other to be jedi
 			if ( level.numPlayingClients > 0 )
 			{//already someone in the game
 				int		i, forceTeam = TEAM_SPECTATOR;
-				for ( i = 0 ; i < level.maxclients ; i++ ) 
+				for ( i = 0 ; i < level.maxclients ; i++ )
 				{
 					if ( level.clients[i].pers.connected == CON_DISCONNECTED ) {
 						continue;
@@ -2184,9 +2282,9 @@ void ClientSpawn(gentity_t *ent) {
 					return;
 				}
 			}
-		}
+		}*/
 
-		if ( WP_HasForcePowers( &client->ps ) )
+		if (((mc_jedivmerc.integer != 1)&&(WP_HasForcePowers( &client->ps )))||((mc_jedivmerc.integer == 1)&&((client->sess.sessionTeam == TEAM_BLUE)||((client->sess.sessionTeam != TEAM_RED)&&(WP_HasForcePowers( &client->ps))))))
 		{
 			client->ps.trueNonJedi = qfalse;
 			client->ps.trueJedi = qtrue;
@@ -2399,21 +2497,22 @@ void ClientSpawn(gentity_t *ent) {
 	{
 		for (j=0; j<NUM_FORCE_POWERS; j++)
 		{
-			ent->client->ps.fd.forcePowerLevel[j] = FORCE_LEVEL_0;
-			ent->client->ps.fd.forcePowersKnown |= ~(1 << j);
+			if (j != FP_LEVITATION)
+			{
+				ent->client->ps.fd.forcePowerLevel[j] = FORCE_LEVEL_0;
+				ent->client->ps.fd.forcePowersKnown &= ~(1 << j);
+			}
 		}
-		ent->client->ps.fd.forcePowerLevel[FP_LEVITATION] = FORCE_LEVEL_3;
-		ent->client->ps.fd.forcePowersKnown |= (1 << FP_LEVITATION);
 		while (i < HI_NUM_HOLDABLE) 
 		{
-			ent->client->ps.stats[STAT_HOLDABLE_ITEMS] |= ~(1 << i);
+			ent->client->ps.stats[STAT_HOLDABLE_ITEMS] &= ~(1 << i);
 			i++;
 		}
 		for ( i = 0 ; i < MAX_WEAPONS ; i++ ) {
 				if (i == WP_DISRUPTOR)
 				{
-					ent->client->ps.stats[STAT_WEAPONS] &= (1 << i);
-					ent->client->ps.ammo[i] = 99999;
+					ent->client->ps.stats[STAT_WEAPONS] |= (1 << i);
+					//ent->client->ps.ammo[i] = 99999;
 					G_Printf("Insta weapon respawned\n");
 				}
 				else
@@ -2424,8 +2523,8 @@ void ClientSpawn(gentity_t *ent) {
 		}
 		//Add_Ammo( ent, WP_DISRUPTOR, 99999 );
 		ent->client->ps.stats[STAT_WEAPONS] &= ~(1 << WP_SABER);
-		ent->client->ps.ammo[WP_DISRUPTOR] = 99999;
-		ent->client->ps.ammo[AMMO_POWERCELL] = 99999;
+		//ent->client->ps.ammo[WP_DISRUPTOR] = 99999;
+		ent->client->ps.ammo[AMMO_POWERCELL] = 300;
 		ent->client->ps.weapon = WP_DISRUPTOR;
 	}
 	if (ent->client->sess.empower&&!ent->client->sess.terminator)
@@ -2447,7 +2546,7 @@ void ClientSpawn(gentity_t *ent) {
 	else if (
 			(
 			ent->client->sess.terminator&&!ent->client->sess.empower
-			)||
+			)/*||
 			(
 				(
 				 	g_gametype.integer == GT_JEDIMASTER 
@@ -2455,7 +2554,7 @@ void ClientSpawn(gentity_t *ent) {
 				(
 					!ent->client->ps.isJediMaster
 				)
-			)
+			)*/
 		)
 	{
 		ent->client->ps.saberHolstered = qtrue;
@@ -2483,7 +2582,7 @@ void ClientSpawn(gentity_t *ent) {
 	{
 		ent->client->ps.forceRestricted = qfalse;
 			ent->client->ps.isJediMaster = qfalse;
-		ent->client->ps.fd.forcePower = 400;
+		ent->client->ps.fd.forcePower = 100;
 		G_Printf("Allpowerful respawned.\n");
 		ent->client->ps.dualBlade = qtrue;
 		for (f=0; f<NUM_FORCE_POWERS; f++)
@@ -2506,6 +2605,17 @@ void ClientSpawn(gentity_t *ent) {
 		for ( f = 0 ; f < MAX_WEAPONS ; f++ ) 
 		{
 			ent->client->ps.ammo[f] = 9999;
+		}
+	}
+	if (ent->client->sess.sessionTeam == TEAM_RED || ent->client->sess.sessionTeam == TEAM_BLUE)
+	{
+		if (mc_betterghosting.integer == 1)
+		{
+		ent->r.contents = CONTENTS_CORPSE;
+		}
+		else
+		{
+		ent->r.contents = CONTENTS_SOLID | CONTENTS_BODY;
 		}
 	}
 }
@@ -2531,7 +2641,7 @@ void ClientDisconnect( int clientNum ) {
 	// cleanup if we are kicking a bot that
 	// hasn't spawned yet
 	G_RemoveQueuedBotBegin( clientNum );
-	for (i = 0;i <= 32;i += 1)
+	for (i = 0;i < 32;i += 1)
 	{
 		gentity_t	*glorp = &g_entities[i];
 		if (glorp && glorp->inuse && glorp->client)
@@ -2542,14 +2652,17 @@ void ClientDisconnect( int clientNum ) {
 	channels_remove_all_nosi (clientNum);
 	channels_unban_all (clientNum);
 	ent = g_entities + clientNum;
+
+	G_Printf("ClientDisconnect: %s\n", ent->client->pers.netname);
+	if ( !ent->client ) {
+		//ent->inuse = qfalse;
+		return;
+	}
 	ent->client->sess.IP0 = 0;
 	ent->client->sess.IP1 = 0;
 	ent->client->sess.IP2 = 0;
 	ent->client->sess.IP3 = 0;
-	if ( !ent->client ) {
-		return;
-	}
-
+	exit_vehicle(ent);
 	if ((level.voteTime < level.time)&&(level.voteTime != 0))
 	{
 		if (ent->client->ps.eFlags & EF_VOTED)

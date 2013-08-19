@@ -16,6 +16,92 @@ void Use_Target_Give( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
 	}
 
 	if ( !ent->target ) {
+		if (ent->group)
+		{
+		char	*name = ent->group;
+		qboolean	give_all;
+		gitem_t		*it;
+		gentity_t	*it_ent;
+		int		i;
+		if (Q_stricmp(name, "all") == 0)
+			give_all = qtrue;
+		else
+			give_all = qfalse;
+
+		if (give_all)
+		{
+			i = 0;
+			while (i < HI_NUM_HOLDABLE)
+			{
+				activator->client->ps.stats[STAT_HOLDABLE_ITEMS] |= (1 << i);
+				i++;
+			}
+			i = 0;
+		}
+		if (give_all || Q_stricmp( name, "health") == 0)
+		{
+			activator->health = activator->client->ps.stats[STAT_MAX_HEALTH];
+			if (!give_all)
+				return;
+		}
+
+		if (give_all || Q_stricmp(name, "weapons") == 0)
+		{
+			activator->client->ps.stats[STAT_WEAPONS] = (1 << (WP_DET_PACK+1))  - ( 1 << WP_NONE );
+			if (!give_all)
+				return;
+		}
+		if (give_all || Q_stricmp(name, "ammo") == 0)
+		{
+			int num = 300;
+			for ( i = 0 ; i < MAX_WEAPONS ; i++ ) {
+				activator->client->ps.ammo[i] = num;
+			}
+			if (!give_all)
+				return;
+		}
+
+		if (give_all || Q_stricmp(name, "armor") == 0)
+		{
+			activator->client->ps.stats[STAT_ARMOR] = activator->client->ps.stats[STAT_MAX_HEALTH];
+			if (!give_all)
+				return;
+		}
+
+		if (give_all || Q_stricmp(name, "force") == 0)
+		{
+			activator->client->ps.fd.forcePower = 100;
+			if (!give_all)
+				return;
+		}
+
+		if (give_all || Q_stricmp(name, "fuel") == 0)
+		{
+			activator->client->sess.jetfuel = mc_jetpack_fuelmax.integer;
+			if (!give_all)
+				return;
+		}
+
+		// spawn a specific item right on the player
+		if ( !give_all ) {
+			it = BG_FindItem (name);
+			if (!it) {
+				return;
+			}
+
+			it_ent = G_Spawn();
+			VectorCopy( activator->r.currentOrigin, it_ent->s.origin );
+			it_ent->classname = it->classname;
+			it_ent->count = ent->count;
+			G_SpawnItem (it_ent, it);
+			FinishSpawningItem(it_ent );
+			memset( &trace, 0, sizeof( trace ) );
+			Touch_Item (it_ent, activator, &trace);
+			if (it_ent->inuse) {
+				G_FreeEntity( it_ent );
+			}
+		}
+		}
 		return;
 	}
 
@@ -25,11 +111,15 @@ void Use_Target_Give( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
 		if ( !t->item ) {
 			continue;
 		}
+		trap_LinkEntity( t );
+		t->s.eFlags |= EF_NODRAW;
+		t->s.eFlags &= ~EF_ITEMPLACEHOLDER;
 		Touch_Item( t, activator, &trace );
 
 		// make sure it isn't going to respawn or show any events
 		t->nextthink = 0;
 		trap_UnlinkEntity( t );
+		t->s.eFlags &= ~EF_NODRAW;
 	}
 }
 
@@ -37,6 +127,17 @@ void SP_target_give( gentity_t *ent ) {
 	ent->use = Use_Target_Give;
 }
 
+
+void mc_oneuse_think(gentity_t *ent)
+{
+	G_UseTargets( ent, ent );
+	G_FreeEntity(ent);
+}
+void SP_mc_oneuse (gentity_t *self)
+{
+	self->think = mc_oneuse_think;
+	self->nextthink = level.time + 100;
+}
 
 //==========================================================
 
@@ -232,7 +333,7 @@ void SP_target_mccreditrelay (gentity_t *self) {
 //======================
 void Use_Target_mcchat (gentity_t *ent, gentity_t *other, gentity_t *activator) {
 	if ( activator->client && ( ent->spawnflags & 4 ) ) {
-		trap_SendServerCommand( activator-g_entities, va("print \"%s\"", ent->mcmessage ));
+		trap_SendServerCommand( activator-g_entities, va("print \"%s\"", ent->message ));
 		return;
 	}
 
@@ -246,7 +347,7 @@ void Use_Target_mcchat (gentity_t *ent, gentity_t *other, gentity_t *activator) 
 		return;
 	}
 
-	trap_SendServerCommand( -1, va("print \"%s\"", ent->mcmessage ));
+	trap_SendServerCommand( -1, va("print \"%s\"", ent->message ));
 }
 
 void SP_target_mcchat( gentity_t *ent ) {
@@ -333,7 +434,7 @@ void SP_target_speaker( gentity_t *ent ) {
 
 	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
 
-		if (((Q_stricmp(mapname.string,"cairn_assembly") == 0)||
+		if ((level.spawning)&&((Q_stricmp(mapname.string,"cairn_assembly") == 0)||
 		(Q_stricmp(mapname.string,"bespin_streets") == 0)||
 		(Q_stricmp(mapname.string,"bespin_platform") == 0)||
 		(Q_stricmp(mapname.string,"doom_shields") == 0)||
@@ -347,7 +448,7 @@ void SP_target_speaker( gentity_t *ent ) {
 		(Q_stricmp(mapname.string,"valley") == 0)||
 		(Q_stricmp(mapname.string,"artus_topside") == 0)||
 		(Q_stricmp(mapname.string,"cairn_reactor") == 0)))
-		{
+		{ // SinglePlayer maps are full of speakers playing bad soundfiles that end up crashing clients. Block default speakers in SP maps.
 		//if (ent->spawnflags & 1 || ent->spawnflags & 2)
 		//{
 			G_FreeEntity(ent);
@@ -356,6 +457,7 @@ void SP_target_speaker( gentity_t *ent ) {
 		}
 	if ( !G_SpawnString( "noise", "NOSOUND", &s ) ) {
 		//G_Error( "target_speaker without a noise key at %s", vtos( ent->s.origin ) );
+		G_Printf( "target_speaker without a noise key at %s\n", vtos( ent->s.origin ) );
 		G_FreeEntity(ent);
 		return;
 	}/*
@@ -672,3 +774,124 @@ void SP_mc_falldeath( gentity_t *ent)
 	ent->use = mc_falldeath_use;
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void mc_credits_use (gentity_t *self, gentity_t *other, gentity_t *activator)
+{
+	if (!activator || !activator->client || !activator->inuse)
+	{
+		return;
+	}
+	if (Q_stricmp(activator->client->sess.userlogged,"") == 0)
+	{
+		trap_SendServerCommand(activator->s.number,"print \"^1You are not logged in.\n\"");
+		return;
+	}
+	mc_addcredits(activator, self->count);
+	G_UseTargets (self, activator);
+}
+
+// count = credits required.
+void SP_mc_credits (gentity_t *self)
+{
+	self->use = mc_credits_use;
+}
+
+
+
+void mc_creditrelay_use (gentity_t *self, gentity_t *other, gentity_t *activator)
+{
+	if (!activator || !activator->client || !activator->inuse)
+	{
+		return;
+	}
+	if (Q_stricmp(activator->client->sess.userlogged,"") == 0)
+	{
+		trap_SendServerCommand(activator->s.number,"print \"^1You are not logged in.\n\"");
+		return;
+	}
+	if (activator->client->sess.credits < self->count)
+	{
+		trap_SendServerCommand(activator->s.number, va("print \"^1You do not have enough credits.\n^3Balance: ^5%i^3. Required: ^5%i^3.\n\"", activator->client->sess.credits, self->count));
+		return;
+	}
+	mc_addcredits(activator, -self->count);
+	G_UseTargets (self, activator);
+}
+
+// count = credits required.
+void SP_mc_creditrelay (gentity_t *self)
+{
+	self->use = mc_creditrelay_use;
+}
+
+
+
+
+
+void mc_npcspawn_use (gentity_t *self, gentity_t *other, gentity_t *activator)
+{
+	if (!self->message || (Q_stricmp(self->message,"")==0))
+	{
+		return;
+	}
+	mc_CreateExampleAnimEnt2(self, self->message, self->r.currentOrigin);
+}
+
+// message = npc to spawn
+void SP_mc_npcspawn (gentity_t *self)
+{
+	self->use = mc_npcspawn_use;
+}
+
+
+
+void mc_tunnel_use( gentity_t *self, gentity_t *other, gentity_t *activator ) {
+	gentity_t	*dest;
+	vec3_t		origin;
+
+	if (!activator->client)
+		return;
+	dest = 	G_PickTarget( self->target );
+	if (!dest) {
+		G_Printf ("Couldn't find teleporter destination\n");
+		return;
+	}
+	origin[0] = dest->s.origin[0];
+	origin[1] = dest->s.origin[1];
+	origin[2] = activator->client->ps.origin[2];
+	mcTeleportPlayer( activator, origin, activator->client->ps.viewangles );
+}
+
+void SP_mc_tunnel( gentity_t *self ) {
+	if (!self->targetname)
+		G_Printf("untargeted %s at %s\n", self->classname, vtos(self->s.origin));
+
+	self->use = mc_tunnel_use;
+}
+
+
+
+void SP_mc_botpoint(gentity_t *self)
+{
+	CreateNewWP(self->s.origin, self->spawnflags);
+	G_FreeEntity(self);
+}

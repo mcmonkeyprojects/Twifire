@@ -21,7 +21,7 @@
 524288		amgametype		General
 1048576		amremote		General
 2097152		amfreeze		Punishment
-4194304		amadminsleep/amwake	Punishment
+4194304		amsleep/amwake		Punishment
 8388608		ampunish/unpunish	Punishment
 16777216	amsilence/unsilence	Punishment
 33554432	amkill			Punishment
@@ -62,8 +62,8 @@
 16		amgive			Powerup
 32		amillusion		General
 64		amforcegod		Powerup
-128		amsetprefix		General
-256		amsetsuffix		General
+128		amsetpre/suffix		General
+256		amflare
 512		amfakechat		General
 1024		amnodrown		Powerup
 2048		amsolid			Powerup
@@ -72,7 +72,7 @@
 16384		amtimescale		General
 32768		amfakelag		Punishment
 65536		amweaponspeed		Weapons
-131072		
+131072		amworship		NotDisplayed
 262144		amdropfakeweapon	General
 524288		ampsay			General
 1048576		amsetscore/add		General
@@ -83,18 +83,18 @@
 33554432	amstealth		Powerup
 
 --4:
-1		ammap_clearedits	Builder
-2		amteles			Teleport
+1		
+2		amchatcommands		Teleport
 4		ammap_shader2		Builder
 8		amturretweapon		Weapons
 16		amweaponbounces		Weapons
 32		amallpowerful		Powerup
 64		ammap_duplicate		Builder
-128		ampassvote		General
-256		amfailvote		General
+128		am****vote		General
+256		amlockserver		NotDisplayed
 512		amweaponfirerate	Weapons
 1024		amsupershield		Builder
-2048		amsupershield2		Builder
+2048		amreversedmg
 4096		amfastjet		Powerup
 8192		amjetspeed		Powerup
 16384		amjoingroup		General
@@ -103,7 +103,7 @@
 131072		amgetpos		General
 262144		amhome			Punishment
 524288		amsupersentry		Builder
-1048576		amsupersentry2		Builder
+1048576		
 2097152		amdefaultweapons	Weapons
 4194304		ammap_useent		Builder
 8388608		ammap_usetarget		Builder
@@ -117,7 +117,7 @@
 8		amviewrandom		Punishment
 16		amabuse			Punishment
 32		amaddbot		General
-64		
+64		amnormalsettings	NotDisplayed
 128		amotherweaponsettings	Weapons
 256		amaddpowers/amsetpowers	NotDisplayed
 512		ammap_setmins/maxes	Builder
@@ -150,7 +150,7 @@
 256		ammap_setorigin		Builder
 512		ammap_addglm		Builder
 1024		ammap_setanim		NoClearPurpose
-2048		ammap_adddoor		Builder
+2048		ammap_clearedits	Builder
 4096		amaccountinfo		General
 8192		amfury			Powerup
 16384		amexplode		General
@@ -164,7 +164,7 @@
 4194304		amsetrank		General
 8388608		amtorture		Punishment
 16777216	amknockbackonly		Powerup
-33554432	amaddtsent		Builder
+33554432	amparachute		Powerup
 
 --7:
 1		ammonitorchannels
@@ -174,10 +174,22 @@
 16		callvote		General
 32		bypass_notele		General
 64		ambans			General
-128		amshock			General
+128		amshock/2		General
 256		realentnum		Builder
 512		allgroup		General
-1024		amsetweapon
-2048		
-4096		
-8192		
+1024		amsetweapon		NoClearPurpose
+2048		amblockdeath		NotDisplayed
+4096		amnoknockback		NoClearPurpose
+8192		amjetpack		NotDisplayed
+16384		amdistance		Builder
+32768		amlightning		Punishment
+65536		ammap_delent_matching	Builder
+131072		ammap_group_matching	Builder
+262144		amvehicle		General
+524288		ammap_search		Builder
+1048576		amasssassinate		Punishment
+2097152		ambaz			Punishment
+4194304		amblockweapon		Punishment
+8388608		amblockforce		Punishment
+16777216	amblockrename		Punishment
+33554432	amshout			General

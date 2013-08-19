@@ -56,11 +56,15 @@ void multi_trigger( gentity_t *ent, gentity_t *activator ) {
 
 	if ( activator->client ) {
 		if ( ( ent->spawnflags & 2 ) &&
-			((activator->client->sess.sessionTeam != TEAM_RED)||(g_gametype.integer != TEAM_FREE)) ) {
+			(activator->client->sess.sessionTeam == TEAM_BLUE || activator->client->sess.sessionTeam == TEAM_SPECTATOR))
+			//((activator->client->sess.sessionTeam != TEAM_RED)||(g_gametype.integer != TEAM_FREE)) )
+		{
 			return;
 		}
 		if ( ( ent->spawnflags & 4 ) &&
-			((activator->client->sess.sessionTeam != TEAM_BLUE)||(g_gametype.integer != TEAM_FREE)) ) {
+			(activator->client->sess.sessionTeam == TEAM_RED || activator->client->sess.sessionTeam == TEAM_SPECTATOR))
+			//((activator->client->sess.sessionTeam != TEAM_BLUE)||(g_gametype.integer != TEAM_FREE)) )
+		{
 			return;
 		}
 	}
@@ -652,6 +656,7 @@ void mcmulti_trigger( gentity_t *ent, gentity_t *activator ) {
 			if (Q_stricmp(ent->mcpassword, activator->client->sess.doorpassword) != 0)
 			{
 				trap_SendServerCommand( activator->s.number, va("print \"^1Invalid password.\n\""));
+				trap_SendServerCommand( activator->s.number, va("cp \"^1Invalid password.\n\""));
 				ent->think = multi_wait;
 				ent->nextthink = level.time + 1000;
 				return;
@@ -790,7 +795,7 @@ void SP_mctrigger_multiple( gentity_t *ent ) {
 		ent->roffid = -1;
 	}
 
-	G_SpawnFloat( "wait", "0.5", &ent->wait );
+	G_SpawnFloat( "wait", "1", &ent->wait );
 	if (ent->wait < 0.5)
 	{
 		ent->wait = 0.5;
@@ -872,3 +877,88 @@ void SP_target_speedup( gentity_t *self ) {
 	}
 	self->use = Use_target_push;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void mchurt_touch( gentity_t *self, gentity_t *activator, gentity_t *other ) {
+	if ( !other->takedamage ) {
+		return;
+	}
+	if ((mc_lms.integer > 0)&&(level.lmsnojoin == 0))
+	{
+		return;
+	}
+	if (other && other->client && other->s.number < 32 && other->client->sess.supergod == 1)
+	{
+		return;
+	}
+	if (self->damage == -1 && other && other->client && other->s.number < 32 && other->health < 1)
+	{
+		other->client->ps.fallingToDeath = 0;
+		respawn(other);
+		return;
+	}
+	if (self->damage == -1 && other && other->client && other->s.number < 32 && other->client->ps.fallingToDeath)
+	{
+		return;
+	}
+
+	if ( self->damage != -1 ) {
+		G_Sound( other, CHAN_AUTO, self->noise_index );
+	}
+	if (self->damage == -1 && other && other->client && other->s.number < 32)
+	{
+		if (other->client->ps.otherKillerTime > level.time)
+		{
+			other->client->ps.otherKillerTime = level.time + 20000;
+			other->client->ps.otherKillerDebounceTime = level.time + 10000;
+		}
+		other->client->ps.fallingToDeath = level.time;
+		G_EntitySound(other, CHAN_VOICE, G_SoundIndex("*falling1.wav"));
+	}
+	else	
+	{
+		int dmg = self->damage;
+		if (dmg == -1)
+		{
+			dmg = 99999;
+			self->timestamp = 0;
+		}
+		if (self->activator && self->activator->inuse && self->activator->client)
+		{
+			G_Damage (other, self->activator, self->activator, NULL, NULL, dmg, DAMAGE_NO_PROTECTION, MOD_TRIGGER_HURT);
+		}
+		else
+		{
+			G_Damage (other, self, self, NULL, NULL, dmg, DAMAGE_NO_PROTECTION, MOD_TRIGGER_HURT);
+		}
+	}
+}
+
+void SP_mc_hurt( gentity_t *self )
+{
+	gTrigFallSound = G_SoundIndex("*falling1.wav");
+	self->noise_index = G_SoundIndex( "sound/weapons/force/speed.wav" );
+	if ( !self->damage ) {
+		self->damage = 5;
+	}
+	self->use = mchurt_touch;
+}
+
+

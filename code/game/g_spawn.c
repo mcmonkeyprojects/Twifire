@@ -152,6 +152,10 @@ void SP_mc_falldeath( gentity_t *ent);
 void SP_mc_light2 ( gentity_t *ent );
 void SP_mc_lulul(gentity_t *ent);
 
+void SP_mc_hurt( gentity_t *self );
+void SP_mc_tunnel( gentity_t *ent );
+void SP_mc_vehicle( gentity_t *ent);
+
 void SP_target_106use( gentity_t *ent );
 void SP_target_togglesolid( gentity_t *ent );
 
@@ -211,7 +215,7 @@ void SP_misc_model_ammo_power_converter( gentity_t *ent );
 void SP_misc_model_health_power_converter( gentity_t *ent );
 
 void SP_fx_runner( gentity_t *ent );
-void SP_fx_mcrunner( gentity_t *ent );
+//void SP_fx_mcrunner( gentity_t *ent );
 
 #ifdef ANIMENT_SPAWNER
 void SP_misc_animent_spawner(gentity_t *ent);
@@ -240,6 +244,15 @@ void SP_mcbutton2( gentity_t *ent );
 //void SP_mcsolid( gentity_t *ent );
 void SP_mcioncannon( gentity_t *ent );
 
+
+void SP_mc_creditrelay (gentity_t *self);
+void SP_mc_credits (gentity_t *self);
+void SP_mc_npcspawn (gentity_t *self);
+void SP_mc_door (gentity_t *self);
+
+void SP_mc_botpoint (gentity_t *self);
+void SP_mc_oneuse (gentity_t *self);
+
 void mctsent(gentity_t *ent);
 spawn_t	spawns[] = {
 	// info entities don't do anything at all, but provide positional
@@ -266,15 +279,14 @@ spawn_t	spawns[] = {
 	{"mc_gravityball2", mcgravityball2},
 	{"mc_tsent", mctsent},
 	{"mc_trigger", SP_mctrigger_multiple},
+	{"mc_vehicle", SP_mc_vehicle},
 	{"jmodel", SP_jakes_model},
 	{"mc_speedup", SP_target_speedup},
 	{"target_mcspeed", SP_target_mcspeed},
 	{"target_mcchat", SP_target_mcchat},
 	{"target_mcgravity", SP_target_mcgravity},
-	{"target_mccredits", SP_target_mccredits},
-	{"target_mccreditrelay", SP_target_mccreditrelay},
 	{"mc_togglesolid", SP_target_togglesolid},
-	{"fx_mcrunner", SP_fx_mcrunner},
+	//{"fx_mcrunner", SP_fx_mcrunner},
 	{"mcbutton", SP_mcbutton},
 	{"mcbutton2", SP_mcbutton2},
 	{"mc_alarm", SP_mc_alarm},
@@ -282,6 +294,14 @@ spawn_t	spawns[] = {
 	{"mc_falldeath", SP_mc_falldeath},
 	{"misc_model_breakable", SP_mc_mbreakable},
 	{"misc_ion_cannon", SP_mcioncannon},
+	{"mc_creditrelay", SP_mc_creditrelay},
+	{"mc_credits", SP_mc_credits},
+	{"mc_npcspawn", SP_mc_npcspawn},
+	{"mc_hurt", SP_mc_hurt},
+	{"mc_door", SP_mc_door},
+	{"mc_tunnel", SP_mc_tunnel},
+	{"mc_botpoint", SP_mc_botpoint},
+	{"mc_oneuse", SP_mc_oneuse},
 
 
 
@@ -383,6 +403,10 @@ qboolean G_CallSpawn( gentity_t *ent ) {
 	if ( !ent->classname ) {
 		G_Printf ("G_CallSpawn: NULL classname\n");
 		return qfalse;
+	}
+	if (Q_stricmp(ent->classname, "item_force_enlighten") == 0)
+	{
+		ent->classname = "item_force_enlighten_light";
 	}
 
 	// check item spawn functions

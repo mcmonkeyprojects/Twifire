@@ -5,6 +5,15 @@
 
 
 
+void	mc_trap_AdjustAreaPortalState( gentity_t *ent, qboolean open )
+{
+	if (ent->doorchanged == 32)
+	{
+		return;
+	}
+	trap_AdjustAreaPortalState(ent, open);
+}
+
 /*
 ===============================================================================
 
@@ -496,7 +505,15 @@ void ReturnToPos1( gentity_t *ent ) {
 	}
 }
 
-
+void mcrmover_think(gentity_t *ent)
+{
+	//ent->s.origin[0] = ent->r.currentOrigin[0];
+	//ent->s.origin[1] = ent->r.currentOrigin[1];
+	//ent->s.origin[2] = ent->r.currentOrigin[2];
+	trap_LinkEntity(ent);
+	//ent->nextthink = level.time;
+	//ent->think = mcrmover_think;
+}
 /*
 ================
 Reached_BinaryMover
@@ -506,6 +523,11 @@ void Reached_BinaryMover( gentity_t *ent ) {
 
 	// stop the looping sound
 	ent->s.loopSound = ent->soundLoop;
+	if (ent->wait == 9300170)
+	{
+		trap_LinkEntity(ent);
+		return;
+	}
 
 	if ( ent->moverState == MOVER_1TO2 ) {
 		// reached pos2
@@ -522,7 +544,7 @@ void Reached_BinaryMover( gentity_t *ent ) {
 	{
 		// return to pos1 after a delay
 		ent->think = ReturnToPos1;
-		ent->nextthink = level.time + ent->wait;
+		ent->nextthink = level.time + ent->wait * 1000;
 
 		if (ent->delay)
 		{
@@ -554,7 +576,7 @@ void Reached_BinaryMover( gentity_t *ent ) {
 
 		// close areaportals
 		if ( ent->teammaster == ent || !ent->teammaster ) {
-			trap_AdjustAreaPortalState( ent, qfalse );
+			mc_trap_AdjustAreaPortalState( ent, qfalse );
 		}
 	} else {
 		G_Error( "Reached_BinaryMover: bad moverState" );
@@ -594,7 +616,7 @@ void Use_BinaryMover( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
 
 		// open areaportal
 		if ( ent->teammaster == ent || !ent->teammaster ) {
-			trap_AdjustAreaPortalState( ent, qtrue );
+			mc_trap_AdjustAreaPortalState( ent, qtrue );
 		if (ent->upmes && strlen(ent->upmes) > 2)
 		{
 			trap_SendServerCommand( -1, va("cp \"%s\"", ent->upmes));
@@ -614,7 +636,7 @@ void Use_BinaryMover( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
 		if (ent->boltpoint1 == 0)
 		{
 			//rww - don't delay if we're not being used by a player
-			ent->nextthink = level.time + ent->wait;
+			ent->nextthink = level.time + ent->wait * 1000;
 			return;
 		}
 		else
@@ -674,16 +696,34 @@ void InitMover( gentity_t *ent ) {
 	vec3_t		color;
 	qboolean	lightSet, colorSet;
 	char		*sound;
+	vmCvar_t	mapname;
 
 	// if the "model2" key is set, use a seperate model
 	// for drawing, but clip against the brushes
 	if ( ent->model2 ) {
 		ent->s.modelindex2 = G_ModelIndex( ent->model2 );
 	}
+	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
 
+		if (!((level.spawning)&&((Q_stricmp(mapname.string,"cairn_assembly") == 0)||
+		(Q_stricmp(mapname.string,"bespin_streets") == 0)||
+		(Q_stricmp(mapname.string,"bespin_platform") == 0)||
+		(Q_stricmp(mapname.string,"doom_shields") == 0)||
+		(Q_stricmp(mapname.string,"yavin_temple") == 0)||
+		(Q_stricmp(mapname.string,"yavin_swamp") == 0)||
+		(Q_stricmp(mapname.string,"yavin_trial") == 0)||
+		(Q_stricmp(mapname.string,"yavin_canyon") == 0)||
+		(Q_stricmp(mapname.string,"yavin_courtyard") == 0)||
+		(Q_stricmp(mapname.string,"yavin_final") == 0)||
+		(Q_stricmp(mapname.string,"pit") == 0)||
+		(Q_stricmp(mapname.string,"valley") == 0)||
+		(Q_stricmp(mapname.string,"artus_topside") == 0)||
+		(Q_stricmp(mapname.string,"cairn_reactor") == 0))))
+	{
 	// if the "loopsound" key is set, use a constant looping sound when moving
 	if ( G_SpawnString( "noise", "100", &sound ) ) {
 		ent->s.loopSound = G_SoundIndex( sound );
+	}
 	}
 
 	// if the "color" or "light" keys are set, setup constantLight
@@ -910,26 +950,52 @@ void Think_SpawnNewDoorTrigger( gentity_t *ent ) {
 	}
 	maxs[best] += 120;
 	mins[best] -= 120;
-
 	// create a trigger with this size
 	other = G_Spawn ();
+	VectorCopy(mins, other->s.origin);
+	G_SetOrigin(other, other->s.origin);
+	VectorSet(maxs, maxs[0]-mins[0], maxs[1]-mins[1], maxs[2]-mins[2]);
+	VectorSet(mins, 0, 0, 0);
 	other->classname = "door_trigger";
 	VectorCopy (mins, other->r.mins);
 	VectorCopy (maxs, other->r.maxs);
 	other->parent = ent;
 	other->r.contents = CONTENTS_TRIGGER;
 	other->touch = Touch_DoorTrigger;
+	other->target = ent->targetname;
 	// remember the thinnest axis
 	other->count = best;
 	trap_LinkEntity (other);
 
-	doorfix(ent);
+	//doorfix(ent);
 
 	MatchTeam( ent, ent->moverState, level.time );
 }
 
 void Think_MatchTeam( gentity_t *ent ) {
-	MatchTeam( ent, ent->moverState, level.time );
+	int	i;
+	int	success = 0;
+	for (i = 32;i < 1024;i++ )
+	{
+		gentity_t	*flent = &g_entities[i];
+		if (!flent || !flent->inuse)
+		{
+			continue;
+		}
+		if (Q_stricmp(flent->target, ent->targetname) == 0)
+		{
+			success = 1;
+			break;
+		}
+	}
+	if (success == 0 && ent->health == 0)
+	{
+		Think_SpawnNewDoorTrigger(ent);
+	}
+	else
+	{
+		MatchTeam( ent, ent->moverState, level.time );
+	}
 }
 
 
@@ -1004,10 +1070,11 @@ void SP_func_door (gentity_t *ent) {
 	// default wait of 2 seconds
 	if (!ent->wait)
 		ent->wait = 2;
-	ent->wait *= 1000;
+	//ent->wait *= 1000;
 
 	// default lip of 8 units
 	G_SpawnFloat( "lip", "8", &lip );
+	ent->lip = lip;
 
 	// default damage of 2 points
 	G_SpawnInt( "dmg", "2", &ent->damage );
@@ -1053,6 +1120,7 @@ void SP_func_door (gentity_t *ent) {
 			// non touch/shoot doors
 			ent->think = Think_MatchTeam;
 		} else {
+			doorfix(ent);
 			ent->think = Think_SpawnNewDoorTrigger;
 		}
 	}
@@ -1213,7 +1281,7 @@ void SP_func_plat (gentity_t *ent) {
 
 	G_SpawnInt("delay", "0", &ent->delay);
 
-	ent->wait = 1000;
+	ent->wait = 1;//1000;
 
 	// create second position
 	mc_SetBrushModel( ent, ent->model );
@@ -1314,7 +1382,7 @@ void SP_func_button( gentity_t *ent ) {
 	if ( !ent->wait ) {
 		ent->wait = 1;
 	}
-	ent->wait *= 1000;
+	//ent->wait *= 1000;
 
 	// first position
 	VectorCopy( ent->s.origin, ent->pos1 );
@@ -1566,6 +1634,7 @@ void SP_func_static( gentity_t *ent ) {
 	InitMover( ent );
 	VectorCopy( ent->s.origin, ent->s.pos.trBase );
 	VectorCopy( ent->s.origin, ent->r.currentOrigin );
+	trap_LinkEntity(ent);
 }
 
 
@@ -1800,7 +1869,7 @@ void BreakableBrushUse(gentity_t *self, gentity_t *other, gentity_t *activator)
 	self->enemy = other;
 
 	self->think = BrushThink;
-	self->nextthink = level.time + self->wait;
+	self->nextthink = level.time + self->wait * 1000;
 }
 
 /*QUAKED func_breakable (0 .5 .8) ? INVINCIBLE
@@ -2194,11 +2263,31 @@ A bmodel that just sits there, doing nothing.  Can be used for conditional walls
 
 void SP_func_usable( gentity_t *self ) 
 {
+	vmCvar_t	mapname;
 	mc_SetBrushModel( self, self->model );
 	InitMover( self );
 	VectorCopy( self->s.origin, self->s.pos.trBase );
 	VectorCopy( self->s.origin, self->r.currentOrigin );
 
+	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+
+		if ((level.spawning)&&((Q_stricmp(mapname.string,"cairn_assembly") == 0)||
+		(Q_stricmp(mapname.string,"bespin_streets") == 0)||
+		(Q_stricmp(mapname.string,"bespin_platform") == 0)||
+		(Q_stricmp(mapname.string,"doom_shields") == 0)||
+		(Q_stricmp(mapname.string,"yavin_temple") == 0)||
+		(Q_stricmp(mapname.string,"yavin_swamp") == 0)||
+		(Q_stricmp(mapname.string,"yavin_trial") == 0)||
+		(Q_stricmp(mapname.string,"yavin_canyon") == 0)||
+		(Q_stricmp(mapname.string,"yavin_courtyard") == 0)||
+		(Q_stricmp(mapname.string,"yavin_final") == 0)||
+		(Q_stricmp(mapname.string,"pit") == 0)||
+		(Q_stricmp(mapname.string,"valley") == 0)||
+		(Q_stricmp(mapname.string,"artus_topside") == 0)||
+		(Q_stricmp(mapname.string,"cairn_reactor") == 0)))
+		{
+			self->spawnflags |= 8;
+		}
 	self->count = 1;
 	if (self->spawnflags & 1)
 	{
@@ -2273,15 +2362,28 @@ void SP_func_usable( gentity_t *self )
 
 
 
-void SP_mc_door (gentity_t *ent, float lip) {
+void SP_mc_door (gentity_t *ent) {
 	vec3_t	abs_movedir;
 	float	distance;
 	vec3_t	size;
 	char	*sound;
-	char *model;
-	int		soundon = 0;
+	char	*model;
+	float	lip;
+	float	modelangle;
+	float	modelpitch;
+	float	modelroll;
+	int	soundon = 0;
 
 	G_SpawnInt("sound", "1", &soundon);
+	G_SpawnFloat( "lip", "8", &lip );
+	ent->lip = lip;
+	G_SpawnFloat( "modelangle", "0", &modelangle );
+	G_SpawnFloat( "modelpitch", "0", &modelpitch );
+	G_SpawnFloat( "modelroll", "0", &modelroll );
+	ent->xOff = (int)modelangle;
+	ent->yOff = (int)modelpitch;
+	ent->zOff = (int)modelroll;
+
 
 	if (soundon)
 	{
@@ -2308,7 +2410,7 @@ void SP_mc_door (gentity_t *ent, float lip) {
 	// default wait of 2 seconds
 	if (!ent->wait)
 		ent->wait = 2;
-	ent->wait *= 1000;
+	//ent->wait *= 1000;
 
 
 	// default damage of 2 points
@@ -2320,21 +2422,33 @@ void SP_mc_door (gentity_t *ent, float lip) {
 	// calculate second position
 	//mc_SetBrushModel( ent, ent->model );
 	G_SpawnString( "model", "", &model );
+	if (!strstr(model,".md3"))
+	{
+		model = va("%s.md3", model);
+	}
 	ent->s.modelindex = G_ModelIndex( model );
 	ent->s.modelindex2 = G_ModelIndex( model );
 	strcpy(ent->mcmessage,model);
 	ent->r.contents = CONTENTS_SOLID;
 	ent->clipmask = MASK_SOLID;
-	VectorSet( ent->r.maxs, 25, 25, 21 );
-	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	if (ent->r.maxs[2] == 0 && ent->r.mins[2] == 0)
+	{
+		G_Printf("Door spawned without collision box.\n");
+		VectorSet( ent->r.maxs, 25, 25, 21 );
+		VectorScale( ent->r.maxs, -1, ent->r.mins );
+	}
 	trap_LinkEntity( ent );
 
 	G_SetMovedir (ent->s.angles, ent->movedir);
+	ent->s.angles[YAW] = modelangle;
+	ent->s.angles[PITCH] = modelpitch;
+	ent->s.angles[ROLL] = modelroll;
+	G_SetAngles(ent, ent->s.angles);
 	abs_movedir[0] = fabs(ent->movedir[0]);
 	abs_movedir[1] = fabs(ent->movedir[1]);
 	abs_movedir[2] = fabs(ent->movedir[2]);
 	VectorSubtract( ent->r.maxs, ent->r.mins, size );
-	distance = DotProduct( abs_movedir, size ) - lip;
+	distance = DotProduct( abs_movedir, size ) + lip;
 	VectorMA( ent->pos1, distance, ent->movedir, ent->pos2 );
 
 	// if "start_open", reverse position 1 and 2
@@ -2347,6 +2461,11 @@ void SP_mc_door (gentity_t *ent, float lip) {
 	}
 
 	InitMover( ent );
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelindex2 = G_ModelIndex( model );
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	trap_LinkEntity( ent );
 
 	ent->nextthink = level.time + FRAMETIME;
 

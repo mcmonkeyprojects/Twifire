@@ -302,10 +302,18 @@ gentity_t *CreateMissile( vec3_t org, vec3_t dir, float vel, int life,
 	VectorCopy( org, missile->r.currentOrigin);
 	SnapVector(missile->s.pos.trDelta);
 
+	if (mc_unlagged.integer == 1)
+	{
+//unlagged - projectile nudge
+	// we'll need this for nudging projectiles later
+	missile->s.otherEntityNum = owner->s.number;
+//unlagged - projectile nudge
+	}
 	return missile;
 }
 
 
+gentity_t *WP_FiremcThermalDetonator( gentity_t *ent, vec3_t origin, vec3_t angles );
 /*
 ================
 G_MissileImpact
@@ -315,6 +323,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	gentity_t		*other;
 	qboolean		hitClient = qfalse;
 	int			hoek;
+	int	i;
 	other = &g_entities[trace->entityNum];
 
 	if (ent->s.eFlags & 8192)
@@ -360,7 +369,6 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			}
 		}
 	}
-	// check for bounce
 	if ( !other->takedamage &&
 		(ent->bounceCount > 0 || ent->bounceCount == -5) &&
 		( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF ) ) ) {
@@ -643,7 +651,26 @@ killProj:
 	{
 		ent->freeAfterEvent = qfalse; //it will free itself
 	}
-
+	if (ent->boltpoint4 == 32)
+	{
+		//G_Printf("%f x %f x %f\n", trace->plane.normal[0], trace->plane.normal[1], trace->plane.normal[2]);
+		for (i = 0;i < 5;i++)
+		{
+		vec3_t angz;
+		angz[YAW] = irand(0, 360);
+		if (trace->plane.normal[2] >= 0.0f)
+		{
+			angz[PITCH] = (float)irand(0, -90);
+		}
+		else
+		{
+			angz[PITCH] = (float)irand(0, 90);
+		}
+		//G_Printf("Choose %f!\n", angz[PITCH]);
+		angz[ROLL] = 0;
+		WP_FiremcThermalDetonator( ent, ent->r.currentOrigin, angz );
+		}
+	}
 	trap_LinkEntity( ent );
 }
 

@@ -1,0 +1,7 @@
+The file map_blacklist.cfg is used to prevent bad maps from being called
+
+EG, the map ns_streets will usually crash the server, so it would be blacklisted.
+
+The file is in the format of mapnames separated by commas and ended with a comma and semicolon
+
+EG: mapOne,mapTwo,map_Three,map4,;

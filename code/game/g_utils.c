@@ -4,15 +4,6 @@
 
 #include "g_local.h"
 
-typedef struct {
-  char oldShader[MAX_QPATH];
-  char newShader[MAX_QPATH];
-  float timeOffset;
-  int ignoreme;
-} shaderRemap_t;
-
-#define MAX_SHADER_REMAPS 128
-
 int remapCount = 0;
 shaderRemap_t remappedShaders[MAX_SHADER_REMAPS];
 
@@ -132,15 +123,27 @@ Ghoul2 Insert End
 */
 
 int G_ModelIndex( char *name ) {
+	if (!name || (Q_stricmp(name,"") == 0))
+	{
+		return G_FindConfigstringIndex ("models/null", CS_SOUNDS, MAX_SOUNDS, qtrue);
+	}
 	return G_FindConfigstringIndex (name, CS_MODELS, MAX_MODELS, qtrue);
 }
 
 int G_SoundIndex( char *name ) {
+	if (!name || (Q_stricmp(name,"") == 0))
+	{
+		return G_FindConfigstringIndex ("sound/null", CS_SOUNDS, MAX_SOUNDS, qtrue);
+	}
 	return G_FindConfigstringIndex (name, CS_SOUNDS, MAX_SOUNDS, qtrue);
 }
 
 int G_EffectIndex( char *name )
 {
+	if (!name || (Q_stricmp(name,"") == 0))
+	{
+		return G_FindConfigstringIndex ("effects/null", CS_SOUNDS, MAX_SOUNDS, qtrue);
+	}
 	return G_FindConfigstringIndex (name, CS_EFFECTS, MAX_FX, qtrue);
 }
 
@@ -1295,6 +1298,10 @@ void TryUse( gentity_t *ent )
 	int		ignoreme;
 	ignoreme = 0;
 
+	if (ent->client->sess.veh_isactive == 1)
+	{
+		exit_vehicle(ent);
+	}
 	// Twimod Jetpack
 	if (( ent->client->ps.eFlags & EF_JETPACK_ACTIVE )&&(ignoreme == 0)&& (ent->client->sess.jetdelayusefix <= level.time))
 	{

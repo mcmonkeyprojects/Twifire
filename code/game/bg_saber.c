@@ -1416,7 +1416,7 @@ void PM_WeaponLightsaber(void)
 		//This will get set to false again once the saber makes it back to its owner game-side
 		if (!pm->ps->saberInFlight)
 		{
-			extern int dsp_isEmpowered(int clientNum);
+			//extern int dsp_isEmpowered(int clientNum);
 			// NIX FÜR KLEINE SPAßTEN COMPILER
 			
 			if (!dsp_isEmpowered(pm->ps->clientNum))

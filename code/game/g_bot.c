@@ -166,16 +166,32 @@ qboolean G_DoesMapSupportGametype(const char *mapname, int gametype)
 	int			n = 0;
 	char		*type = NULL;
 
-	if (!g_arenaInfos[0])
-	{
-		return qfalse;
-	}
 
 	if (!mapname || !mapname[0])
 	{
 		return qfalse;
 	}
-			if ((Q_stricmp(mapname,"ffa_bespin") == 0||
+
+	if (mc_mapvotefix.integer != 0)
+	{
+		fileHandle_t	f;
+		trap_FS_FOpenFile(va("maps/%s.bsp", mapname), &f, FS_READ);
+		if (f)
+		{
+			trap_FS_FCloseFile(f);
+			return qtrue;
+		}
+		else
+		{
+			return qfalse;
+		}
+	}
+	if (!g_arenaInfos[0])
+	{
+		return qfalse;
+	}
+
+			/*if ((Q_stricmp(mapname,"ffa_bespin") == 0||
 				Q_stricmp(mapname,"ffa_deathstar") == 0||
 				Q_stricmp(mapname,"ffa_imperial") == 0||
 				Q_stricmp(mapname,"ffa_ns_hideout") == 0||
@@ -210,7 +226,7 @@ qboolean G_DoesMapSupportGametype(const char *mapname, int gametype)
 				Q_stricmp(mapname,"yavin_final") == 0))
 				{
 					return qtrue;
-				}
+				}*/
 	for( n = 0; n < g_numArenas; n++ )
 	{
 		type = Info_ValueForKey( g_arenaInfos[n], "map" );
@@ -302,7 +318,7 @@ const char *G_RefreshNextMap(int gametype, qboolean forced)
 	if (desiredMap == thisLevel)
 	{ //If this is the only level for this game mode or we just can't find a map for this game mode, then nextmap
 	  //will always restart.
-		trap_Cvar_Set( "nextmap", "map_restart 0");
+		trap_Cvar_Set( "nextmap", "rmap_restart 0");
 	}
 	else
 	{ //otherwise we have a valid nextmap to cycle to, so use it.

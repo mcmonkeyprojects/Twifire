@@ -65,21 +65,31 @@ TELEPORTERS
 */
 
 void fixforundopl(gentity_t *ent);
-void TeleportPlayer_LAWLTHISFAILS( gentity_t *player, vec3_t origin, vec3_t angles ) {
+void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	gentity_t	*tent;
 	fixforundopl(player);
 	// use temp events at source and destination to prevent the effect
 	// from getting dropped by a second player event
-	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR )
-	{
-		vec3_t	angrev;
-		angrev[YAW] = player->client->ps.viewangles[YAW]+180;
-		angrev[PITCH] = player->client->ps.viewangles[PITCH]+180;
-		angrev[ROLL] = 0;
-		G_PlayEffect_ID(G_EffectIndex( "mp/jedispawn" ), player->client->ps.origin, player->client->ps.viewangles);
-		G_SoundAtLoc( player->client->ps.origin, CHAN_VOICE, G_SoundIndex("sound/player/teleout.mp3") );
-		G_PlayEffect_ID(G_EffectIndex( "mp/jedispawn" ), origin, angrev);
-		G_SoundAtLoc( origin, CHAN_VOICE, G_SoundIndex("sound/player/telein.mp3") );
+	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		if (Q_stricmp(mc_teleeffect.string,"") == 0)
+		{
+		tent = G_TempEntity( player->client->ps.origin, EV_PLAYER_TELEPORT_OUT );
+		tent->s.clientNum = player->s.clientNum;
+
+		tent = G_TempEntity( origin, EV_PLAYER_TELEPORT_IN );
+		tent->s.clientNum = player->s.clientNum;
+		}
+		else
+		{
+			vec3_t upvec;
+			upvec[YAW] = 0;
+			upvec[PITCH] = -90;
+			upvec[ROLL] = 0;
+			G_PlayEffect_ID(G_EffectIndex( mc_teleeffect.string ), player->client->ps.origin, upvec);
+			G_SoundAtLoc( player->client->ps.origin, CHAN_VOICE, G_SoundIndex("sound/player/teleout") );
+			G_PlayEffect_ID(G_EffectIndex( mc_teleeffect.string ), origin, upvec);
+			G_SoundAtLoc( origin, CHAN_VOICE, G_SoundIndex("sound/player/telein") );
+		}
 	}
 
 	// unlink to make sure it can't possibly interfere with G_KillBox
@@ -99,6 +109,13 @@ void TeleportPlayer_LAWLTHISFAILS( gentity_t *player, vec3_t origin, vec3_t angl
 
 	// toggle the teleport bit so the client knows to not lerp
 	player->client->ps.eFlags ^= EF_TELEPORT_BIT;
+	if (mc_unlagged.integer == 1)
+	{
+//unlagged - backward reconciliation #3
+	// we don't want players being backward-reconciled back through teleporters
+	G_ResetHistory( player );
+//unlagged - backward reconciliation #3
+	}
 
 	// set angles
 	SetClientViewAngle( player, angles );
@@ -124,8 +141,7 @@ void TeleportPlayer_LAWLTHISFAILS( gentity_t *player, vec3_t origin, vec3_t angl
 	}
 	}
 }
-
-void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
+void mcTeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	gentity_t	*tent;
 	fixforundopl(player);
 	// use temp events at source and destination to prevent the effect
@@ -145,19 +161,7 @@ void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	}
 
 	VectorCopy ( origin, player->client->ps.origin );
-	player->client->ps.origin[2] += 1;
-
-	// spit the player out
-	AngleVectors( angles, player->client->ps.velocity, NULL, NULL );
-	VectorScale( player->client->ps.velocity, mc_teleportspeed.integer, player->client->ps.velocity );
-	player->client->ps.pm_time = 160;		// hold time
-	player->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
-
-	// toggle the teleport bit so the client knows to not lerp
-	player->client->ps.eFlags ^= EF_TELEPORT_BIT;
-
-	// set angles
-	SetClientViewAngle( player, angles );
+	//player->client->ps.origin[2] += 1;
 
 	// kill anything at the destination
 	if (mc_telefrag.integer == 1)
@@ -1598,7 +1602,7 @@ void SP_jakes_model_zocken ( gentity_t *ent ) //cm - Jake
 	G_SpawnString( "spawnflags", "", &clipped );
 	ent->s.eType = ET_GENERAL;
 	ent->s.modelindex = G_ModelIndex( model );
-	ent->s.modelindex2 = G_ModelIndex( model );
+	//ent->s.modelindex2 = G_ModelIndex( model );
 	//strcpy(ent->model,model);
 	ent->r.contents = CONTENTS_SOLID;
 	ent->clipmask = MASK_SOLID;
@@ -1639,7 +1643,7 @@ void SP_jakes_model ( gentity_t *ent ) //cm - Jake
 	G_SpawnString( "model", "", &model );
 	ent->s.eType = ET_GENERAL;
 	ent->s.modelindex = G_ModelIndex( model );
-	ent->s.modelindex2 = G_ModelIndex( model );
+	//ent->s.modelindex2 = G_ModelIndex( model );
 	strcpy(ent->mcmessage,model);
 	ent->r.contents = CONTENTS_SOLID;
 	ent->clipmask = MASK_SOLID;
@@ -1649,7 +1653,6 @@ void SP_jakes_model ( gentity_t *ent ) //cm - Jake
 	//VectorSet( ent->r.maxs, 10, 10, 21 ); //This is our non-walkthroughable box.
 	VectorSet( ent->r.maxs, 25, 25, 21 );
 	VectorScale( ent->r.maxs, -1, ent->r.mins );
-
 	trap_LinkEntity( ent );
 }
 void SP_fx_runner( gentity_t *ent )
@@ -1706,48 +1709,6 @@ void SP_fx_runner( gentity_t *ent )
 	trap_LinkEntity( ent );
 }
 ////////////////////////
-void fx_mcrunner_think( gentity_t *ent )
-{
-	// call the effect with the desired position and orientation
-	G_AddEvent( ent, EV_PLAY_EFFECT_ID, ent->bolt_Head );
-	G_FreeEntity( ent );
-}
-
-void SP_fx_mcrunner( gentity_t *ent )
-{
-	char		*fxFile;
-
-
-	if (!ent->s.angles[0] && !ent->s.angles[1] && !ent->s.angles[2])
-	{
-		// didn't have angles, so give us the default of up
-		VectorSet( ent->s.angles, -90, 0, 0 );
-	}
-
-	// make us useable if we can be targeted
-	if ( ent->targetname )
-	{
-		ent->use = fx_runner_use;
-	}
-
-
-	// Try and associate an effect file, unfortunately we won't know if this worked or not 
-	//	until the CGAME trys to register it...
-	//ent->bolt_Head = G_EffectIndex( fxFile );
-	//It is dirty, yes. But no one likes adding things to the entity structure.
-
-	// Give us a bit of time to spawn in the other entities, since we may have to target one of 'em
-	ent->think = fx_mcrunner_think; 
-	ent->nextthink = level.time + 1;
-
-	// Save our position and link us up!
-	G_SetOrigin( ent, ent->s.origin );
-
-	VectorSet( ent->r.maxs, FX_ENT_RADIUS, FX_ENT_RADIUS, FX_ENT_RADIUS );
-	VectorScale( ent->r.maxs, -1, ent->r.mins );
-
-	trap_LinkEntity( ent );
-}
 //////////////////
 //rww - here starts the main example g2animent stuff
 #define ANIMENT_TYPE_STORMTROOPER			0
@@ -2354,7 +2315,11 @@ void ExampleAnimEntWeaponHandling(gentity_t *self)
 
 			if (self->s.weapon == WP_REPEATER)
 			{
-				self->bolt_RArm = level.time + Q_irand(1, 500);
+				self->bolt_RArm = level.time + Q_irand(1, 100);
+			}
+			else if (self->s.weapon == WP_STUN_BATON)
+			{
+				self->bolt_RArm = level.time + Q_irand(100, 400);
 			}
 			else if (ExampleAnimEntAlignment(self) == ANIMENT_ALIGNED_GOOD)
 			{
@@ -2362,7 +2327,7 @@ void ExampleAnimEntWeaponHandling(gentity_t *self)
 			}
 			else
 			{
-				self->bolt_RArm = level.time + Q_irand(700, 1000);
+				self->bolt_RArm = level.time + Q_irand(400, 700);
 			}
 		}
 	}
@@ -2754,6 +2719,56 @@ void ExampleAnimEntUpdateSelf(gentity_t *self)
 			{ //No path data? Eh. Just run toward the origin mindlessly.
 				VectorClear(goalPos);
 			}
+			if (mc_zombies.integer == 1)
+	{
+		int	iPl;
+		int	distance;
+		if (irand(1, 150) == 5)
+		{
+			ExampleAnimEntCustomSound(self, ANIMENT_CUSTOMSOUND_PAIN);
+		}
+		distance = 100000;
+		for (iPl = 0; iPl < 32;iPl += 1)
+		{
+			trace_t	tr;
+			gentity_t	*flent;
+			flent = &g_entities[iPl];
+			if (!flent || !flent->client || !flent->inuse)
+			{
+				continue;
+			}
+			if (flent->client->sess.sessionTeam == TEAM_SPECTATOR)
+			{
+				continue;
+			}
+			if (flent->health <= 0)
+			{
+				continue;
+			}
+			trap_Trace( &tr, self->r.currentOrigin, NULL, NULL, flent->client->ps.origin, self->s.number, MASK_SHOT );
+			if (tr.entityNum == flent->s.number)
+			{
+				vec3_t	iMark;
+				int	dist;
+				VectorClear(iMark);
+				iMark[0] = flent->client->ps.origin[0] - self->r.currentOrigin[0];
+				iMark[1] = flent->client->ps.origin[1] - self->r.currentOrigin[1];
+				iMark[2] = flent->client->ps.origin[2] - self->r.currentOrigin[2];
+				dist = ((iMark[0]*iMark[0])+(iMark[1]*iMark[1])+(iMark[2]*iMark[2]));
+				if (dist < distance)
+				{
+					distance = dist;
+					goalPos[0] = flent->client->ps.origin[0];
+					goalPos[1] = flent->client->ps.origin[1];
+					goalPos[2] = flent->client->ps.origin[2];
+					self->bolt_Motion = flent->s.number;
+				}
+			}
+		}
+	}
+
+
+
 
 			if (self->bolt_Motion == ENTITYNUM_NONE)
 			{
@@ -3643,7 +3658,7 @@ void SP_mc_ghoul( gentity_t *ent )
 	VectorCopy( ent->s.angles, ent->r.currentAngles );
 	VectorCopy( ent->s.angles, ent->s.apos.trBase );
 	ent->s.pos.trType = TR_STATIONARY;
-	ent->classname = "jmodel2";
+	ent->classname = "mc_model2";
 	trap_LinkEntity(ent);
 
 	//ent->s.solid = SOLID_BBOX;
@@ -3683,12 +3698,31 @@ void SP_mc_ghoul( gentity_t *ent )
 	//ent->s.shouldtarget = qtrue;
 	//ent->s.teamowner = 0;
 }
-/*
+void mc_note_touch(gentity_t *ent, gentity_t *other, trace_t *trace)
+{
+	gentity_t *note = ent;
+	if (level.time - ent->speed > 2000)
+	{
+	ent->speed = level.time;
+	if (((note->s.bolt1 == 0)&&(Q_stricmp(note->mctargetname, other->client->sess.userlogged) == 0))||(note->s.bolt1 == 1)||(other->client->sess.ampowers6 & 262144))
+	{
+		trap_SendServerCmd(other->s.number,va("print \"^2--Note--^7Num^2:^7 %i^2,^7 Owner^2:^7 %s^2,^7 Contents^2:^7 %s^2.\n\"", note->s.number, note->mctargetname, note->mcmessage));
+		return;
+	}
+	else
+	{
+		trap_SendServerCmd( other->s.number, va("print \"^1The note owner has chosen to keep this note private.\n\""));
+		return;
+	}
+	}
+}
 void SP_mc_note( gentity_t *ent, gentity_t *spawner, char *mpublic )
 {
 	char	*model;
 	char	*flagmodel;
 	qboolean mpublic2;
+	ent->touch = mc_note_touch;
+	ent->wait = 2;
 	if (mpublic[0] == 'y'){mpublic2 = qtrue;}
 	else if (mpublic[1] == 'y'){mpublic2 = qtrue;}
 	else if (mpublic[0] == '1'){mpublic2 = qtrue;}
@@ -3744,7 +3778,7 @@ void SP_mc_note( gentity_t *ent, gentity_t *spawner, char *mpublic )
 	ent->classname = "mc_note";
 	trap_LinkEntity( ent );
 }
-*/
+
 
 
 
@@ -3771,7 +3805,7 @@ void SP_mc_ghoulx7( gentity_t *ent, gentity_t *creator, char *model )
 	VectorCopy( ent->s.angles, ent->r.currentAngles );
 	VectorCopy( ent->s.angles, ent->s.apos.trBase );
 	ent->s.pos.trType = TR_STATIONARY;
-	ent->classname = "jmodel2";
+	ent->classname = "mc_model2";
 	ent->s.torsoAnim = ent->s.legsAnim = creator->client->ps.torsoAnim & ~ANIM_TOGGLEBIT;
 	trap_LinkEntity(ent);
 }
@@ -4081,9 +4115,24 @@ char *mc_bouncechar2(char *chr)
 }
 void mc_CreateExampleAnimEnt(gentity_t *ent)
 {
-	vec3_t fwd, fwdPos;
-	animentCustomInfo_t aeInfo;
+	vec3_t	fwd, fwdPos;
 	char	arg[MAX_STRING_CHARS];
+	trap_Argv( 1, arg, sizeof( arg ) );
+	if ((Q_stricmp(arg, "info") == 0)||(Q_stricmp(arg, "") == 0))
+	{
+		trap_SendServerCmd(ent->s.number, va("print \"^1/amnpcspawn <NPC name>\n\"", arg));
+		return;
+	}
+	AngleVectors(ent->client->ps.viewangles, fwd, 0, 0);
+
+	fwdPos[0] = ent->client->ps.origin[0] + fwd[0]*128;
+	fwdPos[1] = ent->client->ps.origin[1] + fwd[1]*128;
+	fwdPos[2] = ent->client->ps.origin[2];// + fwd[2]*128;
+	mc_CreateExampleAnimEnt2(ent, arg, fwdPos);
+}
+void mc_CreateExampleAnimEnt2(gentity_t *ent, char *arg, vec3_t origin)
+{
+	animentCustomInfo_t aeInfo;
 	int		argNum = trap_Argc();
 	gentity_t	*animEnt;
 	vec3_t		playerMins;
@@ -4098,12 +4147,6 @@ void mc_CreateExampleAnimEnt(gentity_t *ent)
 
 	memset(&aeInfo, 0, sizeof(aeInfo));
 
-	trap_Argv( 1, arg, sizeof( arg ) );
-	if ((Q_stricmp(arg, "info") == 0)||(Q_stricmp(arg, "") == 0))
-	{
-		trap_SendServerCmd(ent->s.number, va("print \"^1/amnpcspawn <NPC name>\n\"", arg));
-		return;
-	}
 	len = trap_FS_FOpenFile(va("npcs/npc_%s.cfg", arg), &f, FS_READ);
 	if (!f)
 	{
@@ -4189,11 +4232,6 @@ void mc_CreateExampleAnimEnt(gentity_t *ent)
 			aeInfo.soundPath = "sound/chars/jan/misc";
 	}
 	//G_Printf("m:%s\ns:%s\n", aeInfo.modelPath, aeInfo.soundPath);
-	AngleVectors(ent->client->ps.viewangles, fwd, 0, 0);
-
-	fwdPos[0] = ent->client->ps.origin[0] + fwd[0]*128;
-	fwdPos[1] = ent->client->ps.origin[1] + fwd[1]*128;
-	fwdPos[2] = ent->client->ps.origin[2];// + fwd[2]*128;
 
 
 	VectorSet(playerMins, -15, -15, DEFAULT_MINS_2);
@@ -4240,7 +4278,7 @@ void mc_CreateExampleAnimEnt(gentity_t *ent)
 
 	animEnt->s.modelGhoul2 = 1; //Deal with it like any other ghoul2 ent, as far as killing instances.
 
-	G_SetOrigin(animEnt, fwdPos);
+	G_SetOrigin(animEnt, origin);
 
 	animEnt->classname = "g2animent";
 			
@@ -4283,4 +4321,135 @@ void mc_CreateExampleAnimEnt(gentity_t *ent)
 	trap_FS_FCloseFile( f );
 }
 
+void use_mc_vehicle(gentity_t *self, gentity_t *other, gentity_t *activator)
+{
+	if (!activator || !activator->client || activator->s.number > 31)
+	{
+		return;
+	}
+	enter_vehicle(activator, self->mcmessage);
+	activator->client->sess.veh_toresp = self->s.number;
+	trap_UnlinkEntity(self);
+}
+void SP_mc_vehicle(gentity_t *self)
+{
+	int		len;
+	fileHandle_t	f;
+	int		i;
+	int		iL;
+	char		buffer[4096];
+	char *model;
+	G_SpawnString( "model", "", &model );
+	strcpy(self->mcmessage, model);
+	self->use = use_mc_vehicle;
+	self->r.svFlags |= SVF_PLAYER_USABLE;
 
+	G_Printf("Spawn vehicle\n");
+	len = trap_FS_FOpenFile(va("vehicles/vehicle_%s.cfg", model), &f, FS_READ);
+	if (!f)
+	{
+		G_Printf("^1Unknown vehicle ~^5%s^1~.\n", model);
+		G_FreeEntity(self);
+		return;
+	}
+	if (len > 4090)
+	{
+		len = 4090;
+	}
+	iL = 0;
+	trap_FS_Read( buffer, len, f );
+	trap_FS_FCloseFile(f);
+	self->s.modelindex = G_ModelIndex("models/map_objects/ships/tie_fighter.md3");
+	self->s.modelindex2 = self->s.modelindex;
+	self->r.contents = CONTENTS_SOLID;
+	self->clipmask = MASK_SOLID;
+	for (i = 0;i < len;i += 1)
+	{
+		if (buffer[i] == '\n')
+		{
+			int iF;
+			int iS;
+			int iT;
+			char	name[1024];
+			char	value[1024];
+			iS = 0;
+			iT = 0;
+			stringclear(name,1020);
+			stringclear(value,1020);
+			for (iF = iL; iF < i;iF += 1)
+			{
+				if (buffer[iF] == ':')
+				{
+					iT = 1;
+					iS = 0;
+					continue;
+				}
+				if (iT == 0)
+				{
+					name[iS] = buffer[iF];
+				}
+				else
+				{
+					value[iS] = buffer[iF];
+				}
+				iS += 1;
+			}
+			if (Q_stricmp(name,"model") == 0)
+			{
+				if (strstr(value,".glm"))
+				{
+					self->bolt_Head = 0;
+					self->s.modelindex = G_ModelIndex(value);
+					self->s.modelGhoul2 = 1;
+					self->s.g2radius = 110;
+				}
+				else
+				{
+					self->s.modelindex = G_ModelIndex(value);
+					self->s.modelindex2 = self->s.modelindex;
+				}
+			}
+			else if (Q_stricmp(name,"zadjust") == 0)
+			{
+				self->r.mins[2] -= atoi(value);
+				self->r.maxs[2] -= atoi(value);
+			}
+			else if (Q_stricmp(name,"xadjust") == 0)
+			{
+				self->r.mins[0] += atoi(value);
+				self->r.maxs[0] += atoi(value);
+			}
+			else if (Q_stricmp(name,"yadjust") == 0)
+			{
+				self->r.mins[1] += atoi(value);
+				self->r.maxs[1] += atoi(value);
+			}
+			else if (Q_stricmp(name,"xmin") == 0)
+			{
+				self->r.mins[0] += atoi(value);
+			}
+			else if (Q_stricmp(name,"ymin") == 0)
+			{
+				self->r.mins[1] += atoi(value);
+			}
+			else if (Q_stricmp(name,"zmin") == 0)
+			{
+				self->r.mins[2] += atoi(value);
+			}
+			else if (Q_stricmp(name,"xmax") == 0)
+			{
+				self->r.maxs[0] += atoi(value);
+			}
+			else if (Q_stricmp(name,"ymax") == 0)
+			{
+				self->r.maxs[1] += atoi(value);
+			}
+			else if (Q_stricmp(name,"zmax") == 0)
+			{
+				self->r.maxs[2] += atoi(value);
+			}
+			iL = i+1;
+		}
+	}
+	trap_LinkEntity(self);
+}

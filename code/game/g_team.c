@@ -723,6 +723,24 @@ int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team ) {
 		return 0; // We don't have the flag
 	//PrintMsg( NULL, "%s" S_COLOR_WHITE " captured the %s flag!\n", cl->pers.netname, TeamName(OtherTeam(team)));
 	PrintCTFMessage(other->s.number, team, CTFMESSAGE_PLAYER_CAPTURED_FLAG);
+	if (mc_showflagtime.integer != 0)
+	{
+		int calctime = level.time - other->client->sess.ctfflagtime;
+		int calcmin = 0;
+		int calcsec = calctime;
+		int calcmilli = calctime;
+		while (calcsec >= 60000)
+		{
+			calcmin += 1;
+			calcsec -= 60000;
+		}
+		while (calcmilli >= 100)
+		{
+			calcmilli -= 100;
+		}
+		calcsec /= 1000;
+		trap_SendServerCommand(-1, va("print \"%s^7 held the flag for ^5%i^7:^5%s^7:^5%i^7.\n\"", other->client->pers.netname, calcmin, ((calcsec < 10)?va("0%i",calcsec):va("%i",calcsec)), calcmilli));
+	}
 
 	cl->ps.powerups[enemy_flag] = 0;
 
@@ -808,6 +826,7 @@ int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 	cl->pers.teamState.flagsince = level.time;
 	Team_TakeFlagSound( ent, team );
 
+	other->client->sess.ctfflagtime = level.time;
 	return -1; // Do not respawn this automatically, but do delete it if it was FL_DROPPED
 }
 

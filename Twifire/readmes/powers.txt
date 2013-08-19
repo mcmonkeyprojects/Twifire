@@ -1,0 +1,21 @@
+Twifire uses a system known as bitflags to store what admin commands a player has
+This means that admin accounts, if read in binary, would look like
+1 0 0 1
+a a a a
+m m m m
+k s b s
+i l a l
+c a n e
+k p   e
+      p
+and so on for every command.
+However, if read as a text file, it'll just be a massive number.
+This number is the result of adding together the powernumbers of all the commands in any given group that you want to have
+For example, amkick is group 1 powernumber 8, and amban is group 1 powernumber 16
+So you simply add 8+16 and then you set group1 powers to 24, and you will have amkick and amban
+
+All commands, with powernumbers, are listed in the readme 'command list with powers'
+
+
+You can calculate these numbers with twifire/helpfiles/calculator.exe
+- Or now with twifire/helpfiles/TwifireAccountEditor.exe

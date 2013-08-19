@@ -1,0 +1,19 @@
+the 'DateGetTime.exe' and 'time.dat' files
+are there for the lastlogintime, and the current time system
+if you want to use the timer system, just run DateTimeGet.exe,
+but it isn't required.
+But don't delete the time.dat - the server expects it to be there and readable.
+
+
+If you want to create your own timer system:
+time.dat needs to be continually updated with the current date in any format you wish
+Note that the server reads time.dat for changes every 60 seconds
+
+
+This is needed because:
+JK2 has no internal way to get the current time, so we must use an external method- a running program updating a file that the server can then read.
+
+
+
+
+Note: DateTimeGet system requirements: Windows operating system with .Net framework 4.0

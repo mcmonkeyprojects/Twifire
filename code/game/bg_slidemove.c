@@ -21,6 +21,11 @@ PM_SlideMove
 Returns qtrue if the velocity was clipped in some way
 ==================
 */
+extern void fix_col_box(int num, vec3_t *mins, vec3_t *maxes);
+
+int checkteament (int p1, int p2);
+void fixteaments(int p1);
+void clearteaments(int p1);
 #define	MAX_CLIP_PLANES	5
 qboolean	PM_SlideMove( qboolean gravity ) {
 	int			bumpcount, numbumps;
@@ -69,12 +74,25 @@ qboolean	PM_SlideMove( qboolean gravity ) {
 	numplanes++;
 
 	for ( bumpcount=0 ; bumpcount < numbumps ; bumpcount++ ) {
+		//int tracecount = 0;
 
 		// calculate position we are trying to move to
 		VectorMA( pm->ps->origin, time_left, pm->ps->velocity, end );
 
 		// see if we can make it there
+		fix_col_box(pm->ps->clientNum, &pm->mins, &pm->maxs);
+		clearteaments(pm->ps->clientNum);
 		pm->trace ( &trace, pm->ps->origin, pm->mins, pm->maxs, end, pm->ps->clientNum, pm->tracemask);
+		fixteaments(pm->ps->clientNum);
+		/*while (checkteament(trace.entityNum, pm->ps->clientNum) == 1)
+		{
+			pm->trace ( &trace, trace.endpos, pm->mins, pm->maxs, end, trace.entityNum, pm->tracemask);
+			tracecount += 1;
+			if (tracecount > 20)
+			{
+				break;
+			}
+		}*/
 
 		if (trace.allsolid) {
 			// entity is completely trapped in another solid

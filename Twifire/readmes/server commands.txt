@@ -1,0 +1,39 @@
+When using rcon, editing mapedits files, writing scripts, or in several other situations
+You need to use server commands.. these are used just like regular admin commands
+
+Semi-Complete list of server commands added by twifire:
+entitylist - shows all ents in map
+mapeditsexec <mapfile> - execs the given mapfile, auto-compensating for a change in mc_editfolder cvar
+addeffectrcon <fx> <x> <y> <z> <yaw> <pitch> <roll> - similar to ammap_addeffect
+addmodelrcon3 <model> <x> <y> <z> <yaw> <pitch> roll> - similar to ammap_addmodel
+addghoulrcon <model> <x> <y> <z> <yaw> <pitch> <roll> - similar to ammap_addglm
+addanyent <classname> <x> <y> <z> <spawnstring> - similar to ammap_place
+mcaddtele <telename> <x> <y> <z> <yaw> - similar to amteles add
+mcmap_setvar <entnum> <variable> <value> - similar to ammap_setvar
+mcmap_respawn <entnum> - similar to ammap_respawn
+mcmap_usetarget <targetname> - similar to ammap_usetarget
+mcmap_delent <entnum> - similar to ammap_delent
+mcmap_save <entnum> - similar to ammap_save
+mcmap_setangles <ent> <yaw> <pitch> <roll> - similar to ammap_setangles
+mcmap_nudgeent <ent> <x> <y> <z> - similar to ammap_nudgeent
+addmcsentry <group> <x> <y> <z> - spawns a group sentry
+addmcshield <group> <x> <y> <z> <yaw> - spawns a group shield
+addlightrcon <x> <y> <z> <r> <g> <b> <power> - similar to ammap_addlight
+cshaderrcon <shaderold> <shadernew> - similar to amshader
+mctele <player> <x> <y> <z> - similar to amtele
+rmap <map> - change the map without worrying mc_crash_fix
+mckick <player> - similar to amkick
+rstatus - similar to amstatus
+rtestfile <filename> - check if a file exists
+mcjetpack_effect <fx> - change the jetpack effect
+say2 <message> - similar to amannounce all
+mckill <player> - similar to amkill
+waterworld - make everyone drown.
+statuswrite - Write server status info in HTML to a file.
+nomapfix - temporarily disable the effects of mc_safemap
+specialgametype <gt> - similar to amspecialgametype
+mcsetmusic <musicfile> - similar to amsetmusic
+say <message> - is now the only way to chat from server, to prevent accidentally announcing passwords
+say2 <message> - similar to amannounce all
+mcrename <player> <name> - similar to /amrename
+

@@ -1463,11 +1463,13 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	if ( !BG_CanItemBeGrabbed( g_gametype.integer, &ent->s, &other->client->ps ) ) {
 		return;
 	}
-
-	if (mc_insta.integer == 0)
+	if ((mc_fixjumpbug.integer == 1)&&(other->client->ps.origin[2] < ent->r.currentOrigin[2]))
 	{
-	G_LogPrintf( "Item: %i %s\n", other->s.number, ent->item->classname );
+		return;
 	}
+
+	G_LogPrintf( "Item: %i %s\n", other->s.number, ent->item->classname );
+
 
 	predict = other->client->pers.predictItemPickup;
 
@@ -1476,6 +1478,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	case IT_WEAPON:
 	if (mc_insta.integer == 1)
 	{
+		G_FreeEntity(ent);
 		return;
 	}
 		respawn = Pickup_Weapon(ent, other);
@@ -1485,6 +1488,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	case IT_AMMO:
 	if (mc_insta.integer == 1)
 	{
+		G_FreeEntity(ent);
 		return;
 	}
 		respawn = Pickup_Ammo(ent, other);
@@ -1526,6 +1530,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	case IT_POWERUP:
 	if (mc_insta.integer == 1)
 	{
+		G_FreeEntity(ent);
 		return;
 	}
 		respawn = Pickup_Powerup(ent, other);
@@ -1538,6 +1543,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	case IT_HOLDABLE:
 	if (mc_insta.integer == 1)
 	{
+		G_FreeEntity(ent);
 		return;
 	}
 		respawn = Pickup_Holdable(ent, other);
@@ -1656,6 +1662,13 @@ Spawns an item and tosses it forward
 gentity_t *LaunchItem( gitem_t *item, vec3_t origin, vec3_t velocity ) {
 	gentity_t	*dropped;
 
+	if (mc_insta.integer == 1)
+	{
+		if (item->giType != IT_TEAM)
+		{
+		return NULL;
+		}
+	}
 	dropped = G_Spawn();
 
 	dropped->s.eType = ET_ITEM;
@@ -1879,8 +1892,8 @@ void FinishSpawningItem( gentity_t *ent ) {
 		}
 	}
 
-	VectorSet (ent->r.mins, -8, -8, -0);
-	VectorSet (ent->r.maxs, 8, 8, 16);
+	VectorSet (ent->r.mins, -8, -8, 0); // -8, -8, 0
+	VectorSet (ent->r.maxs, 8, 8, 16); // 8, 8, 16
 
 
 	ent->s.eType = ET_ITEM;
@@ -1912,20 +1925,30 @@ void FinishSpawningItem( gentity_t *ent ) {
 		ent->r.maxs[2] -= 0.1;
 
 		VectorSet( dest, ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] - 4096 );
-		trap_Trace( &tr, ent->s.origin, ent->r.mins, ent->r.maxs, dest, ent->s.number, MASK_SOLID );
+		trap_Trace( &tr, ent->s.origin, ent->r.mins, ent->r.maxs, dest, ent->s.number, MASK_SHOT );
 		if ( tr.startsolid ) {
 			G_Printf ("FinishSpawningItem: %s startsolid at %s\n", ent->classname, vtos(ent->s.origin));
-			G_FreeEntity( ent );
-			return;
+			//G_FreeEntity( ent );
+			// Must be allowed to work if only partially in a wall.
+			//return;
 		}
 
 		//add the 0.1 back after the trace
 		ent->r.maxs[2] += 0.1;
 
+	VectorSet (ent->r.mins, -10, -10, 0); // -8, -8, 0
+	VectorSet (ent->r.maxs, 10, 10, 32); // 8, 8, 16
 		// allow to ride movers
 		ent->s.groundEntityNum = tr.entityNum;
 
 		G_SetOrigin( ent, tr.endpos );
+	}
+	if (ent->spawnflags & 2)
+	{
+		ent->s.eFlags |= EF_NODRAW;
+		ent->r.svFlags |= SVF_NOCLIENT;
+		ent->r.contents = 0;
+		trap_UnlinkEntity(ent);
 	}
 
 	// team slaves and targeted items aren't present at start
@@ -1960,6 +1983,13 @@ void FinishSpawningItem( gentity_t *ent ) {
 		G_Printf("CTF flag spawned.\n");
 	}
 	trap_LinkEntity (ent);
+	if (ent->spawnflags & 2)
+	{
+		ent->s.eFlags |= EF_NODRAW;
+		ent->r.svFlags |= SVF_NOCLIENT;
+		ent->r.contents = 0;
+		trap_UnlinkEntity(ent);
+	}
 }
 
 
@@ -2017,7 +2047,14 @@ void RegisterItem( gitem_t *item ) {
 	}
 	itemRegistered[ item - bg_itemlist ] = qtrue;
 }
-
+void enableallitems( void )
+{
+	int	i;
+	for ( i = 0;i < MAX_ITEMS;i += 1 )
+	{
+		itemRegistered[i] = qtrue;
+	}
+}
 
 /*
 ===============
@@ -2083,20 +2120,11 @@ void G_SpawnItem (gentity_t *ent, gitem_t *item) {
 	{
 		wDisable = g_weaponDisable.integer;
 	}
-
 	if (item->giType == IT_WEAPON &&
 		wDisable &&
 		(wDisable & (1 << item->giTag)))
 	{
 		if (g_gametype.integer != GT_JEDIMASTER)
-		{
-			G_FreeEntity( ent );
-			return;
-		}
-	}
-	if ((item->giType == IT_WEAPON)||(item->giType == IT_AMMO))
-	{
-		if (mc_insta.integer == 1)
 		{
 			G_FreeEntity( ent );
 			return;
@@ -2110,6 +2138,14 @@ void G_SpawnItem (gentity_t *ent, gitem_t *item) {
 		VectorCopy(ent->origOrigin, ent->s.origin);
 	ent->itemtype = item->giType;
 	// End Deathspike
+	if ((item->giType != IT_TEAM))
+	{
+		if (mc_insta.integer == 1)
+		{
+			G_FreeEntity( ent );
+			return;
+		}
+	}
 	ent->item = item;
 	// some movers spawn on the second frame, so delay item
 	// spawns until the third frame so they can ride trains
@@ -2539,7 +2575,7 @@ qboolean mcPlaceShield(gentity_t *playerent, int mygroup)
 		VectorCopy(tr.endpos, pos);
 		// drop to floor
 		VectorSet( dest, pos[0], pos[1], pos[2] - 4096 );
-		trap_Trace( &tr, pos, mins, maxs, dest, playerent->s.number, MASK_SOLID );
+		trap_Trace( &tr, pos, mins, maxs, dest, playerent->s.number, MASK_SHOT );
 		if ( !tr.startsolid && !tr.allsolid )
 		{
 			// got enough room so place the portable shield
@@ -2772,7 +2808,19 @@ void mcpas_fire( gentity_t *ent )
 	myOrg[0] += fwd[0]*16;
 	myOrg[1] += fwd[1]*16;
 	myOrg[2] += fwd[2]*16;
-	firemcturret(/*&g_entities[ent->boltpoint3], */myOrg, fwd, qfalse, damage, 9200, ent->s.owner, ent );
+	if (ent->spawnflags == 0)
+	{
+		WP_mcdisrupt(ent, myOrg, damage, fwd, 1);
+		trap_SendServerCommand( ent->enemy->s.number, va("cp \"^1This area can only \n^1be passed by %s^1.\n\"", stringforgroup(ent->s.owner ) ));
+	}
+	else
+	{
+		firemcturret(/*&g_entities[ent->boltpoint3], */myOrg, fwd, qfalse, damage, 9200, ent->s.owner, ent );
+	}
+	if (ent->enemy->client->noclip || ent->enemy->flags & FL_GODMODE || ent->enemy->client->sess.protect)
+	{
+		G_Damage( ent->enemy, ent, ent, fwd, ent->enemy->client->ps.origin, damage, DAMAGE_NO_KNOCKBACK | DAMAGE_NO_PROTECTION, MOD_DISRUPTOR_SNIPER );
+	}
 
 	G_RunObject(ent);
 }
@@ -3007,6 +3055,12 @@ void mcpas_think( gentity_t *ent )
 
 	numListedEntities = trap_EntitiesInBox( testMins, testMaxs, iEntityList, MAX_GENTITIES );
 
+	/*if (ent->physicsObject)
+	{
+		ent->physicsObject = qfalse;
+		trap_LinkEntity(ent);
+	}*/
+
 	while (i < numListedEntities)
 	{
 		if (iEntityList[i] < MAX_CLIENTS)
@@ -3206,8 +3260,8 @@ void mcSP_PAS( gentity_t *base )
 
 	//base->takedamage = qtrue;
 	//base->die  = mcturret_die;
-
 	base->physicsObject = qtrue;
+
 
 	G_Sound( base, CHAN_BODY, G_SoundIndex( "sound/chars/turret/startup.wav" ));
 }
@@ -3215,7 +3269,7 @@ void mcSP_PAS( gentity_t *base )
 
 
 //------------------------------------------------------------------------
-void mcspawnsentry( gentity_t *ent, int mygroup )
+int mcspawnsentry( gentity_t *ent, int mygroup, int laser )
 //------------------------------------------------------------------------
 {
 	vec3_t fwd, fwdorg;
@@ -3225,7 +3279,7 @@ void mcspawnsentry( gentity_t *ent, int mygroup )
 
 	if (!ent || !ent->client)
 	{
-		return;
+		return 0;
 	}
 
 	VectorSet( mins, -8, -8, 0 );
@@ -3243,12 +3297,14 @@ void mcspawnsentry( gentity_t *ent, int mygroup )
 	fwdorg[2] = ent->client->ps.origin[2] + fwd[2]*64;
 
 	sentry = G_Spawn();
+	sentry->spawnflags = 1;
 
 	sentry->classname = "mcsentry";
 	sentry->s.modelindex = G_ModelIndex("models/items/psgun.glm"); //replace ASAP
 
 	sentry->s.g2radius = 30.0f;
 	sentry->s.modelGhoul2 = 1;
+	sentry->custom = 1;
 
 	G_SetOrigin(sentry, fwdorg);
 	VectorClear(sentry->s.origin);
@@ -3259,8 +3315,10 @@ void mcspawnsentry( gentity_t *ent, int mygroup )
 	sentry->clipmask = MASK_SOLID;
 	VectorCopy(mins, sentry->r.mins);
 	VectorCopy(maxs, sentry->r.maxs);
-	sentry->boltpoint3 = ent->s.number;
-	sentry->boltpoint2 = ent->client->sess.sessionTeam; //so we can remove ourself if our owner changes teams
+	// sentry->boltpoint3 = ent->s.number;
+	// sentry->boltpoint2 = ent->client->sess.sessionTeam; //so we can remove ourself if our owner changes teams
+	sentry->boltpoint2 = TEAM_SPECTATOR;
+	sentry->boltpoint3 = 33;
 	sentry->r.absmin[0] = sentry->s.pos.trBase[0] + sentry->r.mins[0];
 	sentry->r.absmin[1] = sentry->s.pos.trBase[1] + sentry->r.mins[1];
 	sentry->r.absmin[2] = sentry->s.pos.trBase[2] + sentry->r.mins[2];
@@ -3294,12 +3352,13 @@ void mcspawnsentry( gentity_t *ent, int mygroup )
 		sentry->s.teamowner = 16;
 	}*/
 	mcSP_PAS( sentry );
+	return sentry->s.number;
 }
 
 
 
 //------------------------------------------------------------------------
-void mcspawnsentry2( int mygroup, int MX, int MY, int MZ )
+int mcspawnsentry2( int mygroup, int MX, int MY, int MZ, int laser )
 //------------------------------------------------------------------------
 {
 	vec3_t fwd, fwdorg;
@@ -3333,11 +3392,14 @@ void mcspawnsentry2( int mygroup, int MX, int MY, int MZ )
 	sentry->parent = NULL;
 	sentry->r.contents = CONTENTS_SOLID;
 	sentry->s.solid = 2;
-	sentry->clipmask = MASK_SOLID;
+	sentry->spawnflags = laser;
+	sentry->clipmask = MASK_SHOT;
 	VectorCopy(mins, sentry->r.mins);
 	VectorCopy(maxs, sentry->r.maxs);
 	//sentry->boltpoint3 = ent->s.number;
 	//sentry->boltpoint2 = ent->client->sess.sessionTeam; //so we can remove ourself if our owner changes teams
+	sentry->boltpoint2 = TEAM_SPECTATOR;
+	sentry->boltpoint3 = 33;
 	sentry->r.absmin[0] = sentry->s.pos.trBase[0] + sentry->r.mins[0];
 	sentry->r.absmin[1] = sentry->s.pos.trBase[1] + sentry->r.mins[1];
 	sentry->r.absmin[2] = sentry->s.pos.trBase[2] + sentry->r.mins[2];
@@ -3345,8 +3407,9 @@ void mcspawnsentry2( int mygroup, int MX, int MY, int MZ )
 	sentry->r.absmax[1] = sentry->s.pos.trBase[1] + sentry->r.maxs[1];
 	sentry->r.absmax[2] = sentry->s.pos.trBase[2] + sentry->r.maxs[2];
 	sentry->s.eType = ET_GENERAL;
-	sentry->s.pos.trType = TR_GRAVITY;//STATIONARY;
-	sentry->s.pos.trTime = level.time;
+	//sentry->s.pos.trType = TR_GRAVITY;//STATIONARY;
+	sentry->s.pos.trType = TR_STATIONARY;
+	//sentry->s.pos.trTime = level.time;
 	sentry->touch = mcSentryTouch;
 	sentry->nextthink = level.time;
 	sentry->boltpoint4 = ENTITYNUM_NONE; //boltpoint4 used as enemy index
@@ -3371,6 +3434,7 @@ void mcspawnsentry2( int mygroup, int MX, int MY, int MZ )
 		sentry->s.teamowner = 16;
 	}*/
 	mcSP_PAS( sentry );
+	return sentry->s.number;
 }
 
 
@@ -3639,7 +3703,7 @@ qboolean mcPlacexShield(gentity_t *playerent, int mygroup)
 		VectorCopy(tr.endpos, pos);
 		// drop to floor
 		VectorSet( dest, pos[0], pos[1], pos[2] - 4096 );
-		trap_Trace( &tr, pos, mins, maxs, dest, playerent->s.number, MASK_SOLID );
+		trap_Trace( &tr, pos, mins, maxs, dest, playerent->s.number, MASK_SHOT );
 		if ( !tr.startsolid && !tr.allsolid )
 		{
 			// got enough room so place the portable shield
@@ -3797,7 +3861,7 @@ void mcgravityball(gentity_t *ent)
 	nullvec[PITCH] = 0;
 	nullvec[ROLL] = 0;
 	ent->s.eType = ET_GENERAL;
-	model = "nullmodel";
+	model = "models/map_objects/mp/shere.md3";
 	ent->s.modelindex = G_ModelIndex( model );
 	ent->s.modelindex2 = G_ModelIndex( model );
 	ent->classname = "mc_gravityball";
@@ -3810,9 +3874,9 @@ void mcgravityball(gentity_t *ent)
 		ent->speed = 100;
 	}
 	ent->r.contents = CONTENTS_SOLID;
-	ent->clipmask = MASK_SOLID;
-	VectorSet( ent->r.maxs, 25, 25, 21 );
-	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	ent->clipmask = MASK_SHOT;
+	VectorSet( ent->r.maxs, 40, 40, 100 );
+	VectorSet( ent->r.mins, -40, -40, 0 );
 	trap_LinkEntity( ent );
 }
 void mctsent_think(gentity_t *ent)
@@ -4004,7 +4068,7 @@ void mcgravityball2(gentity_t *ent)
 	nullvec[PITCH] = 0;
 	nullvec[ROLL] = 0;
 	ent->s.eType = ET_GENERAL;
-	model = "nullmodel";
+	model = "models/map_objects/mp/shere.md3";
 	ent->s.modelindex = G_ModelIndex( model );
 	ent->s.modelindex2 = G_ModelIndex( model );
 	ent->classname = "mc_gravityball2";
@@ -4017,9 +4081,9 @@ void mcgravityball2(gentity_t *ent)
 		ent->speed = 100;
 	}
 	ent->r.contents = CONTENTS_SOLID;
-	ent->clipmask = MASK_SOLID;
-	VectorSet( ent->r.maxs, 25, 25, 21 );
-	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	ent->clipmask = MASK_SHOT;
+	VectorSet( ent->r.maxs, 40, 40, 100 );
+	VectorSet( ent->r.mins, -40, -40, 0 );
 	trap_LinkEntity( ent );
 }
 
@@ -4130,7 +4194,7 @@ void SP_mc_lulul(gentity_t *ent)
 	ent->s.modelindex2 = G_ModelIndex( model );
 	strcpy(ent->mcmessage,model);
 	ent->r.contents = CONTENTS_SOLID;
-	ent->clipmask = MASK_SOLID;
+	ent->clipmask = MASK_SHOT;
 	VectorCopy( ent->s.angles, ent->s.apos.trBase );
 	VectorSet( ent->r.maxs, 25, 25, 21 );
 	VectorScale( ent->r.maxs, -1, ent->r.mins );

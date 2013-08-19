@@ -24,12 +24,12 @@ void G_WriteClientSessionData( gclient_t *client ) {
 	const char	*s;
 	const char	*var;
 	const char	*var2;
-	const char	*var3;
+	//const char	*var3;
 	const char	*var4;
 	const char	*var5;
 	const char	*var6;
 	const char	*sf2;
-	const char	*sf3;
+	//const char	*sf3;
 
 	s = va("%i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i", 
 		client->sess.sessionTeam,
@@ -66,7 +66,8 @@ void G_WriteClientSessionData( gclient_t *client ) {
 	var = va( "session%i", client - level.clients );
 	trap_Cvar_Set( var, s );
 
-	sf2 = va("%i %i %i %i %i %i %f %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i", 
+	client->sess.isglowing = 0;
+	sf2 = va("%i %i %i %i %i %i %f %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i", 
 		//client->sess.solid,
 		client->sess.jetspeed,
 		client->sess.isglowing,
@@ -90,18 +91,19 @@ void G_WriteClientSessionData( gclient_t *client ) {
 		client->sess.monitor1,
 		client->sess.monitor2,
 		client->sess.mcshootdelay,
-		client->sess.noforceme
+		client->sess.noforceme,
+		client->sess.reversedmg
 		);
 	var2 = va( "sessionX%i", client - level.clients );
 	trap_Cvar_Set( var2, sf2 );
 
-	sf3 = va("%i %i %i",
+	/*sf3 = va("%i %i %i",
 		client->sess.monitor1,
 		client->sess.monitor2,
 		client->sess.mcshootdelay
 		);
 	var3 = va( "sessionY%i", client - level.clients );
-	trap_Cvar_Set( var3, sf3 );
+	trap_Cvar_Set( var3, sf3 );*/
 
 	var4 = va( "mcsessionU%i", client - level.clients );
 	trap_Cvar_Set( var4, client->sess.userlogged );
@@ -124,7 +126,7 @@ void G_ReadSessionData( gclient_t *client ) {
 	char	s[MAX_STRING_CHARS];
 	const char	*var;
 	char	s2[MAX_STRING_CHARS];
-	char	s3[MAX_STRING_CHARS];
+	//char	s3[MAX_STRING_CHARS];
 	const char	*var2;
 	const char	*var3;
 	const char	*var4;
@@ -192,7 +194,7 @@ void G_ReadSessionData( gclient_t *client ) {
 	client->ps.fd.forcePowerSelected = client->sess.selectedFP;
 	var2 = va( "sessionX%i", client - level.clients );
 	trap_Cvar_VariableStringBuffer( var2, s2, sizeof(s2) );
-	sscanf( s2, "%i %i %i %i %i %i %f %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+	sscanf( s2, "%i %i %i %i %i %i %f %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
 		//&client->sess.solid,
 		&client->sess.jetspeed,
 		&client->sess.isglowing,
@@ -216,18 +218,20 @@ void G_ReadSessionData( gclient_t *client ) {
 		&client->sess.monitor1,
 		&client->sess.monitor2,
 		&client->sess.mcshootdelay,
-		&client->sess.noforceme
+		&client->sess.noforceme,
+		&client->sess.reversedmg
 		);
 
-	var2 = va( "sessionY%i", client - level.clients );
+	/*var2 = va( "sessionY%i", client - level.clients );
 	trap_Cvar_VariableStringBuffer( var2, s3, sizeof(s3) );
 	sscanf( s3, "%i %i %i",
 		&client->sess.monitor1,
 		&client->sess.monitor2,
 		&client->sess.mcshootdelay
-		);
+		);*/
 
 
+	client->sess.veh_isactive = 0;
 	var3 = va( "mcsessionU%i", client - level.clients );
 	trap_Cvar_VariableStringBuffer( var3, client->sess.userlogged, sizeof(client->sess.userlogged) );
 
@@ -330,6 +334,7 @@ void G_InitSessionData( gclient_t *client, char *userinfo, qboolean isBot ) {
 	Q_strncpyz(sess->channel_02pass, "", sizeof(sess->channel_02pass));
 	Q_strncpyz(sess->channel_03pass, "", sizeof(sess->channel_03pass));
 	Q_strncpyz(sess->doorpassword, "", sizeof(sess->doorpassword));
+	Q_strncpyz(sess->rrname, "", sizeof(sess->rrname));
 	strcpy(sess->mygroup,"00000000");
 	sess->adminloggedin = 0;
 	sess->ampowers = 0;
@@ -344,6 +349,7 @@ void G_InitSessionData( gclient_t *client, char *userinfo, qboolean isBot ) {
 	sess->monitor1 = 0;
 	sess->monitor2 = 0;
 	sess->allowToggle = 1;
+	sess->veh_isactive = 0;
 	sess->allowTeam = 1;
 	sess->allowKill = 1;
 	sess->logintrys = 0;
@@ -395,6 +401,7 @@ void G_InitSessionData( gclient_t *client, char *userinfo, qboolean isBot ) {
 	sess->mcTime = 0;
 	sess->aimbot = 0;
 	sess->sleep = 0;
+	sess->parachute = 0;
 	sess->silence = 0;
 	sess->fspec = 0;
 	sess->jetfuel = mc_jetpack_fuelmax.integer;
@@ -428,6 +435,17 @@ void G_InitSessionData( gclient_t *client, char *userinfo, qboolean isBot ) {
 	sess->abused = 0;
 	sess->traced = 0;
 	sess->monchan = 0;
+	sess->noknockback = 0;
+	sess->isAFK = 0;
+	sess->xAFK = 0;
+	sess->ticksAFK = 0;
+	sess->blockweapon = 0;
+	sess->blockforce = 0;
+	sess->blockrename = 0;
+	sess->worshipped = 0;
+	sess->shock = 0;
+	sess->duel_is_ff = 0;
+	sess->reversedmg = 0;
 	strcpy(client->sess.ignoring,"0000000000000000000000000000000000000000");
 
 	G_WriteClientSessionData( client );

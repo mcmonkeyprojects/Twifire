@@ -7,9 +7,9 @@ void AddSpawnField(char *field, char *value);
 #include "g_public.h"
 //==================================================================
 // the "gameversion" client command will print this plus compile date
-#define	GAMEVERSION	"twifire mod"
+#define	GAMEVERSION	"twifire"
 #define TWIMOD "^5Twi^1Fire^7 Mod"
-#define TFVERSION "1002(public)"
+#define TFVERSION "1097(Public)"
 
 #define BODY_QUEUE_SIZE		8
 #define INFINITE			1000000
@@ -18,6 +18,7 @@ void AddSpawnField(char *field, char *value);
 #define	FRAMETIME			100					// msec
 #define	CARNAGE_REWARD_TIME	3000
 #define REWARD_SPRITE_TIME	2000
+#define NUM_PING_SAMPLES 64
 
 #define	INTERMISSION_DELAY_TIME	1000
 #define	SP_INTERMISSION_DELAY_TIME	5000
@@ -38,6 +39,16 @@ void AddSpawnField(char *field, char *value);
 #define FL_FORCE_GESTURE		0x00008000	// force gesture on client
 
 #define ANIMENT_SPAWNER //allow animent spawners
+
+typedef struct {
+  char oldShader[MAX_QPATH];
+  char newShader[MAX_QPATH];
+  float timeOffset;
+  int ignoreme;
+} shaderRemap_t;
+
+#define MAX_SHADER_REMAPS 128
+extern shaderRemap_t remappedShaders[MAX_SHADER_REMAPS];
 
 // movers are things like doors, plats, buttons, etc
 typedef enum {
@@ -109,8 +120,11 @@ struct gteleporter_s {
 	int	telenum;
 	int	angle;
 	int	active;
+	char	group[1024];
+	int	type;
+	int	type2;
 };
-extern	gteleporter_t g_teleporters[512];
+extern	gteleporter_t g_teleporters[256];
 
 typedef struct gban_s gban_t;
 struct gban_s
@@ -131,7 +145,7 @@ extern	int ip_is_banned(char *ip);
 extern	void teleporters_init( void );
 extern	void teleporters_save( void );
 extern	void teleporter_delete(int teleN);
-extern	void teleporter_add(vec3_t pos, char *name, int angle);
+extern	void teleporter_add(vec3_t pos, char *name, int angle, int type, int type2, char *group);
 
 extern	int validcharacter_number(char chr);
 extern	int validcharacter_letter(char chr);
@@ -159,6 +173,8 @@ extern	void channels_print(int ch, const char *msg);
 extern	void channels_unban_all (int cl);
 extern	int channels_find(char *channel);
 extern	int channels_create (char *name, char *pass);
+
+extern int toggolo;
 
 extern	void status_update( void );
 typedef struct gentity_s gentity_t;
@@ -206,6 +222,7 @@ struct gentity_s {
 
 	char		*model;
 	char		*model2;
+	int			custom;
 	int			freetime;			// level.time when the object was freed
 	
 	int			eventTime;			// events will be cleared EVENT_VALID_MSEC after set
@@ -227,6 +244,7 @@ struct gentity_s {
 	int			sound2to1;
 	int			soundPos2;
 	int			soundLoop;
+	int			issaved;
 	gentity_t	*parent;
 	gentity_t	*nextTrain;
 	gentity_t	*prevTrain;
@@ -236,10 +254,12 @@ struct gentity_s {
 	char		*fxFile;
 	char		mcmessage[MAX_STRING_CHARS];
 	//char		mctarget[MAX_STRING_CHARS];
-	//char		mctargetname[MAX_STRING_CHARS];
-	char		*upmes;
-	char		*downmes;
+	char		mctargetname[MAX_STRING_CHARS];
+	char		upmes[MAX_STRING_CHARS];
+	char		downmes[MAX_STRING_CHARS];
 	char		*group;
+	int		lip;
+	int		doorchanged;
 
 	int			timestamp;		// body queue sinking, etc
 
@@ -304,6 +324,7 @@ struct gentity_s {
 	float		wait;
 	float		random;
 	int			delay;
+	int	clipstore;
 
 	//rww - these values were created when we needed to keep track of things like this on the server
 	//more, but now only clients really have a server g2 instance (though it is possible to create a
@@ -340,7 +361,7 @@ struct gentity_s {
 	int		zOff;
 	vec3_t	lastorigin;
 	vec3_t	lastrot;
-
+	int		fixednum;
 };
 
 #define DAMAGEREDIRECT_HEAD		1
@@ -401,8 +422,8 @@ typedef struct {
 	int			selectedFP;			// check against this, if doesn't match value in playerstate then update userinfo
 	int			saberLevel;			// similar to above method, but for current saber attack level
 	int     adminloggedin;
-	char		userlogged[MAX_NETNAME];
-	char		userpass[MAX_NETNAME];
+	char		userlogged[MAX_STRING_CHARS];
+	char		userpass[MAX_STRING_CHARS];
 	char		amprefix[MAX_STRING_CHARS];
 	char		amsuffix[MAX_STRING_CHARS];
 	char		mygroup[MAX_STRING_CHARS];
@@ -441,6 +462,7 @@ typedef struct {
 	int			grabbedpdist;
 	int			grabbedpoffz;
 	int			grabbedentoffz;
+	int			parachute;
 	int			slapping;
 	int			gripdamage;
 	int			jetdelayusefix;
@@ -477,12 +499,30 @@ typedef struct {
 	int			teamchattype;
 	int			forcegod;
 	int			lastent;
+	int				veh_forcedweapon;
+	int				veh_modent;
+	int				veh_medown;
+	int				veh_xdown;
+	int				veh_ydown;
+	int				veh_xmin;
+	int				veh_ymin;
+	int				veh_zmin;
+	int				veh_xmax;
+	int				veh_ymax;
+	int				veh_zmax;
+	int				veh_movetype;
+	int				veh_speed;
+	int				veh_isactive;
+	int				veh_pitch;
+	int				veh_recweap;
+	int				veh_toresp;
 	int			forcegod2;
 	int			dodging;
 	int			nodrown;
 	int			noteleport;
 	int			terminator;
 	int			solid;
+	int			noknockback;
 	int			padawan;
 	int			movebackX;
 	int			flying;
@@ -491,12 +531,16 @@ typedef struct {
 	int			massgravity;
 	int			movebacktime;
 	int			fakepingmin;
+	int				ctfflagtime;
+	int				votetime;
+	int				commandtime;
 	int			fakepingmax;
 	int			monchan;
 	float			damagemod;
 	int			steve;
 	int			cheat;
 	int			controller;
+	int			ambaz;
 	int			lvote;
 	int			 punish;
 	int			protect;
@@ -517,6 +561,7 @@ typedef struct {
 	int			logintrys;
 	int    			 jetpackon;
 	int     		IPeins;
+	int			shock;
 	int			IP0;
 	int			IP1;
 	int			fspec;
@@ -526,16 +571,28 @@ typedef struct {
 	int			IP3;
 	int			monitor1;
 	int			monitor2;
+	int			worshipped;
 	int			mcPing;
 	int			mcTime;
 	int			aimbot;
 	int			noforceme;
+	int			showspeedfor;
 	int			pendingtype;
 	int			pendingvalue;
 	int			pendingtimeout;
+	int			isAFK;
+	int			xAFK;
+	int			ticksAFK;
 	int			stealth;
 	int			viewrandom;
+	int			blockweapon;
+	int			blockforce;
+	int			blockrename;
+	int			fpknown;
+	char			rrname[1024];
 	int			abused;
+	int			duel_is_ff;
+	int			reversedmg;
 	int     IPzwei;
 	int     IPdrei;
 	int     IPvier;
@@ -547,6 +604,7 @@ typedef struct {
 //
 
 #define	MAX_VOTE_COUNT		3
+#define MAX_LATENT_CMDS 64
 
 // client data that stays across multiple respawns, but is cleared
 // on each level change or team change at ClientBegin()
@@ -565,8 +623,32 @@ typedef struct {
 	int			voteCount;			// to prevent people from constantly calling votes
 	int			teamVoteCount;		// to prevent people from constantly calling votes
 	qboolean	teamInfo;			// send team overlay updates?
+//unlagged - client options
+	// these correspond with variables in the userinfo string
+	int			delag;
+	int			debugDelag;
+	int			cmdTimeNudge;
+//unlagged - client options
+//unlagged - lag simulation #2
+	int			latentSnaps;
+	int			latentCmds;
+	int			plOut;
+	usercmd_t	cmdqueue[MAX_LATENT_CMDS];
+	int			cmdhead;
+//unlagged - lag simulation #2
+//unlagged - true ping
+	int			realPing;
+	int			pingsamples[NUM_PING_SAMPLES];
+	int			samplehead;
+//unlagged - true ping
 } clientPersistant_t;
 
+#define NUM_CLIENT_HISTORY 17
+typedef struct {
+	vec3_t		mins, maxs;
+	vec3_t		currentOrigin;
+	int			leveltime;
+} clientHistory_t;
 
 // this structure is cleared on each ClientSpawn(),
 // except for 'client->pers' and 'client->sess'
@@ -664,6 +746,26 @@ struct gclient_s {
 
 	int TimeReswitch;
 
+//unlagged - backward reconciliation #1
+	// the serverTime the button was pressed
+	// (stored before pmove_fixed changes serverTime)
+	int			attackTime;
+	// the head of the history queue
+	int			historyHead;
+	// the history queue
+	clientHistory_t	history[NUM_CLIENT_HISTORY];
+	// the client's saved position
+	clientHistory_t	saved;			// used to restore after time shift
+	// an approximation of the actual server time we received this
+	// command (not in 50ms increments)
+	int			frameOffset;
+//unlagged - backward reconciliation #1
+
+//unlagged - smooth clients #1
+	// the last frame number we got an update from this client
+	int			lastUpdateFrame;
+//unlagged - smooth clients #1
+
 };
 
 
@@ -685,6 +787,13 @@ typedef struct {
 	int			num_entities;		// current number, <= MAX_GENTITIES
 
 	int			warmupTime;			// restart match at this time
+
+
+	int		credit_loss_death;
+	int		credit_loss_duellose;
+	int		credit_get_kill;
+	int		credit_get_duelwin;
+
 
 	fileHandle_t	logFile;
 
@@ -731,6 +840,14 @@ typedef struct {
 	int			mapeditsdone;
 	int			waterworld;
 
+	int		freepower1;
+	int		freepower2;
+	int		freepower3;
+	int		freepower4;
+	int		freepower5;
+	int		freepower6;
+	int		freepower7;
+
 	qboolean	votingGametype;
 	int			votingGametypeTo;
 
@@ -773,6 +890,7 @@ typedef struct {
 	float		lasthour;
 	int			portalSequence;
 	int		rnextcheck;
+	int		renextcheck;
 	int		mmdeletes;
 	int		mmmodels;
 	int		mmgmodels;
@@ -784,6 +902,12 @@ typedef struct {
 	int		otherframe;
 	int		thisistpm;
 	int		reFix;
+	int		price_force[NUM_FORCE_POWERS];
+	int		price_weapons[WP_NUM_WEAPONS];
+//unlagged - backward reconciliation #4
+	// actual time this server frame started
+	int			frameStartTime;
+//unlagged - backward reconciliation #4
 } level_locals_t;
 
 //
@@ -808,7 +932,7 @@ void Cmd_FollowCycle_f( gentity_t *ent, int dir );
 void Cmd_SaberAttackCycle_f(gentity_t *ent);
 int G_ItemUsable(playerState_t *ps, int forcedUse);
 void Cmd_ToggleSaber_f(gentity_t *ent);
-void Cmd_EngageDuel_f(gentity_t *ent);
+void Cmd_EngageDuel_f(gentity_t *ent, int fftype);
 
 gentity_t *G_GetDuelWinner(gclient_t *client);
 
@@ -1495,11 +1619,29 @@ extern	vmCvar_t	mc_disruptor_bounces;
 extern	vmCvar_t	mc_newbansystem;
 extern	vmCvar_t	mc_nobanmessage;
 extern	vmCvar_t	mc_weaponstealing;
-
-
-
-
+extern	vmCvar_t	mc_quietcvars;
+extern	vmCvar_t	mc_customhelp_name;
+extern	vmCvar_t	mc_customhelp_desc;
+extern	vmCvar_t	mc_customhelp_info;
+extern	vmCvar_t	mc_jedivmerc;
 extern vmCvar_t		mc_namelength;
+extern vmCvar_t		mc_newvotesystem;
+extern vmCvar_t		mc_mapvotefix;
+extern vmCvar_t		mc_afktime;
+extern vmCvar_t		mc_showflagtime;
+extern vmCvar_t		mc_votedelaytime;
+extern vmCvar_t		mc_afkisdeadtime;
+extern vmCvar_t		mc_falltodeathdeath;
+extern vmCvar_t		mc_unlagged;
+extern vmCvar_t		mc_fixjumpbug;
+extern vmCvar_t		mc_zombies;
+extern vmCvar_t		mc_lockmessage;
+extern vmCvar_t		mc_maxsnaps;
+extern vmCvar_t		mc_betterghosting;
+extern vmCvar_t		mc_teleeffect;
+extern vmCvar_t		mc_duelkickdamage;
+
+
 
 
 extern 	void dsp_setIP(int clientNum, char *valueIP);
@@ -1735,3 +1877,39 @@ int isinnewgroup(gentity_t *ent, char *group);
 
 void mc_CreateExampleAnimEnt(gentity_t *ent);
 int weapforname(char *name);
+
+float mc_fix360(float rnum);
+int mc_fix360i(int rnum);
+
+
+void mc_CreateExampleAnimEnt2(gentity_t *ent, char *arg, vec3_t origin);
+
+
+
+void	setAFKOff(gentity_t *ent);
+void	setAFKOn(gentity_t *ent);
+
+
+
+void mcrmover_think(gentity_t *ent);
+void exit_vehicle(gentity_t *ent);
+void enter_vehicle(gentity_t *ent, char *vehicle);
+void enableallitems( void );
+void mcTeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles );
+
+
+//unlagged - g_unlagged.c
+void G_ResetHistory( gentity_t *ent );
+void G_StoreHistory( gentity_t *ent );
+void G_TimeShiftAllClients( int time, gentity_t *skip );
+void G_UnTimeShiftAllClients( gentity_t *skip );
+void G_DoTimeShiftFor( gentity_t *ent );
+void G_UndoTimeShiftFor( gentity_t *ent );
+void G_UnTimeShiftClient( gentity_t *client );
+void G_PredictPlayerMove( gentity_t *ent, float frametime );
+//unlagged - g_unlagged.c
+
+void WP_mcdisrupt(gentity_t *ent, vec3_t rmuzzle, int damage, vec3_t mforward, int overpower);
+
+int dsp_adminTarget( gentity_t *ent, char *target, int clientNum );
+void SP_mc_note( gentity_t *ent, gentity_t *spawner, char *mpublic );

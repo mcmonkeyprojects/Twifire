@@ -556,12 +556,18 @@ int ForcePowerUsableOn(gentity_t *attacker, gentity_t *other, forcePowers_t forc
 	//Dueling fighters cannot use force powers on others, with the exception of force push when locked with each other
 	if (attacker && attacker->client && attacker->client->ps.duelInProgress)
 	{
+		if ((attacker->client->sess.duel_is_ff == 0) || (attacker->client->ps.duelIndex != other->s.number)/* || (!(forcePower == FP_LEVITATION || forcePower == FP_PUSH || forcePower == FP_PULL || forcePower == FP_GRIP || forcePower == FP_ABSORB ))*/)
+		{
 		return 0;
+		}
 	}
 
 	if (other && other->client && other->client->ps.duelInProgress)
 	{
+		if ((other->client->sess.duel_is_ff == 0) || (other->client->ps.duelIndex != attacker->s.number)/* || (!(forcePower == FP_LEVITATION || forcePower == FP_PUSH || forcePower == FP_PULL || forcePower == FP_GRIP || forcePower == FP_ABSORB ))*/)
+		{
 		return 0;
+		}
 	}
 	if (other && other->client && (other->client->sess.noforceme == 1))
 	{
@@ -579,7 +585,10 @@ qboolean WP_ForcePowerAvailable( gentity_t *self, forcePowers_t forcePower )
 	{ //we're probably going to deactivate it..
 		return qtrue;
 	}
-
+	if (self->client->sess.veh_isactive == 1)
+	{
+		return qfalse;
+	}
 	if ( forcePower == FP_LEVITATION )
 	{
 		return qtrue;
@@ -629,11 +638,13 @@ qboolean WP_ForcePowerUsable( gentity_t *self, forcePowers_t forcePower )
 
 	if (!BG_CanUseFPNow(g_gametype.integer, &self->client->ps, level.time, forcePower))
 	{
+		//G_Printf("BGCANUSEFPNOW: Bad\n"); ///////////////////////////////////////////////////////////////////
 		return qfalse;
 	}
 
 	if ( !(self->client->ps.fd.forcePowersKnown & ( 1 << forcePower )) )
 	{//don't know this power
+		//G_Printf("Unknown\n"); ///////////////////////////////////////////////////////////////////
 		return qfalse;
 	}
 	
@@ -657,10 +668,25 @@ qboolean WP_ForcePowerUsable( gentity_t *self, forcePowers_t forcePower )
 
 	if (!self->client->ps.fd.forcePowerLevel[forcePower])
 	{
+		//G_Printf("None\n"); ///////////////////////////////////////////////////////////////////
 		return qfalse;
 	}
 
 	return WP_ForcePowerAvailable( self, forcePower );
+}
+qboolean	powervalidanyway(forcePowers_t power, playerState_t *ps)
+{
+	gentity_t	*ent = &g_entities[ps->clientNum];
+	if (!ent || !ent->client || ent->s.number > 31)
+	{
+		G_Printf("Duelforce: Ent bug! %i\n", ps->clientNum);
+		return qfalse;
+	}
+	if ((ent->client->sess.duel_is_ff == 0)/* || (!(power == FP_LEVITATION || power == FP_PUSH || power == FP_PULL || power == FP_GRIP || power == FP_ABSORB ))*/)
+	{
+	return qfalse;
+	}
+	return qtrue;
 }
 
 int WP_AbsorbConversion(gentity_t *attacked, int atdAbsLevel, gentity_t *attacker, int atPower, int atPowerLevel, int atForceSpent)
@@ -2650,7 +2676,12 @@ qboolean G_InGetUpAnim(playerState_t *ps)
 }
 
 extern void Touch_Button(gentity_t *ent, gentity_t *other, trace_t *trace );
+void reForceThrow(gentity_t *self, qboolean pull, int powermod);
 void ForceThrow( gentity_t *self, qboolean pull )
+{
+	reForceThrow(self, pull, 1);
+}
+void reForceThrow(gentity_t *self, qboolean pull, int powermod)
 {
 	//shove things in front of you away
 	float		dist;
@@ -2789,14 +2820,17 @@ void ForceThrow( gentity_t *self, qboolean pull )
 	if (pull)
 	{
 		powerLevel = self->client->ps.fd.forcePowerLevel[FP_PULL];
-		pushPower = 256*self->client->ps.fd.forcePowerLevel[FP_PULL];
+		pushPower = 256*self->client->ps.fd.forcePowerLevel[FP_PULL]*powermod;
 	}
 	else
 	{
 		powerLevel = self->client->ps.fd.forcePowerLevel[FP_PUSH];
-		pushPower = 256*self->client->ps.fd.forcePowerLevel[FP_PUSH];
+		pushPower = 256*self->client->ps.fd.forcePowerLevel[FP_PUSH]*powermod;
 	}
-
+	if (powermod > 1)
+	{
+		powerLevel = FORCE_LEVEL_3;
+	}
 	if (!powerLevel)
 	{ //Shouldn't have made it here..
 		return;
@@ -3060,7 +3094,7 @@ void ForceThrow( gentity_t *self, qboolean pull )
 				}
 			}
 
-			pushPower = 256*modPowerLevel;
+			pushPower = 256*modPowerLevel*powermod;
 
 			if (push_list[x]->client)
 			{
@@ -3076,7 +3110,10 @@ void ForceThrow( gentity_t *self, qboolean pull )
 				int otherPushPower = push_list[x]->client->ps.fd.forcePowerLevel[powerUse];
 				qboolean canPullWeapon = qtrue;
 				float dirLen = 0;
-
+				if (powermod > 1)
+				{
+					otherPushPower = 0;
+				}
 				if (mc_weaponstealing.integer == 0)
 				{
 					canPullWeapon = qfalse;
@@ -3629,7 +3666,7 @@ void DoGripAction(gentity_t *self, forcePowers_t forcePower)
 		{
 			gripEnt->client->ps.velocity[2] = 30;
 
-			gripEnt->client->ps.forceGripMoveInterval = level.time + 200;// 100 now. //only update velocity every 300ms, so as to avoid heavy bandwidth usage
+			gripEnt->client->ps.forceGripMoveInterval = level.time + 300;//only update velocity every 300ms, so as to avoid heavy bandwidth usage
 		}
 
 		gripEnt->client->ps.otherKiller = self->s.number;
@@ -3737,7 +3774,11 @@ void DoGripAction(gentity_t *self, forcePowers_t forcePower)
 				gripEnt->client->ps.velocity[2] = nvel[2]*700;
 			}
 
-			gripEnt->client->ps.forceGripMoveInterval = level.time + 100;// 100, not 300 now //only update velocity every 300ms, so as to avoid heavy bandwidth usage
+			gripEnt->client->ps.forceGripMoveInterval = level.time + 300;//only update velocity every 300ms, so as to avoid heavy bandwidth usage
+            if (self->client->sess.empower)
+            {
+                gripEnt->client->ps.forceGripMoveInterval = level.time + 100;
+            }
 		}
 
 		if ((level.time - gripEnt->client->ps.fd.forceGripStarted) > 3000 && !self->client->ps.fd.forceGripDamageDebounceTime)

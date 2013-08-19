@@ -361,9 +361,9 @@ void TransferWPData(int from, int to)
 	gWPArray[to]->inuse = gWPArray[from]->inuse;
 	VectorCopy(gWPArray[from]->origin, gWPArray[to]->origin);
 }
-
 void CreateNewWP(vec3_t origin, int flags)
 {
+	//G_Printf("WP CREATE...\n");
 	if (gWPNum >= MAX_WPARRAY_SIZE)
 	{
 		G_Printf(S_COLOR_YELLOW "Warning: Waypoint limit hit (%i)\n", MAX_WPARRAY_SIZE);
@@ -391,17 +391,27 @@ void CreateNewWP(vec3_t origin, int flags)
 	gWPNum++;
 }
 
+void testaddWP(int x, int y, int z)
+{
+	vec3_t origin;
+	origin[0] = x;
+	origin[1] = y;
+	origin[2] = z;
+	CreateNewWP(origin, 0);
+}
 void CreateNewWP_FromObject(wpobject_t *wp)
 {
 	int i;
 
 	if (gWPNum >= MAX_WPARRAY_SIZE)
 	{
+		G_Printf("ERROR: Could not create WP - limit hit!\n");
 		return;
 	}
 
 	if (!gWPArray[gWPNum])
 	{
+		//G_Printf("Allocate WP...\n");
 		gWPArray[gWPNum] = (wpobject_t *)B_Alloc(sizeof(wpobject_t));
 	}
 
@@ -442,6 +452,11 @@ void CreateNewWP_FromObject(wpobject_t *wp)
 	}
 
 	gWPNum++;
+
+	if (!gWPArray[gWPNum-1])
+	{
+		G_Printf(S_COLOR_RED "ERROR: Could not allocate memory for waypoint\n");
+	}
 }
 
 void RemoveWP(void)
@@ -452,6 +467,7 @@ void RemoveWP(void)
 	}
 
 	gWPNum--;
+	G_Printf("Removing WP\n");
 
 	if (!gWPArray[gWPNum] || !gWPArray[gWPNum]->inuse)
 	{
@@ -483,7 +499,7 @@ void RemoveWP_InTrail(int afterindex)
 	foundanindex = 0;
 	didchange = 0;
 	i = 0;
-
+	G_Printf("Removing WP...\n");
 	if (afterindex < 0 || afterindex >= gWPNum)
 	{
 		G_Printf(S_COLOR_YELLOW "Waypoint number %i does not exist\n", afterindex);
@@ -613,6 +629,26 @@ int CreateNewWP_InTrail(vec3_t origin, int flags, int afterindex)
 	}
 
 	return 1;
+}
+
+void testWP(int index)
+{
+	if (index >= gWPNum)
+	{
+		G_Printf("Only %i waypoints.\n", gWPNum);
+		return;
+	}
+	if (!gWPArray[index])
+	{
+		G_Printf("WP null!\n");
+		return;
+	}
+	if (!gWPArray[index]->inuse)
+	{
+		G_Printf("WP not inuse!\n");
+		return;
+	}
+	G_Printf("WP index is %i and is valid at (%i,%i,%i)\n", gWPArray[index]->index, (int)gWPArray[index]->origin[0], (int)gWPArray[index]->origin[1], (int)gWPArray[index]->origin[2]);
 }
 
 void TeleportToWP(gentity_t *pl, int afterindex)
@@ -1634,7 +1670,29 @@ void CalculateJumpRoutes(void)
 		i++;
 	}
 }
-
+void singlewpmake(void)
+{
+	vec3_t	morigin;
+	int	i;
+	int	f;
+	f = 0;
+	VectorClear(morigin);
+	CreateNewWP(morigin, 0);
+	for (i = 0;i < 1020;i += 1)
+	{
+		gentity_t *ent = &g_entities[i];
+		if (!ent || !ent->inuse)
+		{
+			continue;
+		}
+		if (strstr(ent->classname,"info_") || strstr(ent->classname,"item_") || strstr(ent->classname,"weapon_"))
+		{
+			CreateNewWP(ent->r.currentOrigin, WPFLAG_GOALPOINT);
+			f += 1;
+		}
+	}
+	G_Printf("Spawned %i new waypoints.\n", f);
+}
 int LoadPathData(const char *filename)
 {
 	fileHandle_t f;
@@ -1651,33 +1709,46 @@ int LoadPathData(const char *filename)
 
 	routePath = (char *)B_TempAlloc(1024);
 
+	G_Printf("Loading botroute data...\n");
 	Com_sprintf(routePath, 1024, "botroutes/%s.wnt\0", filename);
 
+	G_Printf("Reading botroute data...\n");
 	len = trap_FS_FOpenFile(routePath, &f, FS_READ);
 
+	G_Printf("Free...\n");
 	B_TempFree(1024); //routePath
+	G_Printf("Freed...\n");
 
 	if (!f)
 	{
 		G_Printf(S_COLOR_YELLOW "Bot route data not found\n");
+		singlewpmake();
 		return 2;
 	}
 
 	if (len >= 524288)
 	{
 		G_Printf(S_COLOR_RED "Route file exceeds maximum length\n");
+		singlewpmake();
 		return 0;
 	}
+	G_Printf("Allocating...\n");
 
 	fileString = (char *)B_TempAlloc(524288);
 	currentVar = (char *)B_TempAlloc(2048);
+	if (!fileString || !currentVar)
+	{
+		G_Printf("Could not allocate memory!\n");
+		return 0;
+	}
 
 	trap_FS_Read(fileString, len, f);
-
+	i = 0;
 	if (fileString[i] == 'l')
 	{ //contains a "levelflags" entry..
 		char readLFlags[64];
 		i_cv = 0;
+		G_Printf("Levelflags found...\n");
 
 		while (fileString[i] != ' ')
 		{
@@ -1856,11 +1927,14 @@ int LoadPathData(const char *filename)
 		thiswp.disttonext = atof(currentVar);
 
 		CreateNewWP_FromObject(&thiswp);
+		//G_Printf("Found a WP + %s\n", (gWPArray[gWPNum-1] != NULL)?"1":"0");
 		i++;
 	}
-
+	G_Printf("%s + %s!\n", gWPArray[gWPNum - 1]?"1":"0", gWPArray[0]?"1":"0");
+	G_Printf("Done. Clearing...\n");
 	B_TempFree(524288); //fileString
 	B_TempFree(2048); //currentVar
+	G_Printf("%s + %s!\n", gWPArray[gWPNum - 1]?"1":"0", gWPArray[0]?"1":"0");
 
 	trap_FS_FCloseFile(f);
 
@@ -1876,8 +1950,13 @@ int LoadPathData(const char *filename)
 	CalculateJumpRoutes();
 	//Look at jump points and mark them as requiring
 	//force jumping as needed
+	G_Printf("%s + %s!\n", gWPArray[gWPNum - 1]?"1":"0", gWPArray[0]?"1":"0");
 
 	return 1;
+}
+void testwpshow(void)
+{
+	G_Printf("%s + %s!\n", gWPArray[gWPNum - 1]?"1":"0", gWPArray[0]?"1":"0");
 }
 
 void FlagObjects(void)
@@ -2136,7 +2215,7 @@ void LoadPath_ThisLevel(void)
 	gentity_t	*ent = NULL;
 
 	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
-
+	gWPNum = 0;
 	if (LoadPathData(mapname.string) == 2)
 	{
 		//enter "edit" mode if cheats enabled?

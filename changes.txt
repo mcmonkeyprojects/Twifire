@@ -1,0 +1,69 @@
+Command Fix: ammakeadmin supports power set 7 - power7 now loaded properly
+General Fix: RAM usage lowered - strings restored to 1KB instead of 2KB
+Command Fix: ammap_place random glitches removed - no more sudden unexplained failure of the command ammap_place
+Command Add: amsupershield returned - spawn a group-locked shield
+Command Add: amsupersentry returned - spawn a powerful group-locked turret
+Command Remove: [CANCELED, UNDONE,IGNORE]deleted note system (amaddnote,amreadnote,amdeletenote)
+Command Add: amblockdeath - prevents /kill and team changes
+General Fix: minor bug fixes - many small changes
+CVar Add: mc_quietcvars - prevents announcement of CVar changes (EG: "Server: fraglimit changed to 20")
+CVar Add: mc_customhelp_{name/desc/info} - cvars to control a custom extra slot in /amhelp
+Cvar Add: mc_weaponstealing - disables force pull to take away held weapons
+General Fix: ammap_save newline support - can safely save ents with lineskips (target_print ...)
+CVar Add: mc_jedivmerc - modifies existing CVar g_jedivmerc to work better
+File Add: defaults/admin_free.cfg - now defines which admin commands are given to any registered user (previously only jetpack) (Defaultly jetpack, rget, rgoto, whois)
+File Add: defaults/credits.cfg - defines values for the new credit system
+Command Change: ammap_move has new usage - Dev-Use-Only door adjustment command deleted, replaced with command to cause any entity to begin moving (like a door would)
+File Add: helpfiles/JK2ded2.exe - JK2Ded with remote crash fix
+File Add: new readmes - various new readmes added
+General: Website (http://mcmonkey4eva.no-ip.org/twifire) - now has tons of mapmodding tutorials/info
+Command Add: amdistance - measures the distance between two map points
+Command Fix: amsetrank and amgivecommand unrestricted - no longer locked to player rank (Level 1's can use them on Level 7's)
+Command Add: amlightning - causes lightning to strike any map location
+Command Add: ammap_search - displays a list of entities within parent set that contain specified information within the trace (EG: {/ammap_search all "fire"} would list effects of env/fire, fire models, etc.)
+Command Add: ammap_delent_matching - Replicates ammap_search, but deletes chosen entities.
+Command Add: ammap_group_matching - Replicates ammap_search, but sends chosen entity to an entity group (for further manipulation via bygroup_#)
+Command Add: amvehicle - places a player in a JKA-Style vehicle
+File Add: Folder "vehicles" and all subset files - to define vehicles which /amvehicle can use
+CVar Add: mc_newvotesystem - Sets the vote system to wait until the timer is down before passing or failing. When the timer hits 0, it passes if yes votes > no votes, instead of yes votes = half the number of players.
+CVar Add: mc_mapvotefix - allows players to vote for any map the server has, not restricting to gametype.
+General Fix: 'all' parameter for entity name - /ammap_* commands can now use this to run through every valid entity in the map.
+Command Add: amassassinate - command user 'assassinates' the chosen player.
+Entity Add: mc_hurt - this entity is like trigger_hurt, but can be spawned without using a brush model (Twifire in-game mapmodding cannot use brush models)
+General Fix: improved SinglePlayer map support - Many locked doors are unlocked. (Doors that lack any default trigger will receive a trigger, 'disabled' triggers are no longer possible.)
+Command Add: /amafk - marks you as AFK
+CVar Add: mc_afktime - time in seconds before player is automatically AFK'd
+CVar Add: mc_afkisdeadtime - time in seconds for a player to be AFK before they are not counted in mc_safemap checks
+CVar Add: mc_votedelaytime - time in seconds that players must wait after calling a vote before they may call another. (Admin Permission 'callvote' [7-16] bypasses this)
+CVar Add: mc_showflagtime - whether to show the time a player has held the flag before capturing it in CTF
+File Add: map_blacklist.cfg - list what maps cannot be callvoted.
+RCON Command Add: mcrename <player> <name> - same as /amrename, but for the server
+CVar Add: mc_falltodeathdeath - whether to allow players to use /kill while falling to their death
+File Remove: time2.dat - no longer needed
+Command Add: ambaz - The player becomes Baz.
+CVar Add: mc_unlagged - enable/disable the "Quake3 Unlagged" system
+Command Adjust: amchatcommands now has 'censor' option
+CVar Add: mc_fixjumpbug - set to 1 to block a glitch in which player's are able to jump partially through a roof and grab items above the roof.
+Command Add: amblockweapon - prevents a player from using weapons.
+Command Add: amblockforce - prevents a player from using the force.
+Command Add: amblockrename - prevents a player from renaming.
+Entity Add: mc_door - replicates the functionality of a func_door, but for .md3 models.
+Command Add: amlockserver - locks the server
+Command Add: amnormalsettings - deactivates most admin settings on a specified player
+Command Add: amparachute - gives the playere a parachute
+Command Add: ammonvel - monitors velocity
+Command Add: amshaderlist - shows current remaps
+Command Add: ammap_clearedits - deletes all saved mapedits
+Random: added team ghosting
+Random: added support for flag-symbol in names
+CVar Add: mc_betterghosting - 0 = semiglitchy but working team-ghosting, 1 = nonglitchy team-ghosting but nameplates don't show
+Command Add: amshout - FUS RO DAH!
+CVar Add: mc_teleeffect - blank = normal teleporting, anything else = play chosen effect while teleporting
+Command Add: amgrenade - throws a grenade (Same perm as amhome)
+Command Add: amflare - signals your position to another player
+Command Fix: ammap_delent2 now works fully, even on custom ents
+Command Add: engage_ff - starts fullforce duel
+CVar Add: mc_duelkickdamage - how much damage kicks do in a duel (multiplier - 0 = no damage, 1 = normal damage, 0.5 = half damage, 2 = double damage, ... etc.)
+File Add: vehicles/vehicle_atst.cfg - an AT-ST Vehicle!
+Entity Add: mc_vehicle - driveable vehicle (Use-Key on it to drive)
+File Edit: helpfiles/twifireaccounteditor.exe - made it much easier to use
