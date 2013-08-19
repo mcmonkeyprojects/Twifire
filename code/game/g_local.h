@@ -1,21 +1,20 @@
 // Copyright (C) 1999-2000 Id Software, Inc.
 //
 // g_local.h -- local definitions for game module
-
+void AddSpawnField(char *field, char *value);
 #include "q_shared.h"
 #include "bg_public.h"
 #include "g_public.h"
-
 //==================================================================
-
 // the "gameversion" client command will print this plus compile date
-#define	GAMEVERSION	"basejk"
+#define	GAMEVERSION	"twifire mod"
+#define TWIMOD "^5Twi^1Fire^7 Mod"
+#define TFVERSION "1002(public)"
 
 #define BODY_QUEUE_SIZE		8
-
 #define INFINITE			1000000
 #define Q3_INFINITE			16777216 
-
+#define MAX_NETNAME			512//mc_namelength.integer//36
 #define	FRAMETIME			100					// msec
 #define	CARNAGE_REWARD_TIME	3000
 #define REWARD_SPRITE_TIME	2000
@@ -25,6 +24,11 @@
 
 // gentity->flags
 #define	FL_GODMODE				0x00000010
+
+	#define CONFIG_MAX_LENGHT		131072		// 128kb
+#define CONFIG_GROUP_LENGHT		65536		//  64kb
+#define CONFIG_VALUE_LENGHT		16384		//  16kb
+
 #define	FL_NOTARGET				0x00000020
 #define	FL_TEAMSLAVE			0x00000400	// not the first on the team
 #define FL_NO_KNOCKBACK			0x00000800
@@ -86,13 +90,77 @@ typedef enum
 };
 
 //============================================================================
-
+extern int validcharacter_letter(char chr);
+extern int validcharacter_number(char chr);
+extern void stringclear(char *str, int len);
 extern void *precachedKyle;
 extern void *g2SaberInstance;
 
 extern qboolean gEscaping;
 extern int gEscapeTime;
+void save_all_notes( void );
 
+
+
+typedef struct gteleporter_s gteleporter_t;
+struct gteleporter_s {
+	vec3_t	pos;
+	char	name[1024];
+	int	telenum;
+	int	angle;
+	int	active;
+};
+extern	gteleporter_t g_teleporters[512];
+
+typedef struct gban_s gban_t;
+struct gban_s
+{
+	int	ip1;
+	int	ip2;
+	int	ip3;
+	int	ip4;
+	int	active;
+};
+extern	gban_t g_bans[512];
+
+extern	void bans_write(void);
+extern	void bans_init(void);
+extern	void bans_add(int ip1, int ip2, int ip3, int ip4);
+extern	int ip_is_banned(char *ip);
+
+extern	void teleporters_init( void );
+extern	void teleporters_save( void );
+extern	void teleporter_delete(int teleN);
+extern	void teleporter_add(vec3_t pos, char *name, int angle);
+
+extern	int validcharacter_number(char chr);
+extern	int validcharacter_letter(char chr);
+
+typedef struct gchannel_s gchannel_t;
+struct gchannel_s {
+	char	name[1024];
+	char	password[1024];
+	char	inchannel[64];
+	char	isadmin[64];
+	char	isbanned[64];
+	int	active;
+};
+extern	gchannel_t g_channels[64];
+extern	void channels_delete ( int ch);
+extern	void channels_init( void );
+extern	void channels_remove_all (int cl);
+extern	void channels_remove_all_nosi (int cl);
+extern	void channels_remove(int ch, int cl, int si);
+extern	void channels_joined(int ch, int cl);
+extern	void channels_quit(int ch, int cl);
+extern	void channels_newadmin(int ch, int cl);
+extern	void string_zero(char *str, int len);
+extern	void channels_print(int ch, const char *msg);
+extern	void channels_unban_all (int cl);
+extern	int channels_find(char *channel);
+extern	int channels_create (char *name, char *pass);
+
+extern	void status_update( void );
 typedef struct gentity_s gentity_t;
 typedef struct gclient_s gclient_t;
 
@@ -105,7 +173,9 @@ struct gentity_s {
 	//================================
 
 	struct gclient_s	*client;			// NULL if not a client
-
+	int			nIP[4];
+		char		IP[64];
+	char			mcmlight[512];
 	qboolean	inuse;
 
 	char		*classname;			// set in QuakeEd
@@ -118,6 +188,7 @@ struct gentity_s {
 
 	int			objective;
 	int			side;
+	char			mcpassword[1024];
 
 	int			passThroughNum;		// set to index to pass through (+1) for missiles
 
@@ -127,7 +198,7 @@ struct gentity_s {
 	int			noDamageTeam;
 
 	int			roffid;				// if roffname != NULL then set on spawn
-
+	int			payable;
 	qboolean	neverFree;			// if true, FreeEntity will only unlink
 									// bodyque uses this
 
@@ -140,6 +211,7 @@ struct gentity_s {
 	int			eventTime;			// events will be cleared EVENT_VALID_MSEC after set
 	qboolean	freeAfterEvent;
 	qboolean	unlinkAfterEvent;
+
 
 	qboolean	physicsObject;		// if true, it can be pushed by movers and fall off edges
 									// all game items are physicsObjects, 
@@ -161,6 +233,13 @@ struct gentity_s {
 	vec3_t		pos1, pos2;
 
 	char		*message;
+	char		*fxFile;
+	char		mcmessage[MAX_STRING_CHARS];
+	//char		mctarget[MAX_STRING_CHARS];
+	//char		mctargetname[MAX_STRING_CHARS];
+	char		*upmes;
+	char		*downmes;
+	char		*group;
 
 	int			timestamp;		// body queue sinking, etc
 
@@ -176,6 +255,9 @@ struct gentity_s {
 	vec3_t		movedir;
 	float		mass;
 	int			setTime;
+
+	int		entgroup;
+	int		groupleader;
 
 //Think Functions
 	int			nextthink;
@@ -247,6 +329,18 @@ struct gentity_s {
 	int			damageRedirectTo; //this entity number
 
 	gitem_t		*item;			// for bonus items
+		// g_dsPushItems
+	vec3_t		origOrigin;
+	qboolean    spawnedBefore;
+	int			itemtype;
+	// End
+	qboolean	rprotected;
+	int		xOff;
+	int		yOff;
+	int		zOff;
+	vec3_t	lastorigin;
+	vec3_t	lastrot;
+
 };
 
 #define DAMAGEREDIRECT_HEAD		1
@@ -306,13 +400,152 @@ typedef struct {
 	int			wins, losses;		// tournament stats
 	int			selectedFP;			// check against this, if doesn't match value in playerstate then update userinfo
 	int			saberLevel;			// similar to above method, but for current saber attack level
+	int     adminloggedin;
+	char		userlogged[MAX_NETNAME];
+	char		userpass[MAX_NETNAME];
+	char		amprefix[MAX_STRING_CHARS];
+	char		amsuffix[MAX_STRING_CHARS];
+	char		mygroup[MAX_STRING_CHARS];
+	char		channel_01name[MAX_STRING_CHARS];
+	char		channel_02name[MAX_STRING_CHARS];
+	char		channel_03name[MAX_STRING_CHARS];
+	char		channel_01pass[MAX_STRING_CHARS];
+	char		channel_02pass[MAX_STRING_CHARS];
+	char		channel_03pass[MAX_STRING_CHARS];
+	char		doorpassword[MAX_STRING_CHARS];
+	char		ignoring[50];
+	int			thisconnectuc;
+	int			channel_01rank;
+	int			channel_02rank;
+	int			channel_03rank;
+	int			empower;
+	int			credits;
+	int			backupint;
+	int			mcspeed;
+	int			mcgravity;
+	int			ampowers;
+	int			ampowers2;
+	int			ampowers3;
+	int			ampowers4;
+	int			watching;
+	int			ampowers5;
+	int			ampowers6;
+	int			ampowers7;
+	int			grabbedent;
+	int			grabbedentyaw;
+	int			PingHax;
+	int			grabbedentpitch;
+	int			grabbedgroup;
+	int			grabbeddist;
+	int			grabbedplayer;
+	int			grabbedpdist;
+	int			grabbedpoffz;
+	int			grabbedentoffz;
+	int			slapping;
+	int			gripdamage;
+	int			jetdelayusefix;
+	int			mcshootdelay;
+	int			amjump;
+	int			allpowerful;
+	int			sentries;
+	int			mcgroup;
+	int			jetspeed;
+	int			reflect;
+	int			jetshowfuel;
+	float			saberspeed;
+	int			fakelag;
+	int			isglowing;
+	int			knockbackonly;
+	int				lcmd_buttons;
+	byte				lcmd_weapon;
+	byte				lcmd_forcesel;
+	byte				lcmd_invensel;
+	byte				lcmd_generic;
+	signed char			lcmd_forwardmove;
+	signed char			lcmd_rightmove;
+	signed char			lcmd_upmove;
+	int				lcmd_angles0;
+	int				lcmd_angles1;
+	int				lcmd_angles2;
+	int				lcmd_angles3;
+	int				cmd_newtime;
+	int				is_afk;
+	int			supergod;
+	int			jetfuel;
+	int			blocktype;
+	int			specweapon;
+	int			teamchattype;
+	int			forcegod;
+	int			lastent;
+	int			forcegod2;
+	int			dodging;
+	int			nodrown;
+	int			noteleport;
+	int			terminator;
+	int			solid;
+	int			padawan;
+	int			movebackX;
+	int			flying;
+	int			movebackY;
+	int			movebackZ;
+	int			massgravity;
+	int			movebacktime;
+	int			fakepingmin;
+	int			fakepingmax;
+	int			monchan;
+	float			damagemod;
+	int			steve;
+	int			cheat;
+	int			controller;
+	int			lvote;
+	int			 punish;
+	int			protect;
+	int			knockbackuponly;
+	int			torture;
+	qboolean		clanTag;
+	int			clanTagTime;
+	int			traced;
+	qboolean		clanCounting;
+	int			clanCounter;
+	int			freeze;
+	int			sleep;
+	int			silence;
+	int			dienow;
+	int			allowToggle;
+	int			pluginchecked;
+	char			plugin[128];
+	int			logintrys;
+	int    			 jetpackon;
+	int     		IPeins;
+	int			IP0;
+	int			IP1;
+	int			fspec;
+	int			allowKill;
+	int			allowTeam;
+	int			IP2;
+	int			IP3;
+	int			monitor1;
+	int			monitor2;
+	int			mcPing;
+	int			mcTime;
+	int			aimbot;
+	int			noforceme;
+	int			pendingtype;
+	int			pendingvalue;
+	int			pendingtimeout;
+	int			stealth;
+	int			viewrandom;
+	int			abused;
+	int     IPzwei;
+	int     IPdrei;
+	int     IPvier;
 	qboolean	setForce;			// set to true once player is given the chance to set force powers
 	int			updateUITime;		// only update userinfo for FP/SL if < level.time
 	qboolean	teamLeader;			// true when this client is a team leader
 } clientSession_t;
 
 //
-#define MAX_NETNAME			36
+
 #define	MAX_VOTE_COUNT		3
 
 // client data that stays across multiple respawns, but is cleared
@@ -325,6 +558,7 @@ typedef struct {
 	qboolean	predictItemPickup;	// based on cg_predictItems userinfo
 	qboolean	pmoveFixed;			//
 	char		netname[MAX_NETNAME];
+		qboolean	ampadawan;
 	int			maxHealth;			// for handicapping
 	int			enterTime;			// level.time the client entered the game
 	playerTeamState_t teamState;	// status in teamplay games
@@ -343,14 +577,21 @@ struct gclient_s {
 	// the rest of the structure is private to game
 	clientPersistant_t	pers;
 	clientSession_t		sess;
-
+	int			padawantimer;	
 	int			invulnerableTimer;
 
+	int			hookDebounceTime;
 	int			saberCycleQueue;
+	int			MOTDTime;
+	int			JetPackTime;
+	int			empowerLastRegen;
+	int			MOTDNumber;	
 
 	qboolean	readyToExit;		// wishes to leave the intermission
 
 	qboolean	noclip;
+	int			chatTimer;
+	int			chatGod;
 
 	int			lastCmdTime;		// level.time of last usercmd_t, for EF_CONNECTION
 									// we can't just use pers.lastCommand.time, because
@@ -358,7 +599,8 @@ struct gclient_s {
 	int			buttons;
 	int			oldbuttons;
 	int			latched_buttons;
-
+	int			grappleIndex;
+	int			grappleState;
 	vec3_t		oldOrigin;
 
 	// sum up damage over an entire frame, so
@@ -382,7 +624,6 @@ struct gclient_s {
 	int			lastkilled_client;	// last client that this client killed
 	int			lasthurt_client;	// last client that damaged this client
 	int			lasthurt_mod;		// type of damage the client did
-
 	// timers
 	int			respawnTime;		// can respawn when time > this, force after g_forcerespwan
 	int			inactivityTime;		// kick players when time > this
@@ -393,8 +634,6 @@ struct gclient_s {
 
 	int			lastKillTime;		// for multiple kill rewards
 
-	qboolean	fireHeld;			// used for hook
-	gentity_t	*hook;				// grapple hook if out
 
 	int			switchTeamTime;		// time the player switched teams
 
@@ -422,6 +661,9 @@ struct gclient_s {
 	int			forcePowerSoundDebounce; //if > level.time, don't do certain sound events again (drain sound, absorb sound, etc)
 
 	qboolean	fjDidJump;
+
+	int TimeReswitch;
+
 };
 
 
@@ -429,10 +671,14 @@ struct gclient_s {
 // this structure is cleared as each map is entered
 //
 #define	MAX_SPAWN_VARS			64
-#define	MAX_SPAWN_VARS_CHARS	4096
+#define	MAX_SPAWN_VARS_CHARS	8192
+
 
 typedef struct {
 	struct gclient_s	*clients;		// [maxclients]
+	qboolean		endall;
+	int			safeend;
+	int			errorwarn;
 
 	struct gentity_s	*gentities;
 	int			gentitySize;
@@ -444,7 +690,6 @@ typedef struct {
 
 	// store latched cvars here that we want to get at often
 	int			maxclients;
-
 	int			framenum;
 	int			time;					// in msec
 	int			previousTime;			// so movers can back up when blocked
@@ -464,25 +709,35 @@ typedef struct {
 	int			numPlayingClients;		// connected, non-spectators
 	int			sortedClients[MAX_CLIENTS];		// sorted by score
 	int			follow1, follow2;		// clientNums for auto-follow spectators
-
+	int			statuswrite;
+	char			leveltimestring[1024];
 	int			snd_fry;				// sound index for standing in lava
-
+	int			jetpack_effect;
+	int			jetfx;
+	int			nextstatus;
+	int			jetdist;
 	int			warmupModificationCount;	// for detecting if g_warmup is changed
 
 	// voting state
 	char		voteString[MAX_STRING_CHARS];
 	char		voteDisplayString[MAX_STRING_CHARS];
+	char		pollstring[MAX_STRING_CHARS];
 	int			voteTime;				// level.time vote was called
 	int			voteExecuteTime;		// time the vote is executed
 	int			voteYes;
 	int			voteNo;
+	int			vote_is_poll;
 	int			numVotingClients;		// set by CalculateRanks
+	int			mapeditsdone;
+	int			waterworld;
 
 	qboolean	votingGametype;
 	int			votingGametypeTo;
 
 	// team voting state
 	char		teamVoteString[2][MAX_STRING_CHARS];
+	int			lmsnojoin;
+	int			lmsvote;
 	int			teamVoteTime[2];		// level.time vote was called
 	int			teamVoteYes[2];
 	int			teamVoteNo[2];
@@ -490,6 +745,7 @@ typedef struct {
 
 	// spawn variables
 	qboolean	spawning;				// the G_Spawn*() functions are valid
+	qboolean	endoftheworld;
 	int			numSpawnVars;
 	char		*spawnVars[MAX_SPAWN_VARS][2];	// key / value pairs
 	int			numSpawnVarChars;
@@ -512,9 +768,23 @@ typedef struct {
 	gentity_t	*locationHead;			// head of the location list
 	int			bodyQueIndex;			// dead bodies
 	gentity_t	*bodyQue[BODY_QUEUE_SIZE];
+	int		bahg;
+	int		baht;
+	float		lasthour;
 	int			portalSequence;
+	int		rnextcheck;
+	int		mmdeletes;
+	int		mmmodels;
+	int		mmgmodels;
+	int		mmshaders;
+	int		mmeffects;
+	int		mmfailclass;
+	int		mmfailbmodel;
+	int		mnewtype;
+	int		otherframe;
+	int		thisistpm;
+	int		reFix;
 } level_locals_t;
-
 
 //
 // g_spawn.c
@@ -554,7 +824,7 @@ void ItemUse_MedPack(gentity_t *ent);
 void G_CheckTeamItems( void );
 void G_RunItem( gentity_t *ent );
 void RespawnItem( gentity_t *ent );
-
+void ResetItem( gentity_t *ent ); // Deathspike: Reset item
 void UseHoldableItem( gentity_t *ent );
 void PrecacheItem (gitem_t *it);
 gentity_t *Drop_Item( gentity_t *ent, gitem_t *item, float angle );
@@ -771,7 +1041,9 @@ qboolean G_FilterPacket (char *from);
 //
 void FireWeapon( gentity_t *ent, qboolean altFire );
 void BlowDetpacks(gentity_t *ent);
-
+void Weapon_HookThink (gentity_t *ent);
+void Weapon_HookFree (gentity_t *ent);
+void Weapon_GrapplingHook_Fire (gentity_t *ent);
 //
 // p_hud.c
 //
@@ -782,7 +1054,7 @@ void DeathmatchScoreboardMessage (gentity_t *client);
 //
 // g_cmds.c
 //
-
+extern int dsp_isEmpowered(int clientNum);
 //
 // g_pweapon.c
 //
@@ -1034,8 +1306,203 @@ extern	vmCvar_t	g_saberDmgDelay_Wound;
 
 extern	vmCvar_t	g_saberDebugPrint;
 
+
 extern	vmCvar_t	g_austrian;
 
+
+
+
+extern  vmCvar_t  twimod_statusprinthp;
+
+extern	vmCvar_t	hookChangeProtectTime;
+
+extern	vmCvar_t	twimod_highpingduel;
+
+extern	vmCvar_t	twimod_duelsabertoggle;
+
+extern	vmCvar_t	twimod_dueldistance;
+extern  vmCvar_t  twimod_itempush;
+extern	vmCvar_t	twimod_votecontrol_minmaptime;
+extern	vmCvar_t	twimod_allowDebugKnockMeDown;
+extern  vmCvar_t  twimod_sleepmsg;
+extern	vmCvar_t	twimod_flvl3jumphigh;
+extern  vmCvar_t  twimod_joinsound;
+extern 	vmCvar_t 	twimod_loginpuplicmsg;
+
+extern	vmCvar_t	twimod_slapstrength;
+extern	vmCvar_t	twimod_slapzstrength;
+extern	vmCvar_t	twimod_slapdowntime;
+
+extern  vmCvar_t  twimod_combatadmin;
+extern  vmCvar_t	twimod_chatprotecttimer;
+extern  vmCvar_t	twimod_chatprotect;
+extern  vmCvar_t	twimod_allowselfkill;
+extern  vmCvar_t	twimod_allowduelselfkill;
+
+extern  vmCvar_t  twimod_clantagpcounter;
+
+extern 	vmCvar_t	twimod_clantagprotect;
+extern 	vmCvar_t	twimod_clantag;
+
+extern  vmCvar_t  twimod_allowemotes;
+extern  vmCvar_t  twimod_emotebreak;
+extern  vmCvar_t  twimod_antipadawan;
+extern  vmCvar_t  twimod_padanewname;
+extern	vmCvar_t	twimod_votecontrol_allowmapvote;
+extern	vmCvar_t	twimod_votecontrol_allowgametypevote;
+extern	vmCvar_t	twimod_votecontrol_allowlimitvote;
+extern	vmCvar_t	twimod_votecontrol_allowkickvote;
+extern	vmCvar_t	twimod_votecontrol_allowSGTvote;
+extern  vmCvar_t  twimod_bruteforceprotect;
+extern	vmCvar_t	twimod_kickmsg;
+extern	vmCvar_t	twimod_banmsg;
+
+//extern  vmCvar_t  twimod_lvl1name;
+//extern  vmCvar_t  twimod_lvl2name;
+//extern  vmCvar_t  twimod_lvl3name;
+//extern  vmCvar_t  twimod_lvl4name;
+//extern  vmCvar_t  twimod_lvl5name;
+//extern  vmCvar_t  twimod_lvl6name;
+extern	vmCvar_t	twimod_allowjetpack;
+extern	vmCvar_t	twimod_motd;
+extern	vmCvar_t	twimod_motdtime;
+extern	vmCvar_t	twimod_blacknames;
+extern	vmCvar_t	mc_rocket_vel;
+extern	vmCvar_t	mc_rocket_alt_think;
+extern	vmCvar_t	mc_rocket_damage;
+extern	vmCvar_t	mc_rocket_splash_damage;
+extern	vmCvar_t	mc_rocket_splash_radius;
+extern	vmCvar_t	mc_stun_baton_damage;
+extern	vmCvar_t	mc_stun_baton_altdamage;
+extern	vmCvar_t	mc_demp_radius;
+extern	vmCvar_t	mc_demp_altdamage;
+extern	vmCvar_t	mc_demp_altrange;
+extern	vmCvar_t	mc_disrupter_damage;
+extern	vmCvar_t	mc_disrupter_altdamage;
+extern	vmCvar_t	mc_spawnmessage;
+extern	vmCvar_t	mc_sentrylimit;
+extern	vmCvar_t	mc_spawntimelimit;
+extern	vmCvar_t	mc_teleportspeed;
+//extern	vmCvar_t	mc_emp_dmg_mod;
+extern	vmCvar_t	mc_blaster_vel;
+extern	vmCvar_t	mc_bryar_vel;
+extern	vmCvar_t	mc_bowcaster_vel;
+extern	vmCvar_t	mc_repeater_vel;
+extern	vmCvar_t	mc_repeater_alt_vel;
+extern	vmCvar_t	mc_demp2_vel;
+extern	vmCvar_t	mc_flechette_vel;
+extern	vmCvar_t	mc_flechette_shots;
+extern	vmCvar_t	mc_bowcaster_spread;
+extern	vmCvar_t	mc_bowcaster_alt_bounces;
+extern	vmCvar_t	mc_rocket_locktime;
+extern	vmCvar_t	mc_rocket_bounces;
+extern	vmCvar_t	mc_emplaced_weap;
+extern	vmCvar_t	mc_tripmine_limit;
+extern	vmCvar_t	mc_detpack_limit;
+extern	vmCvar_t	mc_weapons_impactsky;
+extern	vmCvar_t	mc_weapons_life;
+extern	vmCvar_t	mc_bryar_bounces;
+extern	vmCvar_t	mc_blaster_bounces;
+extern	vmCvar_t	mc_turretweap_bounces;
+extern	vmCvar_t	mc_seekershot_bounces;
+extern	vmCvar_t	mc_bowcaster_bounces;
+extern	vmCvar_t	mc_repeater_bounces;
+extern	vmCvar_t	mc_repeater_alt_bounces;
+extern	vmCvar_t	mc_demp2_bounces;
+extern	vmCvar_t	mc_flechette_bounces;
+extern	vmCvar_t	mc_flechette_alt_bounces;
+extern	vmCvar_t	mc_seekershot_vel;
+extern	vmCvar_t	mc_flechette_alt_vel;
+extern	vmCvar_t	mc_drown_delay;
+extern	vmCvar_t	mc_water_damage;
+extern	vmCvar_t	mc_water_damage_max;
+extern	vmCvar_t	mc_jetpack_forcedrain;
+extern	vmCvar_t	mc_jetpack_fueldrain;
+extern	vmCvar_t	mc_jetpack_fuelmax;
+extern	vmCvar_t	mc_jetpack_fuelregen;
+
+extern	vmCvar_t	mc_bryar_firetime;
+extern	vmCvar_t	mc_blaster_firetime;
+extern	vmCvar_t	mc_stunbaton_firetime;
+extern	vmCvar_t	mc_disruptor_firetime;
+extern	vmCvar_t	mc_bowcaster_firetime;
+extern	vmCvar_t	mc_repeater_firetime;
+extern	vmCvar_t	mc_flechette_firetime;
+extern	vmCvar_t	mc_rocket_launcher_firetime;
+extern	vmCvar_t	mc_demp2_firetime;
+extern	vmCvar_t	mc_detpack_firetime;
+extern	vmCvar_t	mc_tripmine_firetime;
+extern	vmCvar_t	mc_thermal_firetime;
+extern	vmCvar_t	mc_emplaced_firetime;
+
+extern	vmCvar_t	mc_bryar_alt_firetime;
+extern	vmCvar_t	mc_blaster_alt_firetime;
+extern	vmCvar_t	mc_stunbaton_alt_firetime;
+extern	vmCvar_t	mc_disruptor_alt_firetime;
+extern	vmCvar_t	mc_bowcaster_alt_firetime;
+extern	vmCvar_t	mc_repeater_alt_firetime;
+extern	vmCvar_t	mc_flechette_alt_firetime;
+extern	vmCvar_t	mc_rocket_launcher_alt_firetime;
+extern	vmCvar_t	mc_demp2_alt_firetime;
+extern	vmCvar_t	mc_detpack_alt_firetime;
+extern	vmCvar_t	mc_tripmine_alt_firetime;
+extern	vmCvar_t	mc_thermal_alt_firetime;
+extern	vmCvar_t	mc_emplaced_alt_firetime;
+
+
+extern	vmCvar_t	mc_jetpack_effect;
+
+extern	vmCvar_t	mc_telefrag;
+
+extern	vmCvar_t	mc_group1_name;
+extern	vmCvar_t	mc_group2_name;
+extern	vmCvar_t	mc_group3_name;
+extern	vmCvar_t	mc_group4_name;
+extern	vmCvar_t	mc_group5_name;
+extern	vmCvar_t	mc_group6_name;
+extern	vmCvar_t	mc_aerial_emotes;
+
+extern	vmCvar_t	mc_detpack_life;
+extern	vmCvar_t	mc_detpack_speed;
+extern	vmCvar_t	mc_tripmine_speed;
+
+extern	vmCvar_t	mc_bryar_damage;
+extern	vmCvar_t	mc_bryar_alt_damage;
+extern	vmCvar_t	mc_bryar_chargetime;
+extern	vmCvar_t	mc_insta;
+
+extern	vmCvar_t	mc_jedimaster2;
+extern	vmCvar_t	mc_onlydefaults;
+extern	vmCvar_t	mc_nofakeplayers;
+extern	vmCvar_t	mc_userfolder;
+extern	vmCvar_t	mc_logfile;
+extern	vmCvar_t	mc_editfolder;
+extern	vmCvar_t	mc_rocketdist;
+extern	vmCvar_t	mc_addknockback;
+extern	vmCvar_t	mc_nevercrash;
+extern	vmCvar_t	mc_disruptorrange;
+extern	vmCvar_t	mc_maxbmodel;
+extern	vmCvar_t	mc_safemap;
+extern	vmCvar_t	mc_request_timeout;
+extern	vmCvar_t	mc_crashfix;
+extern	vmCvar_t	mc_dualsaber;
+extern	vmCvar_t	mc_max_admin_rank;
+extern	vmCvar_t	mc_flechette_damage;
+extern	vmCvar_t	mc_lms;
+extern	vmCvar_t	mc_allitems;
+extern	vmCvar_t	mc_allow_amremote;
+extern	vmCvar_t	mc_disruptor_bounces;
+extern	vmCvar_t	mc_newbansystem;
+extern	vmCvar_t	mc_nobanmessage;
+extern	vmCvar_t	mc_weaponstealing;
+
+
+
+
+extern vmCvar_t		mc_namelength;
+
+
+extern 	void dsp_setIP(int clientNum, char *valueIP);
 void	trap_Printf( const char *fmt );
 void	trap_Error( const char *fmt );
 int		trap_Milliseconds( void );
@@ -1061,6 +1528,8 @@ void	trap_SetConfigstring( int num, const char *string );
 void	trap_GetConfigstring( int num, char *buffer, int bufferSize );
 void	trap_GetUserinfo( int num, char *buffer, int bufferSize );
 void	trap_SetUserinfo( int num, const char *buffer );
+// #define trap_Trace(a,b,c,d,e,f,g) nox_trap_Trace(a,b,c,d,e,f,g)
+void	nox_trap_Trace( trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentmask );
 void	trap_GetServerinfo( char *buffer, int bufferSize );
 void	trap_SetBrushModel( gentity_t *ent, const char *name );
 void	trap_Trace( trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentmask );
@@ -1255,5 +1724,14 @@ void		trap_ROFF_UpdateEntities( void );
 int			trap_ROFF_Cache( char *file );
 qboolean	trap_ROFF_Play( int entID, int roffID, qboolean doTranslation );
 qboolean	trap_ROFF_Purge_Ent( int entID );
+void		mc_SetBrushModel(gentity_t *ent, const char *name);
 
 
+extern void rocketThink( gentity_t *ent );
+
+
+int isinnewgroup(gentity_t *ent, char *group);
+
+
+void mc_CreateExampleAnimEnt(gentity_t *ent);
+int weapforname(char *name);

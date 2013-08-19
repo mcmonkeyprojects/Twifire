@@ -102,3 +102,6 @@ void PM_WeaponLightsaber(void);
 void PM_SetSaberMove(short newMove);
 
 void PM_SetForceJumpZStart(float value);
+extern int dsp_isEmpowered(int clientNum);
+
+

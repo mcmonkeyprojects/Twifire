@@ -109,11 +109,11 @@ static void G_LoadArenasFromFile( char *filename ) {
 
 	len = trap_FS_FOpenFile( filename, &f, FS_READ );
 	if ( !f ) {
-		trap_Printf( va( S_COLOR_RED "file not found: %s\n", filename ) );
+		G_Printf( va( S_COLOR_RED "file not found: %s\n", filename ) );
 		return;
 	}
 	if ( len >= MAX_ARENAS_TEXT ) {
-		trap_Printf( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i", filename, len, MAX_ARENAS_TEXT ) );
+		G_Printf( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i", filename, len, MAX_ARENAS_TEXT ) );
 		trap_FS_FCloseFile( f );
 		return;
 	}
@@ -175,7 +175,42 @@ qboolean G_DoesMapSupportGametype(const char *mapname, int gametype)
 	{
 		return qfalse;
 	}
-
+			if ((Q_stricmp(mapname,"ffa_bespin") == 0||
+				Q_stricmp(mapname,"ffa_deathstar") == 0||
+				Q_stricmp(mapname,"ffa_imperial") == 0||
+				Q_stricmp(mapname,"ffa_ns_hideout") == 0||
+				Q_stricmp(mapname,"ffa_ns_streets") == 0||
+				Q_stricmp(mapname,"ffa_raven") == 0||
+				Q_stricmp(mapname,"ffa_yavin") == 0||
+				Q_stricmp(mapname,"ctf_bespin") == 0||
+				Q_stricmp(mapname,"ctf_imperial") == 0||
+				Q_stricmp(mapname,"ctf_ns_streets") == 0||
+				Q_stricmp(mapname,"ctf_yavin") == 0||
+				Q_stricmp(mapname,"duel_bay") == 0||
+				Q_stricmp(mapname,"duel_carbon") == 0||
+				Q_stricmp(mapname,"duel_jedi") == 0||
+				Q_stricmp(mapname,"duel_pit") == 0||
+				Q_stricmp(mapname,"duel_bespin") == 0||
+				Q_stricmp(mapname,"duel_hangar") == 0||
+				Q_stricmp(mapname,"duel_temple") == 0||
+				Q_stricmp(mapname,"duel_training") == 0||
+				Q_stricmp(mapname,"bespin_streets") == 0||
+				Q_stricmp(mapname,"yavin_temple") == 0||
+				Q_stricmp(mapname,"yavin_swamp") == 0||
+				Q_stricmp(mapname,"yavin_trial") == 0||
+				Q_stricmp(mapname,"bespin_platform") == 0||
+				Q_stricmp(mapname,"cairn_reactor") == 0||
+				Q_stricmp(mapname,"doom_shields") == 0||
+				Q_stricmp(mapname,"yavin_canyon") == 0||
+				Q_stricmp(mapname,"yavin_courtyard") == 0||
+				Q_stricmp(mapname,"artus_topside") == 0||
+				Q_stricmp(mapname,"cairn_assembly") == 0||
+				Q_stricmp(mapname,"pit") == 0||
+				Q_stricmp(mapname,"valley") == 0||
+				Q_stricmp(mapname,"yavin_final") == 0))
+				{
+					return qtrue;
+				}
 	for( n = 0; n < g_numArenas; n++ )
 	{
 		type = Info_ValueForKey( g_arenaInfos[n], "map" );
@@ -272,7 +307,7 @@ const char *G_RefreshNextMap(int gametype, qboolean forced)
 	else
 	{ //otherwise we have a valid nextmap to cycle to, so use it.
 		type = Info_ValueForKey( g_arenaInfos[desiredMap], "map" );
-		trap_Cvar_Set( "nextmap", va("map %s", type));
+		trap_Cvar_Set( "nextmap", va("rmap %s", type));
 	}
 
 	return Info_ValueForKey( g_arenaInfos[desiredMap], "map" );
@@ -311,7 +346,7 @@ static void G_LoadArenas( void ) {
 		strcat(filename, dirptr);
 		G_LoadArenasFromFile(filename);
 	}
-	trap_Printf( va( "%i arenas parsed\n", g_numArenas ) );
+	G_Printf( va( "%i arenas parsed\n", g_numArenas ) );
 	
 	for( n = 0; n < g_numArenas; n++ ) {
 		Info_SetValueForKey( g_arenaInfos[n], "num", va( "%i", n ) );
@@ -922,7 +957,7 @@ void Svcmd_AddBot_f( void ) {
 	// name
 	trap_Argv( 1, name, sizeof( name ) );
 	if ( !name[0] ) {
-		trap_Printf( "Usage: Addbot <botname> [skill 1-5] [team] [msec delay] [altname]\n" );
+		G_Printf( "Usage: Addbot <botname> [skill 1-5] [team] [msec delay] [altname]\n" );
 		return;
 	}
 
@@ -972,7 +1007,7 @@ void Svcmd_BotList_f( void ) {
 	char model[MAX_TOKEN_CHARS];
 	char personality[MAX_TOKEN_CHARS];
 
-	trap_Printf("^1name             model            personality              funname\n");
+	G_Printf("^1name             model            personality              funname\n");
 	for (i = 0; i < g_numBots; i++) {
 		strcpy(name, Info_ValueForKey( g_botInfos[i], "name" ));
 		if ( !*name ) {
@@ -990,7 +1025,7 @@ void Svcmd_BotList_f( void ) {
 		if (!*personality ) {
 			strcpy(personality, "botfiles/default.jkb");
 		}
-		trap_Printf(va("%-16s %-16s %-20s %-20s\n", name, model, personality, funname));
+		G_Printf(va("%-16s %-16s %-20s %-20s\n", name, model, personality, funname));
 	}
 }
 
@@ -1066,11 +1101,11 @@ static void G_LoadBotsFromFile( char *filename ) {
 
 	len = trap_FS_FOpenFile( filename, &f, FS_READ );
 	if ( !f ) {
-		trap_Printf( va( S_COLOR_RED "file not found: %s\n", filename ) );
+		G_Printf( va( S_COLOR_RED "file not found: %s\n", filename ) );
 		return;
 	}
 	if ( len >= MAX_BOTS_TEXT ) {
-		trap_Printf( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i", filename, len, MAX_BOTS_TEXT ) );
+		G_Printf( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i", filename, len, MAX_BOTS_TEXT ) );
 		trap_FS_FCloseFile( f );
 		return;
 	}
@@ -1120,7 +1155,7 @@ static void G_LoadBots( void ) {
 		strcat(filename, dirptr);
 		G_LoadBotsFromFile(filename);
 	}
-	trap_Printf( va( "%i bots parsed\n", g_numBots ) );
+	G_Printf( va( "%i bots parsed\n", g_numBots ) );
 }
 
 
@@ -1132,7 +1167,7 @@ G_GetBotInfoByNumber
 */
 char *G_GetBotInfoByNumber( int num ) {
 	if( num < 0 || num >= g_numBots ) {
-		trap_Printf( va( S_COLOR_RED "Invalid bot number: %i\n", num ) );
+		G_Printf( va( S_COLOR_RED "Invalid bot number: %i\n", num ) );
 		return NULL;
 	}
 	return g_botInfos[num];

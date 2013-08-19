@@ -12,6 +12,8 @@ set cc=..\..\..\bin\lcc -A -DQ3_VM -DMISSIONPACK -S -Wf-target=bytecode -Wf-g -I
 
 %cc%  ../g_syscalls.c
 @if errorlevel 1 goto quit
+%cc%  ../g_nox_syscalls.c
+@if errorlevel 1 goto quit
 
 %cc%  ../bg_misc.c
 @if errorlevel 1 goto quit
@@ -87,6 +89,8 @@ set cc=..\..\..\bin\lcc -A -DQ3_VM -DMISSIONPACK -S -Wf-target=bytecode -Wf-g -I
 %cc%  ../w_force.c
 @if errorlevel 1 goto quit
 %cc%  ../w_saber.c
+@if errorlevel 1 goto quit
+%cc%  ../g_twifireadmincommands.c
 @if errorlevel 1 goto quit
 
 ..\..\..\bin\q3asm -f ../game

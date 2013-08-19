@@ -490,6 +490,10 @@ void ReturnToPos1( gentity_t *ent ) {
 	if ( ent->sound2to1 ) {
 		G_AddEvent( ent, EV_GENERAL_SOUND, ent->sound2to1 );
 	}
+	if (ent->downmes && strlen(ent->downmes) > 2)
+	{
+		trap_SendServerCommand( -1, va("cp \"%s\"", ent->downmes));
+	}
 }
 
 
@@ -514,6 +518,8 @@ void Reached_BinaryMover( gentity_t *ent ) {
 
 		ent->s.loopSound = 0;
 
+	if (ent->boltpoint3 == 0)
+	{
 		// return to pos1 after a delay
 		ent->think = ReturnToPos1;
 		ent->nextthink = level.time + ent->wait;
@@ -523,6 +529,7 @@ void Reached_BinaryMover( gentity_t *ent ) {
 			ent->think = ReturnToPos1;
 			ent->nextthink = level.time + ent->delay;
 		}
+	}
 
 		// fire targets
 		if ( !ent->activator ) {
@@ -588,15 +595,33 @@ void Use_BinaryMover( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
 		// open areaportal
 		if ( ent->teammaster == ent || !ent->teammaster ) {
 			trap_AdjustAreaPortalState( ent, qtrue );
+		if (ent->upmes && strlen(ent->upmes) > 2)
+		{
+			trap_SendServerCommand( -1, va("cp \"%s\"", ent->upmes));
 		}
+		}
+		return;
+	}
+	if (ent->boltpoint3 == 1)
+	{
+		ent->think = ReturnToPos1;
+		ent->nextthink = level.time + 50;
 		return;
 	}
 
 	// if all the way up, just delay before coming down
 	if ( ent->moverState == MOVER_POS2 && other && other->client ) {
-		//rww - don't delay if we're not being used by a player
-		ent->nextthink = level.time + ent->wait;
-		return;
+		if (ent->boltpoint1 == 0)
+		{
+			//rww - don't delay if we're not being used by a player
+			ent->nextthink = level.time + ent->wait;
+			return;
+		}
+		else
+		{
+			ent->think = ReturnToPos1;
+			ent->nextthink = level.time + 50;
+		}
 	}
 
 	// only partway down before reversing
@@ -830,6 +855,29 @@ All of the parts of a door have been spawned, so create
 a trigger that encloses all of them
 ======================
 */
+void doorfix(gentity_t *ent)
+{
+	if ((!ent->targetname)||(Q_stricmp(ent->targetname,"") == 0))
+	{
+		ent->targetname = G_Alloc(128);
+		if (ent->model)
+		{
+		char model2[512];
+		stringclear(model2, 510);
+		strcpy(model2, ent->model);
+		ent->targetname[0] = model2[0];
+		ent->targetname[1] = model2[1];
+		ent->targetname[2] = model2[2];
+		ent->targetname[3] = model2[3];
+		ent->targetname[4] = model2[4];
+		ent->targetname[5] = model2[5];
+		ent->targetname[6] = model2[6];
+		ent->targetname[7] = model2[7];
+		ent->targetname[8] = model2[8];
+		ent->targetname[9] = '';
+		}
+	}
+}
 void Think_SpawnNewDoorTrigger( gentity_t *ent ) {
 	gentity_t		*other;
 	vec3_t		mins, maxs;
@@ -875,6 +923,8 @@ void Think_SpawnNewDoorTrigger( gentity_t *ent ) {
 	other->count = best;
 	trap_LinkEntity (other);
 
+	doorfix(ent);
+
 	MatchTeam( ent, ent->moverState, level.time );
 }
 
@@ -909,10 +959,25 @@ void SP_func_door (gentity_t *ent) {
 	vec3_t	size;
 	float	lip;
 	char	*sound;
+	char	*toggle;
+	//char	*upmes;
+	//char	*downmes;
 	int		soundon = 0;
 
+	G_SpawnString( "toggle", "", &toggle );
 	G_SpawnInt("sound", "1", &soundon);
-
+	//G_SpawnString( "upmessage", "", &upmes );
+	//G_SpawnString("downmessage", "", &downmes);
+	//strcpy(ent->upmes,upmes);
+	//strcpy(ent->downmes,downmes);
+	if (Q_stricmp(toggle,"1") == 0)
+	{
+		ent->boltpoint3 = 1;
+	}
+	else
+	{
+		ent->boltpoint3 = 0;
+	}
 	if (soundon)
 	{
 		G_SpawnString("soundstart", "sound/movers/doors/door1start.wav", &sound);
@@ -928,6 +993,7 @@ void SP_func_door (gentity_t *ent) {
 	{
 		ent->sound1to2 = ent->sound2to1 = ent->soundPos1 = ent->soundPos2 = 0;
 	}
+
 
 	ent->blocked = Blocked_Door;
 
@@ -950,7 +1016,7 @@ void SP_func_door (gentity_t *ent) {
 	VectorCopy( ent->s.origin, ent->pos1 );
 
 	// calculate second position
-	trap_SetBrushModel( ent, ent->model );
+	mc_SetBrushModel( ent, ent->model );
 
 	G_SetMovedir (ent->s.angles, ent->movedir);
 	abs_movedir[0] = fabs(ent->movedir[0]);
@@ -968,7 +1034,10 @@ void SP_func_door (gentity_t *ent) {
 		VectorCopy( ent->s.origin, ent->pos2 );
 		VectorCopy( temp, ent->pos1 );
 	}
-
+	if (ent->spawnflags & 64)
+	{
+		ent->boltpoint1 = 1;
+	}
 	InitMover( ent );
 
 	ent->nextthink = level.time + FRAMETIME;
@@ -987,6 +1056,8 @@ void SP_func_door (gentity_t *ent) {
 			ent->think = Think_SpawnNewDoorTrigger;
 		}
 	}
+
+
 }
 
 /*
@@ -1145,7 +1216,7 @@ void SP_func_plat (gentity_t *ent) {
 	ent->wait = 1000;
 
 	// create second position
-	trap_SetBrushModel( ent, ent->model );
+	mc_SetBrushModel( ent, ent->model );
 
 	if ( !G_SpawnFloat( "height", "0", &height ) ) {
 		height = (ent->r.maxs[2] - ent->r.mins[2]) - lip;
@@ -1249,7 +1320,7 @@ void SP_func_button( gentity_t *ent ) {
 	VectorCopy( ent->s.origin, ent->pos1 );
 
 	// calculate second position
-	trap_SetBrushModel( ent, ent->model );
+	mc_SetBrushModel( ent, ent->model );
 
 	G_SpawnFloat( "lip", "4", &lip );
 
@@ -1464,7 +1535,7 @@ void SP_func_train (gentity_t *self) {
 		return;
 	}
 
-	trap_SetBrushModel( self, self->model );
+	mc_SetBrushModel( self, self->model );
 	InitMover( self );
 
 	self->reached = Reached_Train;
@@ -1491,7 +1562,7 @@ A bmodel that just sits there, doing nothing.  Can be used for conditional walls
 "light"		constantLight radius
 */
 void SP_func_static( gentity_t *ent ) {
-	trap_SetBrushModel( ent, ent->model );
+	mc_SetBrushModel( ent, ent->model );
 	InitMover( ent );
 	VectorCopy( ent->s.origin, ent->s.pos.trBase );
 	VectorCopy( ent->s.origin, ent->r.currentOrigin );
@@ -1537,7 +1608,7 @@ void SP_func_rotating (gentity_t *ent) {
 		ent->damage = 2;
 	}
 
-	trap_SetBrushModel( ent, ent->model );
+	mc_SetBrushModel( ent, ent->model );
 	InitMover( ent );
 
 	VectorCopy( ent->s.origin, ent->s.pos.trBase );
@@ -1576,7 +1647,7 @@ void SP_func_bobbing (gentity_t *ent) {
 	G_SpawnInt( "dmg", "2", &ent->damage );
 	G_SpawnFloat( "phase", "0", &phase );
 
-	trap_SetBrushModel( ent, ent->model );
+	mc_SetBrushModel( ent, ent->model );
 	InitMover( ent );
 
 	VectorCopy( ent->s.origin, ent->s.pos.trBase );
@@ -1626,7 +1697,7 @@ void SP_func_pendulum(gentity_t *ent) {
 	G_SpawnInt( "dmg", "2", &ent->damage );
 	G_SpawnFloat( "phase", "0", &phase );
 
-	trap_SetBrushModel( ent, ent->model );
+	mc_SetBrushModel( ent, ent->model );
 
 	// find pendulum length
 	length = fabs( ent->r.mins[2] );
@@ -1766,7 +1837,7 @@ INVINCIBLE		Can only be destroyed by being used
 void SP_func_breakable( gentity_t *ent ) {
 	char *model, *sound, *debrissound;
 
-	trap_SetBrushModel( ent, ent->model );
+	mc_SetBrushModel( ent, ent->model );
 	InitMover( ent );
 
 	G_SpawnInt( "health", "1", &ent->health );
@@ -1957,7 +2028,7 @@ Breakable glass
 "maxshards"	Max number of shards to spawn on glass break
 */
 void SP_func_glass( gentity_t *ent ) {
-	trap_SetBrushModel( ent, ent->model );
+	mc_SetBrushModel( ent, ent->model );
 	InitMover( ent );
 
 	ent->r.svFlags = SVF_GLASS_BRUSH;
@@ -2000,7 +2071,7 @@ void func_wait_return_solid( gentity_t *self )
 	self->clipmask = CONTENTS_BODY;
 	if ( !(self->spawnflags&16) || G_TestEntityPosition( self ) == NULL )
 	{
-		trap_SetBrushModel( self, self->model );
+		mc_SetBrushModel( self, self->model );
 		InitMover( self );
 		VectorCopy( self->s.origin, self->s.pos.trBase );
 		VectorCopy( self->s.origin, self->r.currentOrigin );
@@ -2123,7 +2194,7 @@ A bmodel that just sits there, doing nothing.  Can be used for conditional walls
 
 void SP_func_usable( gentity_t *self ) 
 {
-	trap_SetBrushModel( self, self->model );
+	mc_SetBrushModel( self, self->model );
 	InitMover( self );
 	VectorCopy( self->s.origin, self->s.pos.trBase );
 	VectorCopy( self->s.origin, self->r.currentOrigin );
@@ -2172,4 +2243,125 @@ void SP_func_usable( gentity_t *self )
 	}*/
 
 	trap_LinkEntity (self);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void SP_mc_door (gentity_t *ent, float lip) {
+	vec3_t	abs_movedir;
+	float	distance;
+	vec3_t	size;
+	char	*sound;
+	char *model;
+	int		soundon = 0;
+
+	G_SpawnInt("sound", "1", &soundon);
+
+	if (soundon)
+	{
+		G_SpawnString("soundstart", "sound/movers/doors/door1start.wav", &sound);
+		ent->sound1to2 = ent->sound2to1 = G_SoundIndex(sound);
+
+		G_SpawnString("soundstop", "sound/movers/doors/door1stop.wav", &sound);
+		ent->soundPos1 = ent->soundPos2 = G_SoundIndex(sound);
+
+		G_SpawnString("soundmove", "sound/movers/doors/door1move.wav", &sound);
+		ent->soundLoop = G_SoundIndex(sound);
+	}
+	else
+	{
+		ent->sound1to2 = ent->sound2to1 = ent->soundPos1 = ent->soundPos2 = 0;
+	}
+
+	ent->blocked = Blocked_Door;
+
+	// default speed of 400
+	if (!ent->speed)
+		ent->speed = 400;
+
+	// default wait of 2 seconds
+	if (!ent->wait)
+		ent->wait = 2;
+	ent->wait *= 1000;
+
+
+	// default damage of 2 points
+	G_SpawnInt( "dmg", "2", &ent->damage );
+
+	// first position at start
+	VectorCopy( ent->s.origin, ent->pos1 );
+
+	// calculate second position
+	//mc_SetBrushModel( ent, ent->model );
+	G_SpawnString( "model", "", &model );
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelindex2 = G_ModelIndex( model );
+	strcpy(ent->mcmessage,model);
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	VectorSet( ent->r.maxs, 25, 25, 21 );
+	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	trap_LinkEntity( ent );
+
+	G_SetMovedir (ent->s.angles, ent->movedir);
+	abs_movedir[0] = fabs(ent->movedir[0]);
+	abs_movedir[1] = fabs(ent->movedir[1]);
+	abs_movedir[2] = fabs(ent->movedir[2]);
+	VectorSubtract( ent->r.maxs, ent->r.mins, size );
+	distance = DotProduct( abs_movedir, size ) - lip;
+	VectorMA( ent->pos1, distance, ent->movedir, ent->pos2 );
+
+	// if "start_open", reverse position 1 and 2
+	if ( ent->spawnflags & 1 ) {
+		vec3_t	temp;
+
+		VectorCopy( ent->pos2, temp );
+		VectorCopy( ent->s.origin, ent->pos2 );
+		VectorCopy( temp, ent->pos1 );
+	}
+
+	InitMover( ent );
+
+	ent->nextthink = level.time + FRAMETIME;
+
+	if ( ! (ent->flags & FL_TEAMSLAVE ) ) {
+		int health;
+
+		G_SpawnInt( "health", "0", &health );
+		if ( health ) {
+			ent->takedamage = qtrue;
+		}
+		if ( ent->targetname || health ) {
+			// non touch/shoot doors
+			ent->think = Think_MatchTeam;
+		} else {
+			ent->think = Think_SpawnNewDoorTrigger;
+		}
+	}
 }

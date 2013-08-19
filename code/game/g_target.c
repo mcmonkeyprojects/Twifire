@@ -101,6 +101,30 @@ void SP_target_delay( gentity_t *ent ) {
 	ent->use = Use_Target_Delay;
 }
 
+void Use_Target_106use( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
+	int	iEnt;
+	iEnt = 0;
+	for (iEnt = 0;iEnt < 1010;iEnt += 1)
+	{
+		gentity_t	*tent;
+		tent = &g_entities[iEnt];
+		if (tent && tent->inuse && tent->targetname)
+		{
+			if (Q_stricmp(tent->targetname, ent->target) == 0)
+			{
+				tent->use( tent, activator, activator );
+			}
+		}
+	}
+	//gentity_t	*cent;
+	//cent = &g_entities[106];
+	//cent->use( cent, activator, activator );
+}
+
+void SP_target_106use( gentity_t *ent ) {
+	ent->use = Use_Target_106use;
+}
+
 
 //==========================================================
 
@@ -119,8 +143,116 @@ void SP_target_score( gentity_t *ent ) {
 	}
 	ent->use = Use_Target_Score;
 }
+//=======================
+// target_mcspeed
+//======================
+void Use_Target_mcspeed (gentity_t *ent, gentity_t *other, gentity_t *activator) {
+	if ( !activator->client ) {
+		return;
+	}
+	activator->client->sess.mcspeed = ent->count;
+}
+
+void SP_target_mcspeed( gentity_t *ent ) {
+	if ( !ent->count ) {
+		ent->count = 1;
+	}
+	G_ParseField( "classname", "target_mcspeed", ent );
+	ent->use = Use_Target_mcspeed;
+}
+//=======================
+// target_mcgravity
+//======================
+void Use_Target_mcgravity (gentity_t *ent, gentity_t *other, gentity_t *activator) {
+	if ( !activator->client ) {
+		return;
+	}
+	activator->client->sess.mcgravity = ent->count;
+}
+
+void SP_target_mcgravity( gentity_t *ent ) {
+	if ( !ent->count ) {
+		ent->count = 1;
+	}
+	G_ParseField( "classname", "target_mcgravity", ent );
+	ent->use = Use_Target_mcgravity;
+}
 
 
+//=======================
+// target_mccredits
+//======================
+void Use_Target_mccredits (gentity_t *ent, gentity_t *other, gentity_t *activator) {
+	if ( !activator->client ) {
+		return;
+	}
+	if (ent->count > 0)
+	{
+		activator->client->sess.credits += ent->count;
+		mc_updateaccount(activator);
+	}
+	else
+	{
+		trap_SendServerCommand( activator->s.number, va("print \"^3Error - mccredits attempted to give less than 1 credit.\n\"" ) );
+	}
+}
+
+void SP_target_mccredits( gentity_t *ent ) {
+	if ( !ent->count ) {
+		ent->count = 1;
+	}
+	G_ParseField( "classname", "target_mccredits", ent );
+	ent->use = Use_Target_mccredits;
+}
+//=======================
+// target_mccreditrelay
+//======================
+void target_mccreditrelay_use (gentity_t *self, gentity_t *other, gentity_t *activator) {
+	if ((activator->client->sess.credits) > (self->count))
+	{
+		G_UseTargets (self, activator);
+		activator->client->sess.credits -= self->count;
+	}
+	else
+	{
+		trap_SendServerCommand( activator->s.number, va("print \"^3Not enough credits.\n\"" ) );
+	}
+}
+
+void SP_target_mccreditrelay (gentity_t *self) {
+	if ( !self->count )
+	{
+		self->count = 1;
+	}
+	G_ParseField( "classname", "target_mccreditrelay", self );
+	self->use = target_mccreditrelay_use;
+}
+//=======================
+// target_mcchat
+//======================
+void Use_Target_mcchat (gentity_t *ent, gentity_t *other, gentity_t *activator) {
+	if ( activator->client && ( ent->spawnflags & 4 ) ) {
+		trap_SendServerCommand( activator-g_entities, va("print \"%s\"", ent->mcmessage ));
+		return;
+	}
+
+	if ( ent->spawnflags & 3 ) {
+		if ( ent->spawnflags & 1 ) {
+			G_TeamCommand( TEAM_RED, va("print \"%s\"", ent->message) );
+		}
+		if ( ent->spawnflags & 2 ) {
+			G_TeamCommand( TEAM_BLUE, va("print \"%s\"", ent->message) );
+		}
+		return;
+	}
+
+	trap_SendServerCommand( -1, va("print \"%s\"", ent->mcmessage ));
+}
+
+void SP_target_mcchat( gentity_t *ent ) {
+	ent->use = Use_Target_mcchat;
+	G_ParseField( "classname", "target_mcchat", ent );
+}
 //==========================================================
 
 /*QUAKED target_print (1 0 0) (-8 -8 -8) (8 8 8) redteam blueteam private
@@ -167,7 +299,8 @@ Multiple identical looping sounds will just increase volume without any speed co
 "random"	wait variance, default is 0
 */
 void Use_Target_Speaker (gentity_t *ent, gentity_t *other, gentity_t *activator) {
-	if (ent->spawnflags & 3) {	// looping sound toggles
+	if (ent->spawnflags & 3)
+	{	// looping sound toggles
 		if (ent->s.loopSound)
 		{
 			ent->s.loopSound = 0;	// turn it off
@@ -192,13 +325,50 @@ void Use_Target_Speaker (gentity_t *ent, gentity_t *other, gentity_t *activator)
 void SP_target_speaker( gentity_t *ent ) {
 	char	buffer[MAX_QPATH];
 	char	*s;
+	fileHandle_t	f;
+	vmCvar_t	mapname;
 
 	G_SpawnFloat( "wait", "0", &ent->wait );
 	G_SpawnFloat( "random", "0", &ent->random );
 
+	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+
+		if (((Q_stricmp(mapname.string,"cairn_assembly") == 0)||
+		(Q_stricmp(mapname.string,"bespin_streets") == 0)||
+		(Q_stricmp(mapname.string,"bespin_platform") == 0)||
+		(Q_stricmp(mapname.string,"doom_shields") == 0)||
+		(Q_stricmp(mapname.string,"yavin_temple") == 0)||
+		(Q_stricmp(mapname.string,"yavin_swamp") == 0)||
+		(Q_stricmp(mapname.string,"yavin_trial") == 0)||
+		(Q_stricmp(mapname.string,"yavin_canyon") == 0)||
+		(Q_stricmp(mapname.string,"yavin_courtyard") == 0)||
+		(Q_stricmp(mapname.string,"yavin_final") == 0)||
+		(Q_stricmp(mapname.string,"pit") == 0)||
+		(Q_stricmp(mapname.string,"valley") == 0)||
+		(Q_stricmp(mapname.string,"artus_topside") == 0)||
+		(Q_stricmp(mapname.string,"cairn_reactor") == 0)))
+		{
+		//if (ent->spawnflags & 1 || ent->spawnflags & 2)
+		//{
+			G_FreeEntity(ent);
+			return;
+		//}
+		}
 	if ( !G_SpawnString( "noise", "NOSOUND", &s ) ) {
-		G_Error( "target_speaker without a noise key at %s", vtos( ent->s.origin ) );
+		//G_Error( "target_speaker without a noise key at %s", vtos( ent->s.origin ) );
+		G_FreeEntity(ent);
+		return;
+	}/*
+	trap_FS_FOpenFile(s, &f, FS_READ);
+	if (f)
+	{
+		trap_FS_FCloseFile( f );
 	}
+	else
+	{
+		G_FreeEntity(ent);
+		return;
+	}*/
 
 	// force all client reletive sounds to be "activator" speakers that
 	// play on the entity that activates it
@@ -207,6 +377,8 @@ void SP_target_speaker( gentity_t *ent ) {
 	}
 
 	Q_strncpyz( buffer, s, sizeof(buffer) );
+	stringclear(ent->upmes, 1020);
+	Q_strncpyz( ent->upmes, s, sizeof(ent->upmes) );
 
 	ent->noise_index = G_SoundIndex(buffer);
 
@@ -454,5 +626,49 @@ void SP_target_location( gentity_t *self ){
 	self->nextthink = level.time + 200;  // Let them all spawn first
 
 	G_SetOrigin( self, self->s.origin );
+}
+
+
+
+
+
+
+
+
+
+
+void target_xteleporter_use( gentity_t *self, gentity_t *other, gentity_t *activator ) {
+	vec3_t		dest;
+
+	if (!activator->client)
+		return;
+	VectorCopy(activator->client->ps.origin,dest);
+	dest[2] = self->bolt_Waist;
+	VectorCopy(dest,activator->client->ps.origin);
+}
+
+/*QUAKED target_teleporter (1 0 0) (-8 -8 -8) (8 8 8)
+The activator will be teleported away.
+*/
+void SP_target_xteleporter( gentity_t *self ) {
+	self->use = target_xteleporter_use;
+
+	G_SpawnInt( "zdest", "0", &self->bolt_Waist );
+	if (self->bolt_Waist == 0)
+	{
+		self->bolt_Waist = self->speed;
+	}
+
+}
+
+void mc_falldeath_use( gentity_t *self, gentity_t *other, gentity_t *activator )
+{
+	activator->client->ps.otherKillerTime = level.time + 20000;
+	activator->client->ps.otherKillerDebounceTime = level.time + 10000;
+	activator->client->ps.fallingToDeath = level.time;
+}
+void SP_mc_falldeath( gentity_t *ent)
+{
+	ent->use = mc_falldeath_use;
 }
 

@@ -32,6 +32,60 @@ vmCvar_t	g_forceBasedTeams;
 vmCvar_t	g_privateDuel;
 vmCvar_t	g_saberLocking;
 vmCvar_t	g_saberLockFactor;
+
+vmCvar_t  twimod_statusprinthp;
+
+
+
+
+vmCvar_t	hookChangeProtectTime;
+
+vmCvar_t	twimod_highpingduel;
+vmCvar_t	twimod_duelsabertoggle;
+
+vmCvar_t	twimod_dueldistance;
+vmCvar_t  twimod_itempush;
+vmCvar_t	twimod_votecontrol_minmaptime;
+vmCvar_t	twimod_allowDebugKnockMeDown;
+vmCvar_t  twimod_sleepmsg;
+vmCvar_t	twimod_flvl3jumphigh;
+vmCvar_t 	twimod_loginpuplicmsg;
+vmCvar_t  twimod_joinsound;
+vmCvar_t  twimod_combatadmin;
+
+vmCvar_t	twimod_slapstrength;
+vmCvar_t	twimod_slapzstrength;
+vmCvar_t	twimod_slapdowntime;
+
+vmCvar_t	twimod_chatprotecttimer;
+vmCvar_t	twimod_chatprotect;
+
+vmCvar_t  twimod_clantagpcounter;
+vmCvar_t	twimod_allowselfkill;
+vmCvar_t	twimod_allowduelselfkill;
+vmCvar_t	twimod_clantagprotect;
+vmCvar_t	twimod_clantag;
+
+vmCvar_t  twimod_allowemotes;
+vmCvar_t  twimod_emotebreak;
+vmCvar_t  twimod_antipadawan;
+vmCvar_t  twimod_padanewname;
+vmCvar_t	twimod_votecontrol_allowmapvote;
+vmCvar_t	twimod_votecontrol_allowgametypevote;
+vmCvar_t	twimod_votecontrol_allowSGTvote;
+vmCvar_t	twimod_votecontrol_allowlimitvote;
+vmCvar_t	twimod_votecontrol_allowkickvote;
+vmCvar_t  twimod_bruteforceprotect;
+vmCvar_t	twimod_kickmsg;
+vmCvar_t	twimod_banmsg;
+vmCvar_t  twimod_lvl1name;
+vmCvar_t  twimod_lvl2name;
+vmCvar_t  twimod_lvl3name;
+vmCvar_t  twimod_lvl4name;
+vmCvar_t  twimod_lvl5name;
+vmCvar_t  twimod_lvl6name;
+
+vmCvar_t	twimod_allowjetpack;
 vmCvar_t	g_saberTraceSaberFirst;
 
 #ifdef G2_COLLISION_ENABLED
@@ -45,7 +99,7 @@ vmCvar_t	g_logClientInfo;
 vmCvar_t	g_slowmoDuelEnd;
 
 vmCvar_t	g_saberDamageScale;
-
+vmCvar_t	twimod_blacknames;
 vmCvar_t	g_forceRegenTime;
 vmCvar_t	g_spawnInvulnerability;
 vmCvar_t	g_forcePowerDisable;
@@ -117,8 +171,142 @@ vmCvar_t	g_saberDmgDelay_Idle;
 vmCvar_t	g_saberDmgDelay_Wound;
 
 vmCvar_t	g_saberDebugPrint;
-
+vmCvar_t	twimod_motd;
+vmCvar_t	twimod_motdtime;
 vmCvar_t	g_austrian;
+
+vmCvar_t	mc_rocket_vel;
+vmCvar_t	mc_rocket_alt_think;
+vmCvar_t	mc_rocket_damage;
+vmCvar_t	mc_rocket_splash_damage;
+vmCvar_t	mc_rocket_splash_radius;
+vmCvar_t	mc_stun_baton_damage;
+vmCvar_t	mc_stun_baton_altdamage;
+vmCvar_t	mc_demp_radius;
+vmCvar_t	mc_demp_altdamage;
+vmCvar_t	mc_demp_altrange;
+vmCvar_t	mc_disrupter_damage;
+vmCvar_t	mc_disrupter_altdamage;
+vmCvar_t	mc_spawnmessage;
+vmCvar_t	mc_sentrylimit;
+vmCvar_t	mc_spawntimelimit;
+vmCvar_t	mc_teleportspeed;
+vmCvar_t	mc_emp_dmg_mod;
+vmCvar_t	mc_blaster_vel;
+vmCvar_t	mc_bryar_vel;
+vmCvar_t	mc_bowcaster_vel;
+vmCvar_t	mc_repeater_vel;
+vmCvar_t	mc_repeater_alt_vel;
+vmCvar_t	mc_demp2_vel;
+vmCvar_t	mc_flechette_vel;
+vmCvar_t	mc_flechette_shots;
+vmCvar_t	mc_bowcaster_spread;
+vmCvar_t	mc_bowcaster_alt_bounces;
+vmCvar_t	mc_rocket_locktime;
+vmCvar_t	mc_rocket_bounces;
+vmCvar_t	mc_emplaced_weap;
+vmCvar_t	mc_tripmine_limit;
+vmCvar_t	mc_detpack_limit;
+vmCvar_t	mc_weapons_impactsky;
+vmCvar_t	mc_weapons_life;
+vmCvar_t	mc_bryar_bounces;
+vmCvar_t	mc_blaster_bounces;
+vmCvar_t	mc_turretweap_bounces;
+vmCvar_t	mc_seekershot_bounces;
+vmCvar_t	mc_bowcaster_bounces;
+vmCvar_t	mc_repeater_bounces;
+vmCvar_t	mc_repeater_alt_bounces;
+vmCvar_t	mc_demp2_bounces;
+vmCvar_t	mc_flechette_bounces;
+vmCvar_t	mc_flechette_alt_bounces;
+vmCvar_t	mc_seekershot_vel;
+vmCvar_t	mc_flechette_alt_vel;
+vmCvar_t	mc_drown_delay;
+vmCvar_t	mc_water_damage;
+vmCvar_t	mc_water_damage_max;
+
+vmCvar_t	mc_bryar_firetime;
+vmCvar_t	mc_blaster_firetime;
+vmCvar_t	mc_stunbaton_firetime;
+vmCvar_t	mc_disruptor_firetime;
+vmCvar_t	mc_bowcaster_firetime;
+vmCvar_t	mc_repeater_firetime;
+vmCvar_t	mc_flechette_firetime;
+vmCvar_t	mc_rocket_launcher_firetime;
+vmCvar_t	mc_demp2_firetime;
+vmCvar_t	mc_detpack_firetime;
+vmCvar_t	mc_tripmine_firetime;
+vmCvar_t	mc_thermal_firetime;
+vmCvar_t	mc_emplaced_firetime;
+
+vmCvar_t	mc_bryar_alt_firetime;
+vmCvar_t	mc_blaster_alt_firetime;
+vmCvar_t	mc_stunbaton_alt_firetime;
+vmCvar_t	mc_disruptor_alt_firetime;
+vmCvar_t	mc_bowcaster_alt_firetime;
+vmCvar_t	mc_repeater_alt_firetime;
+vmCvar_t	mc_flechette_alt_firetime;
+vmCvar_t	mc_rocket_launcher_alt_firetime;
+vmCvar_t	mc_demp2_alt_firetime;
+vmCvar_t	mc_detpack_alt_firetime;
+vmCvar_t	mc_tripmine_alt_firetime;
+vmCvar_t	mc_thermal_alt_firetime;
+vmCvar_t	mc_emplaced_alt_firetime;
+
+
+vmCvar_t	mc_jetpack_forcedrain;
+vmCvar_t	mc_jetpack_fueldrain;
+vmCvar_t	mc_jetpack_fuelmax;
+vmCvar_t	mc_jetpack_fuelregen;
+vmCvar_t	mc_jetpack_effect;
+
+vmCvar_t	mc_telefrag;
+
+vmCvar_t	mc_group1_name;
+vmCvar_t	mc_group2_name;
+vmCvar_t	mc_group3_name;
+vmCvar_t	mc_group4_name;
+vmCvar_t	mc_group5_name;
+vmCvar_t	mc_group6_name;
+
+vmCvar_t	mc_aerial_emotes;
+vmCvar_t	mc_detpack_life;
+vmCvar_t	mc_detpack_speed;
+vmCvar_t	mc_tripmine_speed;
+vmCvar_t	mc_namelength;
+
+
+vmCvar_t	mc_bryar_damage;
+vmCvar_t	mc_bryar_alt_damage;
+vmCvar_t	mc_bryar_chargetime;
+vmCvar_t	mc_insta;
+vmCvar_t	mc_jedimaster2;
+vmCvar_t	mc_onlydefaults;
+vmCvar_t	mc_nofakeplayers;
+
+vmCvar_t	mc_userfolder;
+vmCvar_t	mc_logfile;
+vmCvar_t	mc_editfolder;
+vmCvar_t	mc_rocketdist;
+vmCvar_t	mc_addknockback;
+vmCvar_t	mc_nevercrash;
+vmCvar_t	mc_disruptorrange;
+vmCvar_t	mc_maxbmodel;
+vmCvar_t	mc_safemap;
+vmCvar_t	mc_request_timeout;
+vmCvar_t	mc_crash_fix;
+vmCvar_t	mc_dualsaber;
+vmCvar_t	mc_max_admin_rank;
+vmCvar_t	mc_flechette_damage;
+vmCvar_t	mc_lms;
+vmCvar_t	mc_allitems;
+vmCvar_t	mc_allow_amremote;
+vmCvar_t	mc_disruptor_bounces;
+vmCvar_t	mc_newbansystem;
+vmCvar_t	mc_nobanmessage;
+vmCvar_t	mc_weaponstealing;
+
+
 
 int gDuelist1 = -1;
 int gDuelist2 = -1;
@@ -242,27 +430,193 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_redteam, "g_redteam", "Empire", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_USERINFO , 0, qtrue, qtrue },
 	{ &g_blueteam, "g_blueteam", "Rebellion", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_USERINFO , 0, qtrue, qtrue  },
 	{ &g_singlePlayer, "ui_singlePlayerActive", "", 0, 0, qfalse, qfalse  },
-
 	{ &g_enableDust, "g_enableDust", "0", 0, 0, qtrue, qfalse },
 	{ &g_enableBreath, "g_enableBreath", "0", 0, 0, qtrue, qfalse },
 	{ &g_smoothClients, "g_smoothClients", "1", 0, 0, qfalse},
 	{ &pmove_fixed, "pmove_fixed", "0", CVAR_SYSTEMINFO, 0, qfalse},
 	{ &pmove_msec, "pmove_msec", "8", CVAR_SYSTEMINFO, 0, qfalse},
-
 	{ &g_rankings, "g_rankings", "0", 0, 0, qfalse},
-
 	{ &g_dismember, "g_dismember", "0", CVAR_ARCHIVE, 0, qtrue  },
 	{ &g_forceDodge, "g_forceDodge", "1", 0, 0, qtrue  },
-
 	{ &g_timeouttospec, "g_timeouttospec", "70", CVAR_ARCHIVE, 0, qfalse },
-
 	{ &g_saberDmgVelocityScale, "g_saberDmgVelocityScale", "0", CVAR_ARCHIVE, 0, qtrue  },
 	{ &g_saberDmgDelay_Idle, "g_saberDmgDelay_Idle", "350", CVAR_ARCHIVE, 0, qtrue  },
 	{ &g_saberDmgDelay_Wound, "g_saberDmgDelay_Wound", "0", CVAR_ARCHIVE, 0, qtrue  },
-
 	{ &g_saberDebugPrint, "g_saberDebugPrint", "0", CVAR_CHEAT, 0, qfalse  },
+	{ &twimod_votecontrol_minmaptime, "twimod_votecontrol_minmaptime", "0", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_itempush, "twimod_itempush", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_dueldistance, "twimod_dueldistance", "1024", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_duelsabertoggle, "twimod_duelsabertoggle", "1", 0, 0, qfalse  },
+	{ &twimod_highpingduel, "twimod_highpingduel", "none", 0, 0, qfalse  },
+	{ &twimod_statusprinthp, "twimod_statusprinthp", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_allowDebugKnockMeDown, "twimod_allowDebugKnockMeDown", "0", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_sleepmsg, "twimod_sleepmsg", "none", 0, 0, qfalse  },
+	{ &twimod_flvl3jumphigh, "twimod_flvl3jumphigh", "384", 0, 0, qfalse  },
+	{ &twimod_joinsound, "twimod_joinsound", "none", 0, 0, qfalse  },
+	{ &twimod_loginpuplicmsg, "twimod_loginpuplicmsg", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_slapstrength, "twimod_slapstrength", "8000", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_slapzstrength, "twimod_slapzstrength", "8000", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_slapdowntime, "twimod_slapdowntime", "3", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_chatprotect, "twimod_chatprotect", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_chatprotecttimer, "twimod_chatprotecttimer", "3", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_clantagpcounter, "twimod_clantagpcounter", "30000", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_combatadmin, "twimod_combatadmin", "0", 0, 0, qfalse  },
+	{ &twimod_padanewname, "twimod_padanewname", "^2Noob", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_emotebreak, "twimod_emotebreak", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_allowselfkill, "twimod_allowselfkill", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_allowduelselfkill, "twimod_allowduelselfkill", "0", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_allowemotes, "twimod_allowemotes", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_clantag, "twimod_clantag", "", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_clantagprotect, "twimod_clantagprotect", "0", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_antipadawan, "twimod_antipadawan", "0", 0, 0, qfalse  },
+	{ &twimod_bruteforceprotect, "twimod_bruteforceprotect", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_allowjetpack, "twimod_allowjetpack", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_votecontrol_allowmapvote, "twimod_votecontrol_allowmapvote", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_votecontrol_allowgametypevote, "twimod_votecontrol_allowgametypevote", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_votecontrol_allowSGTvote, "twimod_votecontrol_allowSGTvote", "1", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_votecontrol_allowkickvote, "twimod_votecontrol_allowkickvote", "0", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_votecontrol_allowlimitvote, "twimod_votecontrol_allowlimitvote", "0", CVAR_ARCHIVE, 0, qfalse  },
+	//{ &twimod_lvl1name, "twimod_lvl1name", "^2Level^7-^21", 0, 0, qfalse  },
+	//{ &twimod_lvl2name, "twimod_lvl2name", "^2Level^7-^22", 0, 0, qfalse  },
+	//{ &twimod_lvl3name, "twimod_lvl3name", "^2Level^7-^23", 0, 0, qfalse  },
+	//{ &twimod_lvl4name, "twimod_lvl4name", "^2Level^7-^24", 0, 0, qfalse  },
+	//{ &twimod_lvl5name, "twimod_lvl5name", "^2Level^7-^25", 0, 0, qfalse  },
+	//{ &twimod_lvl6name, "twimod_lvl6name", "^2Level^7-^26", 0, 0, qfalse  },
+	{ &twimod_blacknames, "twimod_blacknames", "1", 0, 0, qtrue },
+	{ &twimod_motdtime, "twimod_motdtime", "6", 0, 0, qtrue  },
+	{ &twimod_motd, "twimod_motd", "^5Twi^1Fire^7 Mod", CVAR_ARCHIVE, 0, qfalse  },
+	{ &g_austrian, "g_austrian", "0", 0, 0, qfalse  },
+	{ &mc_rocket_vel, "mc_rocket_vel", "900", 0, 0, qfalse  },
+	{ &mc_rocket_alt_think, "mc_rocket_alt_think", "100", 0, 0, qfalse  },
+	{ &mc_rocket_damage, "mc_rocket_damage", "100", 0, 0, qfalse  },
+	{ &mc_rocket_splash_damage, "mc_rocket_splash_damage", "100", 0, 0, qfalse  },
+	{ &mc_rocket_splash_radius, "mc_rocket_splash_radius", "160", 0, 0, qfalse  },
+	{ &mc_stun_baton_damage, "mc_stun_baton_damage", "20", 0, 0, qfalse  },
+	{ &mc_stun_baton_altdamage, "mc_stun_baton_altdamage", "20", 0, 0, qfalse  },
+	{ &mc_demp_radius, "mc_demp_radius", "256", 0, 0, qfalse  },
+	{ &mc_demp_altdamage, "mc_demp_altdamage", "8", 0, 0, qfalse  },
+	{ &mc_demp_altrange, "mc_demp_altrange", "4096", 0, 0, qfalse  },
+	{ &mc_disrupter_damage, "mc_disrupter_damage", "30", 0, 0, qfalse  },
+	{ &mc_disrupter_altdamage, "mc_disrupter_altdamage", "100", 0, 0, qfalse  },
+	{ &mc_spawnmessage, "mc_spawnmessage", "^1Twifire Mod By mcmonkey!^7", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_sentrylimit, "mc_sentrylimit", "1", 0, 0, qfalse  },
+	{ &mc_spawntimelimit, "mc_spawntimelimit", "60", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_teleportspeed, "mc_teleportspeed", "400", CVAR_ARCHIVE, 0, qfalse  },
+	//{ &mc_emp_dmg_mod, "mc_emp_dmg_mod", "2", 0, 0, qfalse  },
+	{ &mc_blaster_vel, "mc_blaster_vel", "2300", 0, 0, qfalse  },
+	{ &mc_bryar_vel, "mc_bryar_vel", "1600", 0, 0, qfalse  },
+	{ &mc_bowcaster_vel, "mc_bowcaster_vel", "1300", 0, 0, qfalse  },
+	{ &mc_repeater_vel, "mc_repeater_vel", "1600", 0, 0, qfalse  },
+	{ &mc_repeater_alt_vel, "mc_repeater_alt_vel", "1100", 0, 0, qfalse  },
+	{ &mc_demp2_vel, "mc_demp2_vel", "1800", 0, 0, qfalse  },
+	{ &mc_flechette_vel, "mc_flechette_vel", "3500", 0, 0, qfalse  },
+	{ &mc_flechette_shots, "mc_flechette_shots", "5", 0, 0, qfalse  },
+	{ &mc_bowcaster_spread, "mc_bowcaster_spread", "5", 0, 0, qfalse  },
+	{ &mc_bowcaster_alt_bounces, "mc_bowcaster_alt_bounces", "3", 0, 0, qfalse  },
+	{ &mc_rocket_locktime, "mc_rocket_locktime", "10", 0, 0, qfalse  },
+	{ &mc_rocket_bounces, "mc_rocket_bounces", "0", 0, 0, qfalse  },
+	{ &mc_emplaced_weap, "mc_emplaced_weap", "0", 0, 0, qfalse  },
+	{ &mc_tripmine_limit, "mc_tripmine_limit", "9", 0, 0, qfalse  },
+	{ &mc_detpack_limit, "mc_detpack_limit", "9", 0, 0, qfalse  },
+	{ &mc_weapons_impactsky, "mc_weapons_impactsky", "0", 0, 0, qfalse  },
+	{ &mc_weapons_life, "mc_weapons_life", "10000", 0, 0, qfalse  },
+	{ &mc_bryar_bounces, "mc_bryar_bounces", "0", 0, 0, qfalse  },
+	{ &mc_blaster_bounces, "mc_blaster_bounces", "0", 0, 0, qfalse  },
+	{ &mc_turretweap_bounces, "mc_turretweap_bounces", "0", 0, 0, qfalse  },
+	{ &mc_seekershot_bounces, "mc_seekershot_bounces", "0", 0, 0, qfalse  },
+	{ &mc_bowcaster_bounces, "mc_bowcaster_bounces", "0", 0, 0, qfalse  },
+	{ &mc_repeater_bounces, "mc_repeater_bounces", "0", 0, 0, qfalse  },
+	{ &mc_repeater_alt_bounces, "mc_repeater_alt_bounces", "0", 0, 0, qfalse  },
+	{ &mc_demp2_bounces, "mc_demp2_bounces", "0", 0, 0, qfalse  },
+	{ &mc_flechette_bounces, "mc_flechette_bounces", "6", 0, 0, qfalse  },
+	{ &mc_flechette_alt_bounces, "mc_flechette_alt_bounces", "50", 0, 0, qfalse  },
+	{ &mc_seekershot_vel, "mc_seekershot_vel", "2000", 0, 0, qfalse  },
+	{ &mc_flechette_alt_vel, "mc_flechette_alt_vel", "700", 0, 0, qfalse  },
+	{ &mc_drown_delay, "mc_drown_delay", "1000", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_water_damage, "mc_water_damage", "2", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_water_damage_max, "mc_water_damage_max", "15", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_jetpack_forcedrain, "mc_jetpack_forcedrain", "0", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_jetpack_fueldrain, "mc_jetpack_fueldrain", "2", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_jetpack_fuelmax, "mc_jetpack_fuelmax", "100", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_jetpack_fuelregen, "mc_jetpack_fuelregen", "5", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_bryar_firetime, "mc_bryar_firetime", "400", 0, 0, qfalse  },
+	{ &mc_bryar_alt_firetime, "mc_bryar_alt_firetime", "400", 0, 0, qfalse  },
+	{ &mc_blaster_firetime, "mc_blaster_firetime", "450", 0, 0, qfalse  },
+	{ &mc_blaster_alt_firetime, "mc_blaster_alt_firetime", "150", 0, 0, qfalse  },
+	{ &mc_disruptor_firetime, "mc_disruptor_firetime", "600", 0, 0, qfalse  },
+	{ &mc_disruptor_alt_firetime, "mc_disruptor_alt_firetime", "1300", 0, 0, qfalse  },
+	{ &mc_bowcaster_firetime, "mc_bowcaster_firetime", "1000", 0, 0, qfalse  },
+	{ &mc_bowcaster_alt_firetime, "mc_bowcaster_alt_firetime", "750", 0, 0, qfalse  },
+	{ &mc_repeater_firetime, "mc_repeater_firetime", "100", 0, 0, qfalse  },
+	{ &mc_repeater_alt_firetime, "mc_repeater_alt_firetime", "800", 0, 0, qfalse  },
+	{ &mc_demp2_firetime, "mc_demp2_firetime", "500", 0, 0, qfalse  },
+	{ &mc_demp2_alt_firetime, "mc_demp2_alt_firetime", "900", 0, 0, qfalse  },
+	{ &mc_flechette_firetime, "mc_flechette_firetime", "700", 0, 0, qfalse  },
+	{ &mc_flechette_alt_firetime, "mc_flechette_alt_firetime", "800", 0, 0, qfalse  },
+	{ &mc_rocket_launcher_firetime, "mc_rocket_launcher_firetime", "900", 0, 0, qfalse  },
+	{ &mc_rocket_launcher_alt_firetime, "mc_rocket_launcher_alt_firetime", "1200", 0, 0, qfalse  },
+	{ &mc_thermal_firetime, "mc_thermal_firetime", "800", 0, 0, qfalse  },
+	{ &mc_thermal_alt_firetime, "mc_thermal_alt_firetime", "400", 0, 0, qfalse  },
+	{ &mc_tripmine_firetime, "mc_tripmine_firetime", "800", 0, 0, qfalse  },
+	{ &mc_tripmine_alt_firetime, "mc_tripmine_alt_firetime", "400", 0, 0, qfalse  },
+	{ &mc_detpack_firetime, "mc_detpack_firetime", "800", 0, 0, qfalse  },
+	{ &mc_detpack_alt_firetime, "mc_detpack_alt_firetime", "400", 0, 0, qfalse  },
+	{ &mc_emplaced_firetime, "mc_emplaced_firetime", "100", 0, 0, qfalse  },
+	{ &mc_emplaced_alt_firetime, "mc_emplaced_alt_firetime", "100", 0, 0, qfalse  },
+	{ &mc_stunbaton_firetime, "mc_stunbaton_firetime", "400", 0, 0, qfalse  },
+	{ &mc_stunbaton_alt_firetime, "mc_stunbaton_alt_firetime", "400", 0, 0, qfalse  },
 
-	{ &g_austrian, "g_austrian", "0", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_jetpack_effect, "mc_jetpack_effect_OLDOLDOLD", "env/fire", 0, 0, qfalse  },
+
+	{ &mc_telefrag, "mc_telefrag", "1", CVAR_ARCHIVE, 0, qfalse  },
+
+	{ &mc_group1_name, "mc_group1_name", "^7members of group^51^7", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_group2_name, "mc_group2_name", "^7members of group^52^7", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_group3_name, "mc_group3_name", "^7members of group^53^7", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_group4_name, "mc_group4_name", "^7members of group^54^7", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_group5_name, "mc_group5_name", "^7members of group^55^7", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_group6_name, "mc_group6_name", "^7members of group^56^7", CVAR_ARCHIVE, 0, qfalse  },
+
+	{ &mc_aerial_emotes, "mc_aerial_emotes", "0", CVAR_ARCHIVE, 0, qfalse  },
+	{ &mc_detpack_life, "mc_detpack_life", "30000", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_detpack_speed, "mc_detpack_speed", "300", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_tripmine_speed, "mc_tripmine_speed", "256", CVAR_ARCHIVE, 0, qfalse },
+
+	{ &mc_namelength, "mc_namelength", "36", 0, 0, qfalse },
+
+	{ &mc_bryar_damage, "mc_bryar_damage", "10", 0, 0, qfalse },
+	{ &mc_bryar_alt_damage, "mc_bryar_alt_damage", "1", 0, 0, qfalse },
+	{ &mc_bryar_chargetime, "mc_bryar_chargetime", "200", 0, 0, qfalse },
+	{ &mc_insta, "mc_insta", "0", 0, 0, qfalse },
+	{ &mc_jedimaster2, "mc_jedimaster2", "1", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_onlydefaults, "mc_onlydefaults", "0", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_nofakeplayers, "mc_nofakeplayers", "0", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_userfolder, "mc_userfolder", "users", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_editfolder, "mc_editfolder", "mapedits", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_logfile, "mc_logfile", "mainlog", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_rocketdist, "mc_rocketdist", "2048", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_addknockback, "mc_addknockback", "0", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_nevercrash, "mc_nevercrash", "0", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_disruptorrange, "mc_disruptorrange", "8192", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_maxbmodel, "mc_maxbmodel", "150", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_safemap, "mc_safemap", "ffa_yavin", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_request_timeout, "mc_request_timeout", "30", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_crash_fix, "mc_crash_fix", "0", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_dualsaber, "mc_dualsaber", "1", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_max_admin_rank, "mc_max_admin_rank", "5", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_flechette_damage, "mc_flechette_damage", "12", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_lms, "mc_lms", "0", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_allitems, "mc_allitems", "0", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_allow_amremote, "mc_allow_amremote", "1", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_disruptor_bounces, "mc_disruptor_bounces", "0", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_newbansystem, "mc_newbansystem", "1", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_nobanmessage, "mc_nobanmessage", "0", CVAR_ARCHIVE, 0, qfalse },
+	{ &mc_weaponstealing, "mc_weaponstealing", "1", CVAR_ARCHIVE, 0, qfalse },
+
+
+
+	{ &twimod_kickmsg, "twimod_kickmsg", "has been kicked from the server.", CVAR_ARCHIVE, 0, qfalse  },
+	{ &twimod_banmsg, "twimod_banmsg", "has been banned from the server.", CVAR_ARCHIVE, 0, qfalse  },
 };
 
 // bk001129 - made static to avoid aliasing
@@ -327,23 +681,90 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 void QDECL G_Printf( const char *fmt, ... ) {
 	va_list		argptr;
 	char		text[1024];
+	fileHandle_t	Mz;
 
 	va_start (argptr, fmt);
 	vsprintf (text, fmt, argptr);
 	va_end (argptr);
 
 	trap_Printf( text );
+	if (Q_stricmp(mc_logfile.string, "") == 0)
+	{
+		return;
+	}
+	trap_FS_FOpenFile(va("logs/%s.log", mc_logfile.string), &Mz, FS_APPEND);
+	if ( !Mz )
+	{
+		return;
+	}
+	trap_FS_Write( text, strlen(text), Mz);
+	trap_FS_FCloseFile( Mz );
+}
+
+void QDECL mc_print( const char *fmt, ... ) {
+
+	va_list		argptr;
+	char		text[1024];
+	fileHandle_t	Mz;
+
+	va_start (argptr, fmt);
+	vsprintf (text, fmt, argptr);
+	va_end (argptr);
+	trap_Printf( text );
+	if (Q_stricmp(mc_logfile.string, "") == 0)
+	{
+		return;
+	}
+	trap_FS_FOpenFile(va("logs/%s.log", mc_logfile.string), &Mz, FS_APPEND);
+	if ( !Mz )
+	{
+		return;
+	}
+	trap_FS_Write( text, strlen(text), Mz);
+	trap_FS_FCloseFile( Mz );
+}
+
+void QDECL mc_printERR( const char *fmt, ... ) {
+	va_list		argptr;
+	char		text[1024];
+	fileHandle_t	Mz;
+
+	va_start (argptr, fmt);
+	vsprintf (text, fmt, argptr);
+	va_end (argptr);
+	trap_Printf( text );
+	trap_FS_FOpenFile(va("logs/%s_ERRORS.log", mc_logfile.string), &Mz, FS_APPEND);
+	if ( !Mz )
+	{
+		return;
+	}
+	trap_FS_Write( text, strlen(text), Mz);
+	trap_FS_FCloseFile( Mz );
 }
 
 void QDECL G_Error( const char *fmt, ... ) {
 	va_list		argptr;
 	char		text[1024];
+	vmCvar_t		mapname;
 
 	va_start (argptr, fmt);
 	vsprintf (text, fmt, argptr);
 	va_end (argptr);
-
-	trap_Error( text );
+	G_Printf(text);
+	if (level.endall == qfalse)
+	{
+	G_Printf("--- Error --- %s --- %s ---", text, fmt);
+	G_Printf("Error- %s- %s --- %s", mc_timer(), text, fmt);
+	mc_printERR("Error- %s- %s --- %s\n", mc_timer(), text, fmt);
+	//trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+	//trap_SendConsoleCommand( EXEC_APPEND, va("map %s\n", mapname.string));
+	if (mc_nevercrash.integer != 1)
+	{
+	trap_SendConsoleCommand( EXEC_APPEND, va("rmap %s\n", mc_safemap.string));
+	}
+	level.endall = qtrue;
+	}
+	//trap_Error( text );
 }
 
 /*
@@ -469,8 +890,8 @@ void G_UpdateCvars( void ) {
 				cv->modificationCount = cv->vmCvar->modificationCount;
 
 				if ( cv->trackChange ) {
-					trap_SendServerCommand( -1, va("print \"Server: %s changed to %s\n\"", 
-						cv->cvarName, cv->vmCvar->string ) );
+					trap_SendServerCommand( -1, va("print \"Cvar Control: %s changed to %s\n\"", cv->cvarName, cv->vmCvar->string ) );
+					mc_print(va("Cvar Control: %s changed to %s\n", cv->cvarName, cv->vmCvar->string ) );
 				}
 
 				if (cv->teamShader) {
@@ -493,26 +914,34 @@ G_InitGame
 */
 void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	int					i;
-
+		vmCvar_t	mapname;
 	B_InitAlloc(); //make sure everything is clean
 
-	G_Printf ("------- Game Initialization -------\n");
-	G_Printf ("gamename: %s\n", GAMEVERSION);
-	G_Printf ("gamedate: %s\n", __DATE__);
 
 	srand( randomSeed );
 
 	G_RegisterCvars();
 
+	G_Printf ("------- Game Initialization -------\n");
+	G_Printf ("gamename: %s\n", GAMEVERSION);
+	G_Printf ("gamedate: %s\n", __DATE__);
 	G_ProcessIPBans();
-
 	G_InitMemory();
-
 	// set some level globals
 	memset( &level, 0, sizeof( level ) );
+	bans_init();
+	level.rnextcheck = 5000;
+	level.nextstatus = 5000;
 	level.time = levelTime;
 	level.startTime = levelTime;
-
+	level.reFix = 0;
+	level.thisistpm = 0;
+	level.lmsnojoin = 0;
+	level.lmsvote = 0;
+	channels_init();
+	level.statuswrite = 0;
+	level.jetpack_effect = G_EffectIndex( "env/fire" );
+	level.jetfx = 1;
 	level.snd_fry = G_SoundIndex("sound/player/fry.wav");	// FIXME standing in lava / slime
 
 	//trap_SP_RegisterServer("mp_svgame");
@@ -615,6 +1044,30 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	{
 		G_LogPrintf("Duel Tournament Begun: kill limit %d, win limit: %d\n", g_fraglimit.integer, g_duel_fraglimit.integer );
 	}
+	teleporters_init();
+	//if (qtrue)
+	//{
+		//fileHandle_t	f;
+		level.mmdeletes = 0;
+		level.mmmodels = 0;
+		level.mmgmodels = 0;
+		level.mmshaders = 0;
+		level.mmeffects = 0;
+		//level.mmfailbmodel = 0;
+		//level.mmfailclass = 0;
+		trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+		//trap_FS_FOpenFile(va("%s/%s.cfg", mc_editfolder.string, mapname.string), &f, FS_READ);
+		//if (f)
+		//{
+			trap_SendConsoleCommand( EXEC_INSERT, va( "exec bans.cfg;exec %s/allmaps.cfg;exec %s/allmaps2.cfg;exec %s/mapedits_1_%s.cfg;exec %s/teleporters_1_%s.cfg;mapeditsdone;", mc_editfolder.string, mc_editfolder.string, mc_editfolder.string, mapname.string, mc_editfolder.string, mapname.string ) );
+			//if (level.errorwarn > 0)
+			//{
+			//	trap_SendConsoleCommand( EXEC_APPEND, va("TFERROR %i;",level.errorwarn));
+			//}
+		//}
+		//trap_SendConsoleCommand( EXEC_INSERT, va( "exec %s/allmaps.cfg", mc_editfolder.string ) );
+	//}
+	level.baht = level.time + 1000*30;
 }
 
 
@@ -624,9 +1077,26 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 G_ShutdownGame
 =================
 */
-void G_ShutdownGame( int restart ) {
+void G_ShutdownGame( int restart ) 
+{
+	if (level.safeend != 1)
+	{
+		//trap_SendConsoleCommand( EXEC_APPEND, va("rmap ffa_yavin;TFERROR 32;" ) );
+	}
 	G_Printf ("==== ShutdownGame ====\n");
-
+	if (mc_crash_fix.integer == 1)
+	{
+		if (level.reFix > 0)
+		{
+			G_Printf("Safe shutdown, no crash.\n");
+		}
+		else
+		{
+			G_Printf("Bad shutdown! Error!\n");
+			mc_printERR("Bad shutdown! Error!\n");
+			trap_SendConsoleCommand( EXEC_APPEND, va(";mc_crash_fix 20;map ffa_yavin;\n" ) );
+		}
+	}
 	G_LogWeaponOutput();
 
 	if ( level.logFile ) {
@@ -644,7 +1114,11 @@ void G_ShutdownGame( int restart ) {
 		BotAIShutdown( restart );
 	}
 
-	B_CleanupAlloc(); //clean up all allocations made with B_Alloc
+	B_CleanupAlloc();
+	
+
+	
+	 //clean up all allocations made with B_Alloc
 }
 
 
@@ -1399,6 +1873,7 @@ void QDECL G_LogPrintf( const char *fmt, ... ) {
 	}
 
 	trap_FS_Write( string, strlen( string ), level.logFile );
+	mc_print( va("LogPrint: %s",string) );
 }
 
 /*
@@ -1702,7 +2177,49 @@ void CheckExitRules( void ) {
 		CheckIntermissionExit ();
 		return;
 	}
-
+	if ((mc_lms.integer > 0)&&(level.lmsnojoin == 1))
+	{
+		int		count;
+		int		winner;
+		count = 0;
+		winner = -1;
+		for (i = 0;i < 32;i += 1)
+		{
+			gentity_t	*pl = &g_entities[i];
+			if (pl && pl->inuse && pl->client && (pl->client->sess.sessionTeam == TEAM_FREE))
+			{
+				if (pl->client->ps.persistant[PERS_SCORE] <= 0)
+				{
+					SetTeam( pl, "s" );
+					continue;
+				}
+				count += 1;
+				winner = pl->s.number;
+			}
+		}
+		if (count == 1)
+		{
+			gentity_t	*pl = &g_entities[winner];
+			char	*fs;
+			char	*sf;
+			int	wins;
+			if (pl->client->ps.persistant[PERS_SCORE] != 1)
+			{
+				fs = "s";
+				sf = "v";
+			}
+			else
+			{
+				fs = "";
+				sf = "f";
+			}
+			wins = pl->client->ps.persistant[PERS_SCORE];
+			level.lmsnojoin = 2;
+			SetTeam( pl, "s" );
+			LogExit( "Kill limit hit." );
+			trap_SendServerCommand( -1, va("print \"^7%s^7 won the LMS round with ^5%i^7 li%se%s remaining!\n\"", pl->client->pers.netname, wins, sf, fs));
+		}
+	}
 	if (gDoSlowMoDuel)
 	{ //don't go to intermission while in slow motion
 		return;
@@ -1770,7 +2287,8 @@ void CheckExitRules( void ) {
 	if ( level.numPlayingClients < 2 ) {
 		return;
 	}
-
+	if (mc_lms.integer == 0)
+	{
 	if ( g_gametype.integer < GT_CTF && g_fraglimit.integer ) {
 		if ( level.teamScores[TEAM_RED] >= g_fraglimit.integer ) {
 			trap_SendServerCommand( -1, va("print \"Red %s\n\"", G_GetStripEdString("SVINGAME", "HIT_THE_KILL_LIMIT")) );
@@ -1828,6 +2346,7 @@ void CheckExitRules( void ) {
 			LogExit( "Capturelimit hit." );
 			return;
 		}
+	}
 	}
 }
 
@@ -2014,15 +2533,27 @@ void CheckVote( void ) {
 			{ //If we're voting to a different game type, be sure to refresh all the map stuff
 				const char *nextMap = G_RefreshNextMap(level.votingGametypeTo, qtrue);
 
-				if (nextMap && nextMap[0])
-				{
-					trap_SendConsoleCommand( EXEC_APPEND, va("map %s\n", nextMap ) );
-				}
+				//if (nextMap && nextMap[0])
+				//{
+					if (level.votingGametypeTo >= GT_TEAM)
+					{
+						trap_SendConsoleCommand( EXEC_APPEND, va("rmap ctf_yavin\n" ) );
+					}
+					else if (level.votingGametypeTo == GT_TOURNAMENT)
+					{
+						trap_SendConsoleCommand( EXEC_APPEND, va("rmap duel_temple\n" ) );
+					}
+					else
+					{
+						trap_SendConsoleCommand( EXEC_APPEND, va("rmap ffa_yavin\n" ) );
+					}
+					//trap_SendConsoleCommand( EXEC_APPEND, va("rmap %s\n", nextMap ) );
+				//}
 
 			}
 			else
 			{ //otherwise, just leave the map until a restart
-				G_RefreshNextMap(level.votingGametypeTo, qfalse);
+				//G_RefreshNextMap(level.votingGametypeTo, qfalse);
 			}
 
 			if (g_fraglimitVoteCorrection.integer)
@@ -2034,14 +2565,14 @@ void CheckVote( void ) {
 				{
 					if (currentFL > 3 || !currentFL)
 					{ //if voting to duel, and fraglimit is more than 3 (or unlimited), then set it down to 3
-						trap_SendConsoleCommand(EXEC_APPEND, "fraglimit 3\n");
+						//trap_SendConsoleCommand(EXEC_APPEND, "fraglimit 3\n");
 					}
 				}
 				else if (level.votingGametypeTo != GT_TOURNAMENT && currentGT == GT_TOURNAMENT)
 				{
 					if (currentFL && currentFL < 20)
 					{ //if voting from duel, an fraglimit is less than 20, then set it up to 20
-						trap_SendConsoleCommand(EXEC_APPEND, "fraglimit 20\n");
+						//trap_SendConsoleCommand(EXEC_APPEND, "fraglimit 20\n");
 					}
 				}
 			}
@@ -2053,18 +2584,159 @@ void CheckVote( void ) {
 	if ( !level.voteTime ) {
 		return;
 	}
+	if (level.lmsvote >= 1)
+	{
+		if ((level.lmsvote == 1)&&(level.time - level.voteTime >= 10000))
+		{
+			trap_SendServerCmd(-1, va("print \"^7The LMS round starts in 50 seconds.\n\""));
+			trap_SetConfigstring( CS_VOTE_TIME, va("%i", level.voteTime+30000 ) );
+			trap_SetConfigstring( CS_VOTE_STRING, level.voteDisplayString );
+			trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
+			trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
+			level.lmsvote = 2;
+		}
+		if ((level.lmsvote == 2)&&(level.time - level.voteTime >= 20000))
+		{
+			trap_SendServerCmd(-1, va("print \"^7The LMS round starts in 40 seconds.\n\""));
+			trap_SetConfigstring( CS_VOTE_TIME, va("%i", level.voteTime+30000 ) );
+			trap_SetConfigstring( CS_VOTE_STRING, level.voteDisplayString );
+			trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
+			trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
+			level.lmsvote = 3;
+		}
+		if ((level.lmsvote == 3)&&(level.time - level.voteTime >= 30000))
+		{
+			trap_SendServerCmd(-1, va("print \"^7The LMS round starts in 30 seconds.\n\""));
+			trap_SetConfigstring( CS_VOTE_TIME, va("%i", level.voteTime+30000 ) );
+			trap_SetConfigstring( CS_VOTE_STRING, level.voteDisplayString );
+			trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
+			trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
+			level.lmsvote = 4;
+		}
+		if ((level.lmsvote == 4)&&(level.time - level.voteTime >= 40000))
+		{
+			trap_SendServerCmd(-1, va("print \"^7The LMS round starts in 20 seconds.\n\""));
+			trap_SetConfigstring( CS_VOTE_TIME, va("%i", level.voteTime+30000 ) );
+			trap_SetConfigstring( CS_VOTE_STRING, level.voteDisplayString );
+			trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
+			trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
+			level.lmsvote = 5;
+		}
+		if ((level.lmsvote == 5)&&(level.time - level.voteTime >= 50000))
+		{
+			trap_SendServerCmd(-1, va("print \"^7The LMS round starts in 10 seconds.\n\""));
+			trap_SetConfigstring( CS_VOTE_TIME, va("%i", level.voteTime+30000 ) );
+			trap_SetConfigstring( CS_VOTE_STRING, level.voteDisplayString );
+			trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
+			trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
+			level.lmsvote = 6;
+		}
+		if ((level.lmsvote == 6)&&(level.time - level.voteTime >= 55000))
+		{
+			trap_SendServerCmd(-1, va("print \"^7The LMS round starts in 5 seconds.\n\""));
+			trap_SetConfigstring( CS_VOTE_TIME, va("%i", level.voteTime+30000 ) );
+			trap_SetConfigstring( CS_VOTE_STRING, level.voteDisplayString );
+			trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
+			trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
+			level.lmsvote = 7;
+		}
+		if (level.time - level.voteTime >= 60000)
+		{
+			int	i;
+			level.lmsnojoin = 1;
+			level.lmsvote = 0;
+			for (i = 0;i < 32;i += 1)
+			{
+				gentity_t	*pl = &g_entities[i];
+				if (pl && pl->inuse && pl->client && (pl->client->sess.sessionTeam == TEAM_FREE))
+				{
+					pl->client->ps.persistant[PERS_SCORE] = mc_lms.integer;
+				}
+			}
+			trap_SendServerCmd(-1, va("print \"^7The LMS round has begun!\n\""));
+			CalculateRanks();
+			level.voteTime = 0;
+			level.lmsvote = 0;
+			trap_SetConfigstring( CS_VOTE_TIME, "" );
+
+		}
+		return;
+	}
+	if (level.vote_is_poll == 1)
+	{
+		if (level.voteYes > 32)
+		{
+			trap_SendServerCommand( -1, va("print \"^7Poll ~^2%s^7~ passed with ^2Everyone^7 for yes and ^2%i^7 for no.\n\"", level.pollstring, level.voteNo) );
+			level.voteTime = 0;
+			trap_SetConfigstring( CS_VOTE_TIME, "" );
+			return;
+		}
+		if (level.voteNo > 32)
+		{
+			trap_SendServerCommand( -1, va("print \"^7Poll ~^2%s^7~ failed with ^2%i^7 for yes and ^2Everyone^7 for no.\n\"", level.pollstring, level.voteYes) );
+			level.voteTime = 0;
+			trap_SetConfigstring( CS_VOTE_TIME, "" );
+			return;
+		}
+	}
 	if ( level.time - level.voteTime >= VOTE_TIME ) {
-		trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "VOTEFAILED")) );
+		if (level.vote_is_poll == 0)
+		{
+			if ( level.voteYes > level.voteNo )
+			{
+				trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "VOTEPASSED")) );
+				level.voteExecuteTime = level.time + 3000;
+				level.voteTime = 0;
+				trap_SetConfigstring( CS_VOTE_TIME, "" );
+				return;
+			}
+			else if ( level.voteNo > level.voteYes)
+			{
+				trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "VOTEFAILED")) );
+			}
+			else
+			{
+				trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "VOTEFAILED")) );
+			}
+		}
+		else
+		{
+			if ( level.voteYes > level.voteNo )
+			{
+				trap_SendServerCommand( -1, va("print \"^7Poll ~^2%s^7~ passed with ^2%i^7 for yes and ^2%i^7 for no.\n\"", level.pollstring, level.voteYes, level.voteNo) );
+			}
+			else if ( level.voteNo > level.voteYes)
+			{
+				trap_SendServerCommand( -1, va("print \"^7Poll ~^2%s^7~ failed with ^2%i^7 for yes and ^2%i^7 for no.\n\"", level.pollstring, level.voteYes, level.voteNo) );
+			}
+			else
+			{
+				trap_SendServerCommand( -1, va("print \"^7Poll ~^2%s^7~ tied with ^2%i^7 for yes and ^2%i^7 for no.\n\"", level.pollstring, level.voteYes, level.voteNo) );
+			}
+		}
 	} else {
-		if ( level.voteYes > level.numVotingClients/2 ) {
-			// execute the command, then remove the vote
-			trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "VOTEPASSED")) );
-			level.voteExecuteTime = level.time + 3000;
-		} else if ( level.voteNo >= level.numVotingClients/2 ) {
-			// same behavior as a timeout
-			trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "VOTEFAILED")) );
-		} else {
-			// still waiting for a majority
+		if (level.vote_is_poll == 0)
+		{
+			/*if ( level.voteYes > level.numVotingClients/2 )
+			{
+				// execute the command, then remove the vote
+				trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "VOTEPASSED")) );
+				level.voteExecuteTime = level.time + 3000;
+			}
+			else if ( level.voteNo >= level.numVotingClients/2 )
+			{
+				// same behavior as a timeout
+				trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "VOTEFAILED")) );
+			}
+			else
+			{
+				// still waiting for a majority
+				return;
+			}*/
+			return;
+		}
+		else
+		{
 			return;
 		}
 	}
@@ -2233,7 +2905,8 @@ void G_RunThink (gentity_t *ent) {
 	
 	ent->nextthink = 0;
 	if (!ent->think) {
-		G_Error ( "NULL ent->think");
+		//G_Error ( "NULL ent->think");
+		return;
 	}
 	ent->think (ent);
 }
@@ -2257,6 +2930,8 @@ void G_RunFrame( int levelTime ) {
 	gentity_t	*ent;
 	int			msec;
 	int start, end;
+	int	iPlayer;
+	vmCvar_t		mapname;
 
 	if (gDoSlowMoDuel)
 	{
@@ -2329,7 +3004,25 @@ void G_RunFrame( int levelTime ) {
 
 	// get any cvar changes
 	G_UpdateCvars();
-
+	if (mc_lms.integer > 0)
+	{
+		for (i = 0;i < 32;i += 1)
+		{
+			gentity_t	*pl = &g_entities[i];
+			if (pl && pl->client && pl->inuse && (pl->client->sess.sessionTeam == TEAM_FREE))
+			{
+				goto lawlnope;
+			}
+		}
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "lmsbegin" );
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "LMS Round Starting" );
+		level.voteYes = 1;
+		level.voteNo = 0;
+		level.voteTime = level.time;
+		level.lmsnojoin = 0;
+		level.lmsvote = 1;
+	}
+	lawlnope:
 	//
 	// go through all allocated objects
 	//
@@ -2450,10 +3143,136 @@ end = trap_Milliseconds();
 		}
 		trap_Cvar_Set("g_listEntity", "0");
 	}
+	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+	if (level.time >= level.baht)
+	{
+	if (level.bahg != 32)
+	{
+		for (iPlayer = 0;iPlayer < 31;iPlayer += 1)
+		{
+			gentity_t	*iPl2;
+			iPl2 = &g_entities[iPlayer];
+			if (!iPl2 || !iPl2->inuse || !iPl2->client)
+			{
+				continue;
+			}
+			if (iPl2->r.svFlags & SVF_BOT)
+			{
+				continue;
+			}
+			goto nomapfix;
+		}
+		if (Q_stricmp(mapname.string, mc_safemap.string) != 0)
+		{
+			level.bahg = 32;
+			level.bahg = 32;
+			trap_SendConsoleCommand( EXEC_APPEND, va("g_gametype 0;wait 50;rmap %s\n", mc_safemap.string));
+			level.bahg = 32;
+			level.bahg = 32;
+		}
+	}
+	}
+	nomapfix:
+	if (level.time >= level.nextstatus)
+	{
+		level.nextstatus = level.time+5000;
+		status_update();
+	}
+	if (level.time >= level.rnextcheck)
+	{
+		fileHandle_t	f;
+		char		timebuffer[1024];
+		level.rnextcheck = level.time + 60000;
+		mc_timerup();
+		trap_FS_FOpenFile("time2.dat", &f, FS_READ);
+		if (f)
+		{
+			trap_FS_Read( timebuffer , 1024, f );
+			trap_FS_FCloseFile( f );
+			if ((float)atof(timebuffer) != level.lasthour)
+			{
+				int	plays;
+				plays = 0;
+				for (iPlayer = 0;iPlayer < 31;iPlayer += 1)
+				{
+					gentity_t	*iPl2;
+					iPl2 = &g_entities[iPlayer];
+					if (!iPl2 || !iPl2->inuse || !iPl2->client)
+					{
+						continue;
+					}
+					if (iPl2->r.svFlags & SVF_BOT)
+					{
+						continue;
+					}
+					plays += 1;
+				}
+				level.lasthour = (float)atof(timebuffer);
+				G_Printf("TIME- %s -- MAP- %s -- PLAYERS- %i\n", mc_timer(), mapname.string, plays);
+			}
+		}
+		level.rnextcheck = level.time + 60000;
+	}
 
 	//At the end of the frame, send out the ghoul2 kill queue, if there is one
+	if (level.otherframe == 1)
+	{
+		level.otherframe = 0;
+	}
+	else
+	{
+		level.otherframe = 1;
+	}
 	G_SendG2KillQueue();
-
+	for (i = 0;i < 31;i += 1)
+	{
+		gentity_t	*mplayer;
+		mplayer = &g_entities[i];
+		if (mplayer && mplayer->inuse && mplayer->client)
+		{
+			if ( mplayer->client->ps.eFlags & EF_JETPACK_ACTIVE )
+			{
+				if (level.otherframe == 1)
+				{
+					if (level.jetfx == 1)
+					{
+						vec3_t	fxorg, newangle;
+						//fxorg[0] = mplayer->client->ps.origin[0] + mplayer->client->ps.velocity[0]*level.jetdist;
+						//fxorg[1] = mplayer->client->ps.origin[1] + mplayer->client->ps.velocity[1]*level.jetdist;
+						//fxorg[2] = mplayer->client->ps.origin[2] + mplayer->client->ps.velocity[2]*level.jetdist;
+						G_PlayEffect_ID(level.jetpack_effect, mplayer->client->ps.origin, newangle);
+					}
+				}
+			}
+			if (mplayer->client->sess.massgravity != 0)
+			{
+				int ji;
+				for (ji = 0;ji < 1020;ji += 1)
+				{
+					gentity_t	*t;
+					t = &g_entities[ji];
+					if (t && t->inuse && t->s.eType == ET_MISSILE)
+					{
+						vec3_t	iVel, iDir, fwd, iMark;
+						float d;
+						VectorClear(iVel);
+						VectorClear(iDir);
+						VectorClear(fwd);
+						VectorClear(iMark);
+						iMark[0] = mplayer->r.currentOrigin[0] - t->r.currentOrigin[0];
+						iMark[1] = mplayer->r.currentOrigin[1] - t->r.currentOrigin[1];
+						iMark[2] = mplayer->r.currentOrigin[2]- t->r.currentOrigin[2];
+						vectoangles( iMark, iDir );
+						AngleVectors(iDir, fwd, NULL, NULL);
+						d = (sqrt((mplayer->r.currentOrigin[0]-t->r.currentOrigin[0])*(mplayer->r.currentOrigin[0]-t->r.currentOrigin[0])+(mplayer->r.currentOrigin[1]-t->r.currentOrigin[1])*(mplayer->r.currentOrigin[1]-t->r.currentOrigin[1])+(mplayer->r.currentOrigin[2]-t->r.currentOrigin[2])*(mplayer->r.currentOrigin[2]-t->r.currentOrigin[2])))/10;
+						t->s.pos.trDelta[0] += fwd[0]*(((float)mplayer->client->sess.massgravity)/(d));
+						t->s.pos.trDelta[1] += fwd[1]*(((float)mplayer->client->sess.massgravity)/(d));
+						t->s.pos.trDelta[2] += fwd[2]*(((float)mplayer->client->sess.massgravity)/(d));
+					}
+				}
+			}
+		}
+	}
 
 	if (gQueueScoreMessage)
 	{
@@ -2467,6 +3286,13 @@ end = trap_Milliseconds();
 	}
 
 	g_LastFrameTime = level.time;
+
+	if (mc_crash_fix.integer > 1)
+	{
+		trap_SendConsoleCommand( EXEC_INSERT, va(";mc_crash_fix 1;\n" ) );
+	}
+
+
 }
 
 const char *G_GetStripEdString(char *refSection, char *refName)
@@ -2486,4 +3312,858 @@ const char *G_GetStripEdString(char *refSection, char *refName)
 	Com_sprintf(text, sizeof(text), "@@@%s", refName);
 	return text;
 }
+void mc_SetBrushModel(gentity_t *ent, const char *name)
+{
+	char	iBuf[64];
+	int	i;
+	vmCvar_t	mapname;
+	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+	if (mc_maxbmodel.integer != 0)
+	{
+		iBuf[0] = '0';
+		for (i = 1;i < 20;i += 1)
+		{
+			//if (!(iBuf[i] == '*'))
+			//{
+				iBuf[i] = name[i];
+			//}
+		}
+		//G_Printf("=%s -- %s -- %i=", name, iBuf, atoi(iBuf));
+		if (atoi(iBuf) == 0)
+		{
+			G_FreeEntity(ent);
+			//G_Printf("===============ErDelete!===============");
+			return;
+		}
+		if (atoi(iBuf) >= 120)
+		{
+		if ((Q_stricmp(mapname.string,"cairn_assembly") == 0)||
+		(Q_stricmp(mapname.string,"bespin_streets") == 0)||
+		(Q_stricmp(mapname.string,"bespin_platform") == 0)||
+		(Q_stricmp(mapname.string,"doom_shields") == 0)||
+		(Q_stricmp(mapname.string,"yavin_temple") == 0)||
+		(Q_stricmp(mapname.string,"yavin_swamp") == 0)||
+		(Q_stricmp(mapname.string,"yavin_trial") == 0)||
+		(Q_stricmp(mapname.string,"yavin_canyon") == 0)||
+		(Q_stricmp(mapname.string,"yavin_courtyard") == 0)||
+		(Q_stricmp(mapname.string,"yavin_final") == 0)||
+		(Q_stricmp(mapname.string,"pit") == 0)||
+		(Q_stricmp(mapname.string,"valley") == 0)||
+		(Q_stricmp(mapname.string,"artus_topside") == 0)||
+		(Q_stricmp(mapname.string,"cairn_reactor") == 0))
+		{
+			G_FreeEntity(ent);
+			//G_Printf("%i > %i == Ent Freed!", atoi(iBuf), mc_maxbmodel.integer);
+			level.mmfailbmodel += 1;
+			return;
+		}
+		}
+		if (atoi(iBuf) >= mc_maxbmodel.integer)
+		{
+			G_FreeEntity(ent);
+			//G_Printf("%i > %i == Ent Freed!", atoi(iBuf), mc_maxbmodel.integer);
+			level.mmfailbmodel += 1;
+			return;
+		}
+		else
+		{
+			//G_Printf("%i < %i == Ent Not Freed!", atoi(iBuf), mc_maxbmodel.integer);
+		}
+	}
+	if (Q_stricmp(name, "") == 0)
+	{
+		G_FreeEntity(ent);
+		//G_Printf("===============ErDelete!===============");
+		level.mmfailbmodel += 1;
+		return;
+	}
+	trap_SetBrushModel(ent, name);
+}
+
+int validcharacter_number(char chr)
+{
+	if (
+		(chr == '0')||
+		(chr == '1')||
+		(chr == '2')||
+		(chr == '3')||
+		(chr == '4')||
+		(chr == '5')||
+		(chr == '6')||
+		(chr == '7')||
+		(chr == '8')||
+		(chr == '9')
+	)
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+int validcharacter_letter(char chr)
+{
+	if (
+		(chr == 'A')||
+		(chr == 'B')||
+		(chr == 'C')||
+		(chr == 'D')||
+		(chr == 'E')||
+		(chr == 'F')||
+		(chr == 'G')||
+		(chr == 'H')||
+		(chr == 'I')||
+		(chr == 'J')||
+		(chr == 'K')||
+		(chr == 'L')||
+		(chr == 'M')||
+		(chr == 'N')||
+		(chr == 'O')||
+		(chr == 'P')||
+		(chr == 'Q')||
+		(chr == 'R')||
+		(chr == 'S')||
+		(chr == 'T')||
+		(chr == 'U')||
+		(chr == 'V')||
+		(chr == 'W')||
+		(chr == 'X')||
+		(chr == 'Y')||
+		(chr == 'Z')||
+		(chr == 'a')||
+		(chr == 'b')||
+		(chr == 'c')||
+		(chr == 'd')||
+		(chr == 'e')||
+		(chr == 'f')||
+		(chr == 'g')||
+		(chr == 'h')||
+		(chr == 'i')||
+		(chr == 'j')||
+		(chr == 'k')||
+		(chr == 'l')||
+		(chr == 'm')||
+		(chr == 'n')||
+		(chr == 'o')||
+		(chr == 'p')||
+		(chr == 'q')||
+		(chr == 'r')||
+		(chr == 's')||
+		(chr == 't')||
+		(chr == 'u')||
+		(chr == 'v')||
+		(chr == 'w')||
+		(chr == 'x')||
+		(chr == 'y')||
+		(chr == 'z')
+	)
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+void stringclear(char *str, int len)
+{
+	int	i;
+	for (i = 0;i < len;i += 1)
+	{
+		str[i] = '';
+	}
+}
+gteleporter_t		g_teleporters[512];
+void teleporters_init( void )
+{
+	int i;
+	for (i = 0;i <= 512;i += 1)
+	{
+		gteleporter_t *tele = &g_teleporters[i];
+		if (tele)
+		{
+			tele->active = 0;
+			VectorSet(tele->pos, 0, 0, 0);
+			tele->telenum = i;
+			tele->angle = 0;
+			stringclear(tele->name,1024);
+		}
+	}
+}
+void teleporters_save( void )
+{
+	int		i;
+	vmCvar_t	mapname;
+	char		savePath[1024];
+	fileHandle_t	f;
+	char		line[13000];
+	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+	Com_sprintf(savePath, 1024*4, "%s/teleporters_1_%s.cfg", mc_editfolder.string, mapname.string);
+	trap_FS_FOpenFile(savePath, &f, FS_WRITE);
+	if ( !f )
+	{
+		G_Printf("Error: Cannot access map teleport file.\n");
+		return;
+	}
+	stringclear(line,12000);
+	for (i = 0;i < 512;i += 1)
+	{
+		gteleporter_t	*tele = &g_teleporters[i];
+		if (tele && (tele->active == 1))
+		{
+			strcpy(line, va("%s\nmcaddtele \"%s\" %i %i %i %i;", line, tele->name, (int)tele->pos[0], (int)tele->pos[1], (int)tele->pos[2], tele->angle));
+		}
+	}
+	strcpy(line, va("%s\n", line));
+	trap_FS_Write( line, strlen(line), f);
+	trap_FS_FCloseFile( f );
+}
+void teleporter_delete(int teleN)
+{
+	gteleporter_t	*tele;
+	if (teleN > 511)
+	{
+		return;
+	}
+	tele = &g_teleporters[teleN];
+	if (tele)
+	{
+		tele->active = 0;
+		VectorSet(tele->pos, 0, 0, 0);
+		stringclear(tele->name,1024);
+		tele->angle = 0;
+		teleporters_save();
+	}
+}
+void teleporter_add(vec3_t pos, char *name, int angle)
+{
+	int	i;
+	for (i = 0;i < 1024;i += 1)
+	{
+		if ((name[i] == ';') || (name[i] == '\n') || (name[i] == ' ') || (name[i] == '	'))
+		{
+			return;
+		}
+	}
+	for (i = 0;i < 512;i += 1)
+	{
+		gteleporter_t	*tele = &g_teleporters[i];
+		if (tele)
+		{
+			if (tele->active == 0)
+			{
+				tele->active = 1;
+				VectorCopy(pos, tele->pos);
+				tele->angle = angle;
+				strcpy(tele->name, name);
+				teleporters_save();
+				return;
+			}
+		}
+	}
+}
+
+/*
+void save_all_notes( void )
+{
+	int		i;
+	fileHandle_t	Mz;
+	int		len;
+	char		line[2048];
+	int		fi;
+	trap_FS_FOpenFile(va("%s/tpm_notes.cfg", mc_editfolder.string), &Mz, FS_WRITE);
+	trap_FS_Write( "\n", strlen("\n"), Mz);
+	trap_FS_FCloseFile( Mz );
+	trap_FS_FOpenFile(va("%s/tpm_notes2.cfg", mc_editfolder.string), &Mz, FS_WRITE);
+	trap_FS_Write( "\n", strlen("\n"), Mz);
+	trap_FS_FCloseFile( Mz );
+	trap_FS_FOpenFile(va("%s/tpm_notes3.cfg", mc_editfolder.string), &Mz, FS_WRITE);
+	trap_FS_Write( "\n", strlen("\n"), Mz);
+	trap_FS_FCloseFile( Mz );
+	stringclear(line,2040);
+	trap_FS_FOpenFile(va("%s/tpm_notes.cfg", mc_editfolder.string), &Mz, FS_APPEND);
+	len = 0;
+	fi = 1;
+	for (i = 0;i < 1020;i += 1)
+	{
+		gentity_t	*chosenent = &g_entities[i];
+		if (Q_stricmp(chosenent->classname,"mc_note") == 0)
+		{
+				stringclear(line,2040);
+				Com_sprintf( line, sizeof(line), "\naddnotercon \"%s\" \"%s\" %i %i %i %i\n", chosenent->mctargetname,
+				chosenent->mcmessage,
+				(int)chosenent->s.bolt1,
+				(int)chosenent->s.origin[0],
+				 (int)chosenent->s.origin[1],
+				 (int)chosenent->s.origin[2]);
+				trap_FS_Write( line, strlen(line), Mz);
+				len += strlen(line);
+				if (len > 11000)
+				{
+					fi += 1;
+					trap_FS_FCloseFile( Mz );
+					trap_FS_FOpenFile(va("%s/tpm_notes%i.cfg", mc_editfolder.string, fi), &Mz, FS_APPEND);
+					len = 0;
+				}
+		}
+	}
+	trap_FS_FCloseFile( Mz );
+}
+*/
+
+void string_zero(char *str, int len)
+{
+	int	i;
+	for (i = 0;i < len;i += 1)
+	{
+		str[i] = '0';
+	}
+}
+
+
+
+gchannel_t	g_channels[64];
+
+void channels_print(int ch, const char *msg)
+{
+	int		i;
+	gchannel_t	*chan = &g_channels[ch];
+	char		msg2[2048];
+	stringclear(msg2,2000);
+	strcpy(msg2, msg);
+	if ((!chan) || (chan->active == 0) || (Q_stricmp(chan->name, "") == 0))
+	{
+		return;
+	}
+	for (i = 0;i < 32;i += 1)
+	{
+		if ((chan->inchannel[i] == 'A') || (g_entities[i].client->sess.monchan == 1))
+		{
+			trap_SendServerCommand(i, va("chat \"^5[%s^5]^7%s\"", chan->name, msg2));
+		}
+	}
+}
+void channels_newadmin(int ch, int cl)
+{
+	gentity_t	*ent = &g_entities[cl];
+	channels_print(ch, va("^7%s^5 is now a channel admin.", ent->client->pers.netname));
+}
+void channels_quit(int ch, int cl)
+{
+	gentity_t	*ent = &g_entities[cl];
+	channels_print(ch, va("^7%s^5 left the channel.", ent->client->pers.netname));
+}
+void channels_joined(int ch, int cl)
+{
+	gentity_t	*ent = &g_entities[cl];
+	channels_print(ch, va("^7%s^5 joined the channel.", ent->client->pers.netname));
+}
+void channels_remove(int ch, int cl, int si)
+{
+	gchannel_t	*chan = &g_channels[ch];
+	if (chan)
+	{
+		int	i;
+		int	client;
+		int	admin;
+		admin = -1;
+		client = 0;
+		if (chan->inchannel[cl] == '0')
+		{
+			return;
+		}
+		chan->inchannel[cl] = '0';
+		chan->isadmin[cl] = '0';
+		for (i = 0;i < 32;i += 1)
+		{
+			if (chan->inchannel[i] == 'A')
+			{
+				client = i;
+			}
+		}
+		if (client == 0)
+		{
+			channels_delete(ch);
+			return;
+		}
+		if (si == 0)
+		{
+			channels_quit(ch, cl);
+		}
+		for (i = 0;i < 32;i += 1)
+		{
+			if (chan->isadmin[i] == 'A')
+			{
+				admin = i;
+			}
+		}
+		if (admin == -1)
+		{
+			chan->isadmin[client] = 'A';
+			channels_newadmin(ch, client);
+		}
+	}
+}
+void channels_remove_all (int cl)
+{
+	int	i;
+	for (i = 0;i < 63;i += 1)
+	{
+		channels_remove(i, cl, 1);
+	}
+}
+void channels_remove_all_nosi (int cl)
+{
+	int	i;
+	for (i = 0;i < 63;i += 1)
+	{
+		channels_remove(i, cl, 0);
+	}
+}
+void channels_unban_all (int cl)
+{
+	int	i;
+	for (i = 0;i < 63;i += 1)
+	{
+		g_channels[i].isbanned[cl] = '0';
+	}
+}
+int channels_create (char *name, char *pass)
+{
+	gchannel_t	*chan;
+	int		i;
+	for (i = 0;i < 62;i += 1)
+	{
+		chan = &g_channels[i];
+		if ((Q_stricmp(name, chan->name) == 0))
+		{
+			return -2;
+		}
+	}
+	for (i = 0;i < 62;i += 1)
+	{
+		chan = &g_channels[i];
+		if (chan->active == 0)
+		{
+			strcpy(chan->name, name);
+			strcpy(chan->password, pass);
+			chan->active = 1;
+			return i;
+		}
+	}
+	G_Printf("Too many channels!\n");
+	return -1;
+}
+void channels_delete ( int ch)
+{
+	gchannel_t	*chan = &g_channels[ch];
+	channels_print(ch, "Channel closed.");
+	if (chan)
+	{
+		chan->active = 0;
+		stringclear(chan->name,1020);
+		stringclear(chan->password,1020);
+		string_zero(chan->inchannel,62);
+		string_zero(chan->isadmin,62);
+		string_zero(chan->isbanned,62);
+	}
+}
+int channels_find(char *channel)
+{
+	int	i;
+	for (i = 0;i < 62;i += 1)
+	{
+		if (g_channels[i].active == 1)
+		{
+			//G_Printf("%i: %s vs %s: ", i, channel, g_channels[i].name);
+			if ((Q_stricmp(g_channels[i].name, channel) == 0))//||(strstr(g_channels[i].name,channel)))
+			{
+				//G_Printf("yes!\n");
+				return i;
+			}
+			//G_Printf("No.\n");
+		}
+		else
+		{
+			//G_Printf("Skip %i\n", i);
+		}
+	}
+	//G_Printf("Gave up.\n");
+	return -1;
+}
+void channels_init( void )
+{
+	int	i;
+	for (i = 0;i < 63;i += 1)
+	{
+		channels_delete(i);
+	}
+}
+
+char *nameforgametype(int gt)
+{
+	switch (gt)
+	{
+		case 0: return "FFA_Free For All";
+		case 1: return "HFFA_Holocron Free For All";
+		case 2: return "Jedi Master";
+		case 3: return "Duel";
+		case 5: return "TFFA_Team Free For All";
+		case 7: return "CTF_Capture The Flag";
+		case 8: return "CTY_Capture The Ysalimari";
+		default: return "Unknown";
+	}
+}
+char *nameforteam(int te)
+{
+	switch (te)
+	{
+		case TEAM_FREE: return "Free";
+		case TEAM_SPECTATOR: return "Spectator";
+		case TEAM_RED: return "Red";
+		case TEAM_BLUE: return "Blue";
+		default: return "Unknown";
+	}
+}
+
+char *mcm_nameclean(char *name)
+{
+	char	newname[1024];
+	int	iLn;
+	int	inpos;
+	int	i;
+	if (!name)
+	{
+		return "?";
+	}
+	iLn = strlen(name);
+	if (iLn > 1020)
+	{
+		iLn = 1020;
+	}
+	if (iLn < 2)
+	{
+		return "?";
+	}
+	stringclear(newname, 1021);
+	inpos = 1;
+		if ((name[0] == '\n')||
+			(name[0] == '&')||
+			(name[0] == '<')||
+			(name[0] == '>')
+			)
+		{
+			newname[0] = ' ';
+		}
+		else
+		{
+			newname[0] = name[0];
+		}
+	for (i = 1;i < iLn;i += 1)
+	{
+		if ((name[i] == '\n')||
+			(name[i] == '&')||
+			(name[i] == '<')||
+			(name[i] == '>')
+			)
+		{
+			continue;
+		}
+		if (name[i-1] == '^')
+		{
+			if ((name[i] == '1')||
+				(name[i] == '2')||
+				(name[i] == '3')||
+				(name[i] == '4')||
+				(name[i] == '5')||
+				(name[i] == '6')||
+				(name[i] == '7')||
+				(name[i] == '8')||
+				(name[i] == '9')||
+				(name[i] == '0'))
+			{
+				inpos -= 1;
+				newname[inpos] = '';
+				continue;
+			}
+		}
+		newname[inpos] = name[i];
+		inpos += 1;
+	}
+	return va(newname);
+}
+void status_update( void )
+{
+	int		i;
+	fileHandle_t	f;
+	char		line[8192];
+	char		*flen;
+	int		iPl;
+	vmCvar_t	mapname;
+	if (level.statuswrite == 32)
+	{
+	stringclear(line,8190);
+	trap_FS_FOpenFile("serverstatus.dat", &f, FS_WRITE);
+	if (!f)
+	{
+		return;
+	}
+	trap_Cvar_Register( &mapname, "mapname", "", CVAR_SERVERINFO | CVAR_ROM );
+	Com_sprintf(line, 8192, "%s<table  class=\"lultable_map\" cellpadding=\"2\" cellspacing=\"2\" width=\"500\"><tr><td class=\"First\">Map</td><td class=\"Second\">%s</td></tr>", line, mapname.string);
+	Com_sprintf(line, 8192, "%s<tr><td class=\"First\">Gametype</td><td class=\"Second\">%s</td></tr>", line, nameforgametype(g_gametype.integer));
+	iPl = 0;
+	for (i = 0;i < 32;i += 1)
+	{
+		gentity_t	*pl = &g_entities[i];
+		if (pl && pl->client && pl->inuse)
+		{
+			iPl += 1;
+		}
+	}
+	Com_sprintf(line, 8192, "%s\n<tr><td class=\"First\">Players</td><td class=\"Second\">%i</tr></table>\n", line, iPl);
+	Com_sprintf(line, 8192, "%s<table class=\"lultable_players\" cellpadding=\"6\" cellspacing=\"2\" width=\"500\"><tr class=\"players_info\"><td class=\"light\">Number</td><td class=\"dark\">Name</td><td class=\"light\">Ping</td><td class=\"dark\">Team</td><td class=\"light\">Account</td><td class=\"dark\">Rank</td></tr>\n", line);
+	for (i = 0;i < 32;i += 1)
+	{
+		gentity_t	*pl = &g_entities[i];
+		if (pl && pl->client && pl->inuse)
+		{
+			//if (Q_stricmp(pl->client->sess.userlogged,"") == 0)
+			//{
+			//	Com_sprintf(line, 8192, "%s%i)%s / ping %i / team %s<br>", line, i, pl->client->pers.netname, (pl->client->ps.ping < 999 ? pl->client->ps.ping : 999), nameforteam(pl->client->sess.sessionTeam));
+			//}
+			//else
+			//{
+				Com_sprintf(line, 8192, "%s<tr class=\"player\"><td class=\"dark\">%i</td><td class=\"light\">%s</td><td class=\"dark\">%i</td><td class=\"light\">%s</td><td class=\"dark\">%s</td><td class=\"light\">%i</td></tr>\n", line, i, mcm_nameclean(pl->client->pers.netname), (pl->client->ps.ping < 999 ? pl->client->ps.ping : 999), nameforteam(pl->client->sess.sessionTeam), pl->client->sess.userlogged, pl->client->sess.adminloggedin);
+			//}
+		}
+	}
+	Com_sprintf(line, 8192, "%s</table>\n", line);
+	trap_FS_Write( line, strlen(line), f);
+	trap_FS_FCloseFile( f );
+	trap_FS_FOpenFile("serverstatus2.dat", &f, FS_WRITE);
+	if (!f)
+	{
+		return;
+	}
+	flen = va("%i", level.time);
+	trap_FS_Write( flen, strlen(flen), f);
+	trap_FS_FCloseFile( f );
+	}
+}
+
+
+gban_t	g_bans[512];
+
+
+void bans_write(void)
+{
+	int		i;
+	fileHandle_t	f;
+	char		banfile[8192];
+	trap_FS_FOpenFile("bans.cfg", &f, FS_WRITE);
+	if (!f)
+	{
+		return;
+	}
+	stringclear(banfile,8190);
+	banfile[0] = '\n';
+	for (i = 0;i < 510;i += 1)
+	{
+		gban_t	*ban = &g_bans[i];
+		if (ban && (ban->active == 1))
+		{
+			Com_sprintf(banfile, 8192, "%smcmaddban %i %i %i %i\n", banfile, ban->ip1, ban->ip2, ban->ip3, ban->ip4);
+		}
+	}
+	trap_FS_Write( banfile, strlen(banfile), f);
+	trap_FS_FCloseFile( f );
+}
+
+void bans_init(void)
+{
+	int	i;
+	for (i = 0;i < 510;i += 1)
+	{
+		gban_t	*ban = &g_bans[i];
+		if (ban)
+		{
+			ban->active = 0;
+			ban->ip1 = 0;
+			ban->ip2 = 0;
+			ban->ip3 = 0;
+			ban->ip4 = 0;
+		}
+	}
+}
+
+void bans_add(int ip1, int ip2, int ip3, int ip4)
+{
+	int	i;
+	for (i = 0;i < 510;i += 1)
+	{
+		gban_t	*ban = &g_bans[i];
+		if (ban && (ban->active == 1))
+		{
+			if (ban->ip1 == ip1)
+			{
+				if (ban->ip2 == ip2)
+				{
+					if (ban->ip3 == ip3)
+					{
+						if (ban->ip4 == ip4)
+						{
+							return; // Already banned.
+						}
+					}
+				}
+			}
+		}
+		else if (ban)
+		{
+			ban->active = 1;
+			ban->ip1 = ip1;
+			ban->ip2 = ip2;
+			ban->ip3 = ip3;
+			ban->ip4 = ip4;
+			return;
+		}
+	}
+}
+
+int ip_is_banned(char *ip)
+{
+	int	ip1;
+	int	ip2;
+	int	ip3;
+	int	ip4;
+	int	i;
+	int	iL;
+	int	dots;
+	char	ipn[1024];
+
+	//char	*bans;
+	char	ipworkwith[1024];
+	int	ippos;
+	int	ipat;
+
+	iL = strlen(ip);
+	if (iL > 1020)
+	{
+		//G_Printf("IP way too long.\n");
+		return 1; // Way too long, faked somehow, ban.
+	}
+	stringclear(ipn, 1020);
+	dots = 0;
+	ippos = 0;
+	for (i = 0;i < iL;i += 1)
+	{
+		if (ip[i] == ':')
+		{
+			//G_Printf(": at %i\n", i);
+			break;
+		}
+		if (ip[i] == '')
+		{
+			//G_Printf("null at %i\n", i);
+			break;
+		}
+		if (ip[i] == ' ')
+		{
+			continue;
+		}
+		if (! (((ip[i] > 47)&&(ip[i] < 58))|| (ip[i] == 46)))
+		{
+			//G_Printf("NonCh at %i: %s (%i)\n", i, ip[i], ip[i]);
+			break;
+		}
+		if (ip[i] == 46)
+		{
+			dots += 1;
+		}
+		ipn[ippos] = ip[i];
+		ippos += 1;
+	}
+	iL = strlen(ipn);
+	if (iL < 7)
+	{
+		//G_Printf("IP too short: %s: %s: %i.\n", ip, ipn, iL);
+		return 1; // Too short, faked somehow, ban.
+	}
+	if (iL > 15)
+	{
+		//G_Printf("IP too long.\n");
+		return 1; // Too long, faked somehow, ban.
+	}
+	if (dots != 3)
+	{
+		//G_Printf("IP has wrong number of dots.\n");
+		return 1; // Not exactly four 3 dots, faked somehow, ban.
+	}
+
+	stringclear(ipworkwith, 1020);
+	ippos = 0;
+	ipat = 1;
+	for (i = 0;i <= iL;i += 1)
+	{
+		if ((ipn[i] == '.')||(i == iL))
+		{
+			switch (ipat)
+			{
+				case 1: ip1 = atoi(ipworkwith);break;
+				case 2: ip2 = atoi(ipworkwith);break;
+				case 3: ip3 = atoi(ipworkwith);break;
+				case 4: ip4 = atoi(ipworkwith);break;
+				default: /*G_Printf("IP Refused: switch statement error.\n");*/return 1; // Should never happen. If it does, something's broken, ban just to be safe.
+			}
+			stringclear(ipworkwith, 1020);
+			ippos = 0;
+			ipat += 1;
+			continue;
+		}
+		ipworkwith[ippos] = ipn[i];
+		ippos += 1;
+	}
+
+	for (i = 0;i < 510;i += 1)
+	{
+		gban_t	*ban = &g_bans[i];
+		if (ban && (ban->active==1))
+		{
+			//G_Printf("Compare %i.%i.%i.%i to %i.%i.%i.%i\n", ban->ip1, ban->ip2, ban->ip3, ban->ip4, ip1, ip2, ip3, ip4);
+			if ((ban->ip1 == ip1)||(ban->ip1 == -1))
+			{
+				if ((ban->ip2 == ip2)||(ban->ip2 == -1))
+				{
+					if ((ban->ip3 == ip3)||(ban->ip3 == -1))
+					{
+						if ((ban->ip4 == ip4)||(ban->ip4 == -1))
+						{
+							G_Printf("IP banned.\n");
+							return 1; // IP is in the system. Ban.
+						}
+					}
+				}
+			}
+		}
+	}
+	//G_Printf("IP not banned.\n");
+	return 0; // All other checks failed. Probably clean. Not banned.
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

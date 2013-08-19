@@ -71,6 +71,10 @@ int adjustRespawnTime(float preRespawnTime, int itemType, int itemTag)
 	{	// No matter what, don't go lower than 1 second, or the pickups become very noisy!
 		respawnTime = 1.0;
 	}
+	if (respawnTime > mc_spawntimelimit.integer)
+	{
+		respawnTime = mc_spawntimelimit.integer;
+	}
 
 	return ((int)respawnTime);
 }
@@ -397,7 +401,7 @@ qboolean PlaceShield(gentity_t *playerent)
 
 			shield->s.eType = ET_SPECIAL;
 			shield->s.modelindex =  HI_SHIELD;	// this'll be used in CG_Useable() for rendering.
-			shield->classname = shieldItem->classname;
+			shield->classname = "forcefield"/*shieldItem->classname*/;
 
 			shield->r.contents = CONTENTS_TRIGGER;
 
@@ -618,6 +622,13 @@ void pas_adjust_enemy( gentity_t *ent )
 	{
 		keep = qfalse;
 	}
+
+	else if ( g_gametype.integer == GT_TOURNAMENT && g_entities[ent->s.owner].client->ps.duelInProgress &&
+			ent->enemy->client->ps.clientNum != g_entities[ent->s.owner].client->ps.duelIndex )
+	{
+			keep = qfalse;
+	}	
+
 	else
 	{
 		vec3_t		org, org2;
@@ -946,6 +957,12 @@ void turret_die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int 
 void SP_PAS( gentity_t *base )
 //---------------------------------
 {
+	gentity_t *myowner;
+	myowner = &g_entities[base->s.owner];
+	if (myowner && myowner->client)
+	{
+		myowner->client->sess.sentries += 1;
+	}
 	if ( base->count == 0 )
 	{
 		// give ammo
@@ -1015,6 +1032,8 @@ void ItemUse_Sentry( gentity_t *ent )
 	sentry->s.modelGhoul2 = 1;
 
 	G_SetOrigin(sentry, fwdorg);
+	VectorClear(sentry->s.origin);
+	VectorCopy(sentry->r.currentOrigin, sentry->s.origin);
 	sentry->parent = ent;
 	sentry->r.contents = CONTENTS_SOLID;
 	sentry->s.solid = 2;
@@ -1041,8 +1060,10 @@ void ItemUse_Sentry( gentity_t *ent )
 	sentry->bolt_LLeg = level.time;
 
 	sentry->noDamageTeam = ent->client->sess.sessionTeam;
-
-	ent->client->ps.fd.sentryDeployed = qtrue;
+	if (ent->client->sess.sentries > mc_sentrylimit.integer)
+	{
+		ent->client->ps.fd.sentryDeployed = qtrue;
+	}
 
 	trap_LinkEntity(sentry);
 
@@ -1056,7 +1077,7 @@ void ItemUse_Sentry( gentity_t *ent )
 	{
 		sentry->s.teamowner = 16;
 	}
-
+	ent->client->sess.sentries += 1;
 	SP_PAS( sentry );
 }
 
@@ -1344,7 +1365,13 @@ void RespawnItem( gentity_t *ent ) {
 		for (count = 0, ent = master; count < choice; ent = ent->teamchain, count++)
 			;
 	}
-
+	if (twimod_itempush.integer)
+	{
+		VectorCopy(ent->origOrigin, ent->s.origin);
+		VectorCopy(ent->origOrigin, ent->s.pos.trBase);
+		VectorCopy(ent->origOrigin, ent->s.apos.trBase);
+		VectorCopy(ent->origOrigin, ent->r.currentOrigin);
+	}
 	ent->r.contents = CONTENTS_TRIGGER;
 	//ent->s.eFlags &= ~EF_NODRAW;
 	ent->s.eFlags &= ~(EF_NODRAW | EF_ITEMPLACEHOLDER);
@@ -1371,7 +1398,16 @@ void RespawnItem( gentity_t *ent ) {
 
 	ent->nextthink = 0;
 }
+void ResetItem( gentity_t *ent ) 
+{ // Deathspike: Reset item func
 
+	VectorCopy(ent->origOrigin, ent->s.origin);
+	VectorCopy(ent->origOrigin, ent->s.pos.trBase);
+	VectorCopy(ent->origOrigin, ent->s.apos.trBase);
+	VectorCopy(ent->origOrigin, ent->r.currentOrigin);
+	
+	trap_LinkEntity (ent);
+}
 
 /*
 ===============
@@ -1381,7 +1417,6 @@ Touch_Item
 void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	int			respawn;
 	qboolean	predict;
-
 	if (ent->s.eFlags & EF_ITEMPLACEHOLDER)
 	{
 		return;
@@ -1429,18 +1464,29 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 		return;
 	}
 
+	if (mc_insta.integer == 0)
+	{
 	G_LogPrintf( "Item: %i %s\n", other->s.number, ent->item->classname );
+	}
 
 	predict = other->client->pers.predictItemPickup;
 
 	// call the item-specific pickup function
 	switch( ent->item->giType ) {
 	case IT_WEAPON:
+	if (mc_insta.integer == 1)
+	{
+		return;
+	}
 		respawn = Pickup_Weapon(ent, other);
 //		predict = qfalse;
 		predict = qtrue;
 		break;
 	case IT_AMMO:
+	if (mc_insta.integer == 1)
+	{
+		return;
+	}
 		respawn = Pickup_Ammo(ent, other);
 		if (ent->item->giTag == AMMO_THERMAL || ent->item->giTag == AMMO_TRIPMINE || ent->item->giTag == AMMO_DETPACK)
 		{
@@ -1478,6 +1524,10 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 		predict = qtrue;
 		break;
 	case IT_POWERUP:
+	if (mc_insta.integer == 1)
+	{
+		return;
+	}
 		respawn = Pickup_Powerup(ent, other);
 		predict = qfalse;
 //		predict = qtrue;
@@ -1486,6 +1536,10 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 		respawn = Pickup_Team(ent, other);
 		break;
 	case IT_HOLDABLE:
+	if (mc_insta.integer == 1)
+	{
+		return;
+	}
 		respawn = Pickup_Holdable(ent, other);
 		break;
 	default:
@@ -1828,6 +1882,7 @@ void FinishSpawningItem( gentity_t *ent ) {
 	VectorSet (ent->r.mins, -8, -8, -0);
 	VectorSet (ent->r.maxs, 8, 8, 16);
 
+
 	ent->s.eType = ET_ITEM;
 	ent->s.modelindex = ent->item - bg_itemlist;		// store item number in modelindex
 	ent->s.modelindex2 = 0; // zero indicates this isn't a dropped item
@@ -1893,7 +1948,17 @@ void FinishSpawningItem( gentity_t *ent ) {
 		return;
 	}
 	*/
-
+	if (!ent->spawnedBefore)
+	{ // Deathspike items
+		ent->spawnedBefore = qtrue;
+		VectorCopy(tr.endpos, ent->origOrigin);
+	}
+	if ((Q_stricmp(ent->classname,"team_CTF_redflag") == 0)||(Q_stricmp(ent->classname,"team_CTF_blueflag") == 0))
+	{
+		VectorSet (ent->r.mins, -15, -15, 0);
+		VectorSet (ent->r.maxs, 15, 15, 40);
+		G_Printf("CTF flag spawned.\n");
+	}
 	trap_LinkEntity (ent);
 }
 
@@ -1969,7 +2034,7 @@ void SaveRegisteredItems( void ) {
 
 	count = 0;
 	for ( i = 0 ; i < bg_numItems ; i++ ) {
-		if ( itemRegistered[i] ) {
+		if ( itemRegistered[i] || (mc_allitems.integer == 1)) {
 			count++;
 			string[i] = '1';
 		} else {
@@ -1990,7 +2055,6 @@ G_ItemDisabled
 int G_ItemDisabled( gitem_t *item ) {
 
 	char name[128];
-
 	Com_sprintf(name, sizeof(name), "disable_%s", item->classname);
 	return trap_Cvar_VariableIntegerValue( name );
 }
@@ -2030,11 +2094,22 @@ void G_SpawnItem (gentity_t *ent, gitem_t *item) {
 			return;
 		}
 	}
-
+	if ((item->giType == IT_WEAPON)||(item->giType == IT_AMMO))
+	{
+		if (mc_insta.integer == 1)
+		{
+			G_FreeEntity( ent );
+			return;
+		}
+	}
 	RegisterItem( item );
 	if ( G_ItemDisabled(item) )
 		return;
-
+	// Deathspike: g_dsPushItems
+	if (ent->spawnedBefore)
+		VectorCopy(ent->origOrigin, ent->s.origin);
+	ent->itemtype = item->giType;
+	// End Deathspike
 	ent->item = item;
 	// some movers spawn on the second frame, so delay item
 	// spawns until the third frame so they can ride trains
@@ -2168,5 +2243,1903 @@ void G_RunItem( gentity_t *ent ) {
 	}
 
 	G_BounceItem( ent, &tr );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+///////////////////////////
+/////////MCSHIELD
+///////////////////////////
+
+
+// Count down the health of the shield.
+void mcShieldThink(gentity_t *self)
+{
+	self->s.trickedentindex = 0;
+
+	//self->health -= SHIELD_HEALTH_DEC;
+	self->nextthink = level.time + 1000;
+	self->health -= 10;
+	return;
+}
+
+
+// The shield was damaged to below zero health.
+/*void mcShieldDie(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod)
+{
+	// Play damaging sound...
+	G_AddEvent(self, EV_GENERAL_SOUND, shieldDamageSound);
+
+	ShieldRemove(self);
+}*/
+
+
+// The shield had damage done to it.  Make it flicker.
+/*void mcShieldPain(gentity_t *self, gentity_t *attacker, int damage)
+{
+	// Set the itemplaceholder flag to indicate the the shield drawing that the shield pain should be drawn.
+	self->think = ShieldThink;
+	self->nextthink = level.time + 400;
+
+	// Play damaging sound...
+	G_AddEvent(self, EV_GENERAL_SOUND, shieldDamageSound);
+
+	self->s.trickedentindex = 1;
+
+	return;
+}*/
+
+
+// Try to turn the shield back on after a delay.
+void mcShieldGoSolid(gentity_t *self)
+{
+	trace_t		tr;
+
+	// see if we're valid
+	/*self->health--;
+	if (self->health <= 0)
+	{
+		ShieldRemove(self);
+		return;
+	}*/
+	
+	trap_Trace (&tr, self->r.currentOrigin, self->r.mins, self->r.maxs, self->r.currentOrigin, self->s.number, CONTENTS_BODY );
+	if(tr.startsolid)
+	{	// gah, we can't activate yet
+		self->nextthink = level.time + 200;
+		self->think = mcShieldGoSolid;
+		trap_LinkEntity(self);
+	}
+	else
+	{ // get hard... huh-huh...
+		self->s.eFlags &= ~EF_NODRAW;
+
+		self->r.contents = CONTENTS_SOLID;
+		self->nextthink = level.time + 1000;
+		self->think = mcShieldThink;
+		self->takedamage = qtrue;
+		trap_LinkEntity(self);
+
+		// Play raising sound...
+		G_AddEvent(self, EV_GENERAL_SOUND, shieldActivateSound);
+		self->s.loopSound = shieldLoopSound;
+	}
+
+	return;
+}
+
+
+// Turn the shield off to allow a friend to pass through.
+void mcShieldGoNotSolid(gentity_t *self)
+{
+	// make the shield non-solid very briefly
+	self->r.contents = 0;
+	self->s.eFlags |= EF_NODRAW;
+	// nextthink needs to have a large enough interval to avoid excess accumulation of Activate messages
+	self->nextthink = level.time + 200;
+	self->think = mcShieldGoSolid;
+	self->takedamage = qfalse;
+	trap_LinkEntity(self);
+
+	// Play kill sound...
+	G_AddEvent(self, EV_GENERAL_SOUND, shieldDeactivateSound);
+	self->s.loopSound = 0;
+}
+
+
+// Somebody (a player) has touched the shield.  See if it is a "friend".
+void mcShieldTouch(gentity_t *self, gentity_t *other, trace_t *trace)
+{
+		if (isingroup(other,self->s.owner) == 1)
+		{
+			mcShieldGoNotSolid(self);
+		}
+		else
+		{
+			if (self->health < 0)
+			{
+				trap_SendServerCommand( other->s.number, va("cp \"^1This shield can only \n^1be passed by %s^1.\n\"", stringforgroup(self->s.owner) ) );
+
+				self->health = 20;
+			}
+		}
+}
+
+
+// After a short delay, create the shield by expanding in all directions.
+void mcCreateShield(gentity_t *ent)
+{
+	trace_t		tr;
+	vec3_t		mins, maxs, end, posTraceEnd, negTraceEnd, start;
+	int			height, posWidth, negWidth, halfWidth = 0;
+	qboolean	xaxis;
+	int			paramData = 0;
+	static int	shieldID;
+
+	ent->classname = "mcshield";
+	// trace upward to find height of shield
+	ent->count = 0;
+	VectorCopy(ent->r.currentOrigin, end);
+	end[2] += MAX_SHIELD_HEIGHT;
+	trap_Trace (&tr, ent->r.currentOrigin, NULL, NULL, end, ent->s.number, MASK_SHOT );
+	height = (int)(MAX_SHIELD_HEIGHT * tr.fraction);
+
+	// use angles to find the proper axis along which to align the shield
+	VectorSet(mins, -SHIELD_HALFTHICKNESS, -SHIELD_HALFTHICKNESS, 0);
+	VectorSet(maxs, SHIELD_HALFTHICKNESS, SHIELD_HALFTHICKNESS, height);
+	VectorCopy(ent->r.currentOrigin, posTraceEnd);
+	VectorCopy(ent->r.currentOrigin, negTraceEnd);
+
+	if ((int)(ent->s.angles[YAW]) == 0) // shield runs along y-axis
+	{
+		posTraceEnd[1]+=MAX_SHIELD_HALFWIDTH;
+		negTraceEnd[1]-=MAX_SHIELD_HALFWIDTH;
+		xaxis = qfalse;
+	}
+	else  // shield runs along x-axis
+	{
+		posTraceEnd[0]+=MAX_SHIELD_HALFWIDTH;
+		negTraceEnd[0]-=MAX_SHIELD_HALFWIDTH;
+		xaxis = qtrue;
+	}
+
+	// trace horizontally to find extend of shield
+	// positive trace
+	VectorCopy(ent->r.currentOrigin, start);
+	start[2] += (height>>1);
+	trap_Trace (&tr, start, 0, 0, posTraceEnd, ent->s.number, MASK_SHOT );
+	posWidth = MAX_SHIELD_HALFWIDTH * tr.fraction;
+	// negative trace
+	trap_Trace (&tr, start, 0, 0, negTraceEnd, ent->s.number, MASK_SHOT );
+	negWidth = MAX_SHIELD_HALFWIDTH * tr.fraction;
+
+	if (xaxis)
+	{
+		VectorSet(ent->r.mins, -halfWidth, -SHIELD_HALFTHICKNESS, -(height>>1));
+		VectorSet(ent->r.maxs, halfWidth, SHIELD_HALFTHICKNESS, height>>1);
+	}
+	else
+	{
+		VectorSet(ent->r.mins, -SHIELD_HALFTHICKNESS, -halfWidth, -(height>>1));
+		VectorSet(ent->r.maxs, SHIELD_HALFTHICKNESS, halfWidth, height);
+	}
+
+	// kef -- monkey with dimensions and place origin in center
+	halfWidth = (posWidth + negWidth)>>1;
+	if (xaxis)
+	{
+		//ent->r.currentOrigin[0] = ent->r.currentOrigin[0] - negWidth + halfWidth;
+		ent->r.mins[0] = ent->r.mins[0] - negWidth;
+		ent->r.maxs[0] = ent->r.maxs[0] + halfWidth;
+	}
+	else
+	{
+		//ent->r.currentOrigin[1] = ent->r.currentOrigin[1] - negWidth + halfWidth;
+		ent->r.mins[1] = ent->r.mins[1] - negWidth;
+		ent->r.maxs[1] = ent->r.maxs[1] + halfWidth;
+	}
+	//ent->r.currentOrigin[2] += (height>>1);
+	ent->r.maxs[2] += (height>>1);
+	ent->r.mins[2] += (height>>1);
+
+	// set entity's mins and maxs to new values, make it solid, and link it
+	ent->clipmask = MASK_SHOT;
+
+	// Information for shield rendering.
+
+//	xaxis - 1 bit
+//	height - 0-254 8 bits
+//	posWidth - 0-255 8 bits
+//  negWidth - 0 - 255 8 bits
+
+	paramData = (xaxis << 24) | (height << 16) | (posWidth << 8) | (negWidth);
+	ent->s.time2 = paramData;
+
+	//ent->health = ceil(SHIELD_HEALTH*1);
+	ent->health = -10;
+
+	ent->s.time = ent->health;//???
+	//ent->pain = mcShieldPain;
+	//ent->die = mcShieldDie;
+	ent->touch = mcShieldTouch;
+
+	// see if we're valid
+	trap_Trace (&tr, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, ent->r.currentOrigin, ent->s.number, CONTENTS_BODY ); 
+
+	if (tr.startsolid)
+	{	// Something in the way!
+		// make the shield non-solid very briefly
+		ent->r.contents = 0;
+		ent->s.eFlags |= EF_NODRAW;
+		// nextthink needs to have a large enough interval to avoid excess accumulation of Activate messages
+		ent->nextthink = level.time + 200;
+		ent->think = mcShieldGoSolid;
+		ent->takedamage = qfalse;
+		trap_LinkEntity(ent);
+	}
+	else
+	{	// Get solid.
+		ent->r.contents = CONTENTS_PLAYERCLIP|CONTENTS_SHOTCLIP;//CONTENTS_SOLID;
+
+		ent->nextthink = level.time;
+		ent->think = mcShieldThink;
+
+		ent->takedamage = qfalse;
+		trap_LinkEntity(ent);
+
+		// Play raising sound...
+		G_AddEvent(ent, EV_GENERAL_SOUND, shieldActivateSound);
+		ent->s.loopSound = shieldLoopSound;
+	}
+
+	mcShieldGoSolid(ent);
+
+	return;
+}
+
+qboolean mcPlaceShield(gentity_t *playerent, int mygroup)
+{
+	static const gitem_t *shieldItem = NULL;
+	gentity_t	*shield = NULL;
+	trace_t		tr;
+	vec3_t		fwd, pos, dest, mins = {-4,-4, 0}, maxs = {4,4,4};
+
+	if (shieldAttachSound==0)
+	{
+		shieldLoopSound = G_SoundIndex("sound/movers/doors/forcefield_lp.wav");
+		shieldAttachSound = G_SoundIndex("sound/weapons/detpack/stick.wav");
+		shieldActivateSound = G_SoundIndex("sound/movers/doors/forcefield_on.wav");
+		shieldDeactivateSound = G_SoundIndex("sound/movers/doors/forcefield_off.wav");
+		shieldDamageSound = G_SoundIndex("sound/effects/bumpfield.wav");
+		shieldItem = BG_FindItemForHoldable(HI_SHIELD);
+	}
+
+	// can we place this in front of us?
+	AngleVectors (playerent->client->ps.viewangles, fwd, NULL, NULL);
+	fwd[2] = 0;
+	VectorMA(playerent->client->ps.origin, SHIELD_PLACEDIST, fwd, dest);
+	trap_Trace (&tr, playerent->client->ps.origin, mins, maxs, dest, playerent->s.number, MASK_SHOT );
+	if (tr.fraction > 0.9)
+	{//room in front
+		VectorCopy(tr.endpos, pos);
+		// drop to floor
+		VectorSet( dest, pos[0], pos[1], pos[2] - 4096 );
+		trap_Trace( &tr, pos, mins, maxs, dest, playerent->s.number, MASK_SOLID );
+		if ( !tr.startsolid && !tr.allsolid )
+		{
+			// got enough room so place the portable shield
+			shield = G_Spawn();
+
+			//shield->currentState.otherEntityNum2 = TEAM_RED;
+			shield->s.otherEntityNum2 = TEAM_RED;
+			shield->s.teamowner = TEAM_RED;
+			// Figure out what direction the shield is facing.
+			if (fabs(fwd[0]) > fabs(fwd[1]))
+			{	// shield is north/south, facing east.
+				shield->s.angles[YAW] = 0;
+			}
+			else
+			{	// shield is along the east/west axis, facing north
+				shield->s.angles[YAW] = 90;
+			}
+			G_SetAngles(shield, shield->s.angles);
+			shield->classname = "mcshield";
+			shield->think = mcCreateShield;
+			shield->nextthink = level.time + 500;	// power up after .5 seconds
+			//shield->parent = playerent;
+
+			// Set team number.
+			//shield->s.otherEntityNum2 = playerent->client->sess.sessionTeam;
+
+			shield->s.eType = ET_SPECIAL;
+			shield->s.modelindex =  HI_SHIELD;	// this'll be used in CG_Useable() for rendering.
+			//shield->classname = shieldItem->classname;
+			//strcpy("mcshield",shield->classname);
+
+			shield->r.contents = CONTENTS_TRIGGER;
+
+			shield->touch = 0;
+			// using an item causes it to respawn
+			shield->use = 0; //Use_Item;
+
+			// allow to ride movers
+			shield->s.groundEntityNum = tr.entityNum;
+			VectorCopy(tr.endpos,shield->s.origin);
+			G_SetOrigin( shield, shield->s.origin);
+
+			shield->s.eFlags &= ~EF_NODRAW;
+			shield->r.svFlags &= ~SVF_NOCLIENT;
+
+			trap_LinkEntity (shield);
+
+			shield->s.owner = mygroup;
+			shield->s.shouldtarget = qtrue;
+
+			// Play placing sound...
+			G_AddEvent(shield, EV_GENERAL_SOUND, shieldAttachSound);
+			
+			return qtrue;
+		}
+	}
+	// no room
+	return qfalse;
+}
+
+qboolean mcPlaceShield2(int mX, int mY, int mZ, int mangle, int mygroup)
+{
+	static const gitem_t *shieldItem = NULL;
+	gentity_t	*shield = NULL;
+
+	if (shieldAttachSound==0)
+	{
+		shieldLoopSound = G_SoundIndex("sound/movers/doors/forcefield_lp.wav");
+		shieldAttachSound = G_SoundIndex("sound/weapons/detpack/stick.wav");
+		shieldActivateSound = G_SoundIndex("sound/movers/doors/forcefield_on.wav");
+		shieldDeactivateSound = G_SoundIndex("sound/movers/doors/forcefield_off.wav");
+		shieldDamageSound = G_SoundIndex("sound/effects/bumpfield.wav");
+		shieldItem = BG_FindItemForHoldable(HI_SHIELD);
+	}
+	shield = G_Spawn();
+	shield->s.angles[YAW] = mangle;
+	G_SetAngles(shield, shield->s.angles);
+	shield->classname = "mcshield";
+	shield->think = mcCreateShield;
+	shield->nextthink = level.time + 500;	// power up after .5 seconds
+	shield->s.eType = ET_SPECIAL;
+	shield->s.modelindex =  HI_SHIELD;	// this'll be used in CG_Useable() for rendering.
+	shield->classname = "mcshield";
+	//strcpy(shield->classname,"mcshield");
+	shield->classname = "mcshield";
+	shield->r.contents = CONTENTS_TRIGGER;
+	shield->s.otherEntityNum2 = TEAM_RED;
+	shield->touch = 0;
+	shield->use = 0; //Use_Item;
+	//shield->s.groundEntityNum = tr.entityNum;
+	VectorClear(shield->s.origin);
+	shield->s.origin[0] = mX;
+	shield->s.origin[1] = mY;
+	shield->s.origin[2] = mZ;
+	G_SetOrigin( shield, shield->s.origin );
+	shield->s.eFlags &= ~EF_NODRAW;
+	shield->r.svFlags &= ~SVF_NOCLIENT;
+	trap_LinkEntity (shield);
+	shield->s.owner = mygroup;
+	shield->s.shouldtarget = qtrue;
+	//shield->currentState.otherEntityNum2 = TEAM_RED;
+	shield->s.teamowner = TEAM_RED;
+	G_AddEvent(shield, EV_GENERAL_SOUND, shieldAttachSound);
+	shield->classname = "mcshield";
+	return qtrue;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/////////////////////////////
+/// MC TURRET
+/////////////////////////////
+
+#define PAS_DAMAGE	2
+//---------------------------------------------------------
+void firemcturret(/* gentity_t *ent,*/ vec3_t start, vec3_t dir, qboolean altFire, int damage, int velocity, int mygroup, gentity_t *ignore )
+//---------------------------------------------------------
+{
+	gentity_t *missile;
+
+	missile = CreateMissile( start, dir, velocity, mc_weapons_life.integer, ignore, altFire );
+
+	missile->classname = "generic_proj";
+	missile->s.weapon = WP_TURRET;
+
+	missile->damage = damage;
+	missile->dflags = DAMAGE_DEATH_KNOCKBACK;
+	missile->methodOfDeath = MOD_UNKNOWN;
+	missile->clipmask = MASK_SHOT | CONTENTS_LIGHTSABER;
+	missile->s.eFlags |= EF_BOUNCE;
+	missile->s.eFlags |= 8192;
+	//missile->touch = mcturretshottouch;
+	missile->s.owner = mygroup;
+	//missile->parent = NULL;
+	//missile->r.ownerNum = ENTITYNUM_NONE;
+	if (ignore)
+	{
+		missile->passThroughNum = ignore->s.number+1;
+	}
+
+	// we don't want it to bounce forever
+	// NOTENOTE These don't bounce yet.
+	missile->bounceCount = mc_turretweap_bounces.integer;
+}
+
+void mcSentryTouch(gentity_t *ent, gentity_t *other, trace_t *trace)
+{
+	return;
+}
+
+//----------------------------------------------------------------
+void mcpas_fire( gentity_t *ent )
+//----------------------------------------------------------------
+{
+	vec3_t fwd, myOrg, enOrg;
+	int	damage;
+
+	VectorCopy(ent->r.currentOrigin, myOrg);
+	myOrg[2] += 24;
+
+	VectorCopy(ent->enemy->client->ps.origin, enOrg);
+	enOrg[2] -= 15;
+	damage = 0;
+	if (ent->enemy->client->ps.stats[STAT_ARMOR] > 5000)
+	{
+		damage += 5000;
+	}
+	else if (ent->enemy->client->ps.stats[STAT_ARMOR] > 5000)
+	{
+		damage += 5000;
+	}
+	else if (ent->enemy->client->ps.stats[STAT_ARMOR] > 1000)
+	{
+		damage += 1000;
+	}
+	else if (ent->enemy->client->ps.stats[STAT_ARMOR] > 100)
+	{
+		damage += 100;
+	}
+	else
+	{
+		damage += 15;
+	}
+	if (ent->enemy->health > 5000)
+	{
+		damage += 5000;
+	}
+	else if (ent->enemy->health > 5000)
+	{
+		damage += 5000;
+	}
+	else if (ent->enemy->health > 1000)
+	{
+		damage += 1000;
+	}
+	else if (ent->enemy->health > 100)
+	{
+		damage += 100;
+	}
+	else
+	{
+		damage += 15;
+	}
+	if (ent->enemy->client->ps.fd.forcePowersActive & ( 1 << FP_PROTECT ))
+	{
+		damage *= 8;
+	}
+	if (ent->enemy->client->ps.fd.forcePowersActive & ( 1 << FP_RAGE ))
+	{
+		damage *= 8;
+	}
+
+
+	VectorSubtract(enOrg, myOrg, fwd);
+	VectorNormalize(fwd);
+	myOrg[0] += fwd[0]*16;
+	myOrg[1] += fwd[1]*16;
+	myOrg[2] += fwd[2]*16;
+	firemcturret(/*&g_entities[ent->boltpoint3], */myOrg, fwd, qfalse, damage, 9200, ent->s.owner, ent );
+
+	G_RunObject(ent);
+}
+
+
+#define TURRET_RADIUS 800
+
+//-----------------------------------------------------
+static qboolean mcpas_find_enemies( gentity_t *self )
+//-----------------------------------------------------
+{
+	qboolean	found = qfalse;
+	static const gitem_t *shieldItem = NULL;
+	int			count, i;
+	float		bestDist = TURRET_RADIUS*TURRET_RADIUS;
+	float		enemyDist;
+	vec3_t		enemyDir, org, org2;
+	int		hitnum;
+	gentity_t	*entity_list[MAX_GENTITIES], *target;
+	trace_t		tr;
+	int		skip;
+	gentity_t	*flent;
+	hitnum = ENTITYNUM_NONE;
+	flent = NULL;
+	shieldItem = BG_FindItemForHoldable(HI_SHIELD);
+	if ( self->aimDebounceTime > level.time ) // time since we've been shut off
+	{
+		// We were active and alert, i.e. had an enemy in the last 3 secs
+		if ( self->painDebounceTime < level.time )
+		{
+			G_Sound(self, CHAN_BODY, G_SoundIndex( "sound/chars/turret/ping.wav" ));
+			self->painDebounceTime = level.time + 1000;
+		}
+	}
+
+	VectorCopy(self->s.pos.trBase, org2);
+
+	count = G_RadiusList( org2, TURRET_RADIUS, self, qtrue, entity_list );
+
+	for ( i = 0; i < count; i++ )
+	{
+		target = entity_list[i];
+
+		if ( !target->client )
+		{
+			if ( Q_stricmp(target->classname, "forcefield") != 0)
+			{
+				if ( Q_stricmp(target->classname, "bodyque") != 0)
+				{
+					continue;
+				}
+				else
+				{
+					if ((target->r.currentOrigin[0] == 0)&&(target->r.currentOrigin[1] == 0)&&(target->r.currentOrigin[2] == 0))
+					{
+						continue;
+					}
+				}
+			}
+		}
+		if ( target == self || !target->takedamage || target->health <= 0)
+		{
+			continue;
+		}
+		if ( !trap_InPVS( org2, target->r.currentOrigin ))
+		{
+			continue;
+		}
+		if ((target->client)&&(isingroup(target,self->s.owner) == 1))
+		{
+			continue;
+		}
+
+		if ( target->client )
+		{
+			VectorCopy( target->client->ps.origin, org );
+			org[2] -= 15;
+		}
+		else
+		{
+			VectorCopy( target->r.currentOrigin, org );
+		}
+
+		trap_Trace( &tr, org2, NULL, NULL, org, self->s.number, MASK_SHOT );
+		hitnum = tr.entityNum;
+		flent = & g_entities[hitnum];
+		skip = 0;
+		if ( Q_stricmp(flent->classname, "forcefield") == 0)
+		{
+			hitnum = target->s.number;
+			skip = 1;
+		}
+		if ( Q_stricmp(flent->classname, "bodyque") == 0)
+		{
+			hitnum = target->s.number;
+			skip = 1;
+		}
+		if (( !tr.allsolid && !tr.startsolid && ( tr.fraction == 1.0 || hitnum == target->s.number ))||(skip == 1))
+		{
+			// Only acquire if have a clear shot, Is it in range and closer than our best?
+			VectorSubtract( target->r.currentOrigin, self->r.currentOrigin, enemyDir );
+			enemyDist = VectorLengthSquared( enemyDir );
+
+			if ( enemyDist < bestDist )// all things equal, keep current
+			{
+				if ( self->attackDebounceTime + 100 < level.time )
+				{
+					// We haven't fired or acquired an enemy in the last 2 seconds-start-up sound
+					G_Sound( self, CHAN_BODY, G_SoundIndex( "sound/chars/turret/startup.wav" ));
+
+					// Wind up turrets for a bit
+					self->attackDebounceTime = level.time + 900 + random() * 200;
+				}
+
+				G_SetEnemy( self, target );
+				bestDist = enemyDist;
+				found = qtrue;
+			}
+		}
+	}
+
+	return found;
+}
+
+//---------------------------------
+void mcpas_adjust_enemy( gentity_t *ent )
+//---------------------------------
+{
+	trace_t	tr;
+	qboolean keep = qtrue;
+	static const gitem_t *shieldItem = NULL;
+	vec3_t		org, org2;
+
+	shieldItem = BG_FindItemForHoldable(HI_SHIELD);
+	if ( ent->enemy->health <= 0 )
+	{
+		keep = qfalse;
+	}
+
+
+	if ( !ent->enemy->client )
+	{
+		if ( Q_stricmp(ent->enemy->classname, "forcefield") != 0)
+		{
+			if ( Q_stricmp(ent->enemy->classname, "bodyque") != 0)
+			{
+				keep = qfalse;
+			}
+			else
+			{
+				if ((ent->enemy->r.currentOrigin[0] == 0)&&(ent->enemy->r.currentOrigin[1] == 0)&&(ent->enemy->r.currentOrigin[2] == 0))
+				{
+					keep = qfalse;
+				}
+			}
+		}
+	}
+	if ((ent->enemy->client)&&(isingroup(ent->enemy,ent->s.owner) == 1))
+	{
+		keep = qfalse;
+	}
+
+	//else
+	//{
+
+		VectorCopy(ent->s.pos.trBase, org2);
+
+		if ( ent->enemy->client )
+		{
+			VectorCopy( ent->enemy->client->ps.origin, org );
+			org[2] -= 15;
+		}
+		else
+		{
+			VectorCopy( ent->enemy->r.currentOrigin, org );
+		}
+
+		trap_Trace( &tr, org2, NULL, NULL, org, ent->s.number, MASK_SHOT );
+
+		if (( tr.allsolid || tr.startsolid || tr.fraction < 0.9f || tr.entityNum == ent->s.number ))
+		{
+			if (tr.entityNum != ent->enemy->s.number)
+			{
+				// trace failed
+				keep = qfalse;
+			}
+		}
+	//}
+	if (!keep)
+	{
+		ent->enemy = NULL;
+	}
+	if ( keep )
+	{
+		//ent->bounceCount = level.time + 500 + random() * 150;
+	}
+	/*else if ( ent->bounceCount < level.time && ent->enemy ) // don't ping pong on and off
+	{
+		ent->enemy = NULL;
+		// shut-down sound
+		G_Sound( ent, CHAN_BODY, G_SoundIndex( "sound/chars/turret/shutdown.wav" ));
+	
+		ent->bounceCount = level.time + 500 + random() * 150;
+
+		// make turret play ping sound for 5 seconds
+		ent->aimDebounceTime = level.time + 5000;
+	}*/
+}
+
+//---------------------------------
+void mcpas_think( gentity_t *ent )
+//---------------------------------
+{
+	qboolean	moved;
+	float		diffYaw, diffPitch;
+	vec3_t		enemyDir, org;
+	vec3_t		frontAngles, backAngles;
+	vec3_t		desiredAngles;
+	int			iEntityList[MAX_GENTITIES];
+	int			numListedEntities;
+	int			i = 0;
+	qboolean	clTrapped = qfalse;
+	vec3_t		testMins, testMaxs;
+
+	testMins[0] = ent->r.currentOrigin[0] + ent->r.mins[0]+4;
+	testMins[1] = ent->r.currentOrigin[1] + ent->r.mins[1]+4;
+	testMins[2] = ent->r.currentOrigin[2] + ent->r.mins[2]+4;
+
+	testMaxs[0] = ent->r.currentOrigin[0] + ent->r.maxs[0]-4;
+	testMaxs[1] = ent->r.currentOrigin[1] + ent->r.maxs[1]-4;
+	testMaxs[2] = ent->r.currentOrigin[2] + ent->r.maxs[2]-4;
+
+	numListedEntities = trap_EntitiesInBox( testMins, testMaxs, iEntityList, MAX_GENTITIES );
+
+	while (i < numListedEntities)
+	{
+		if (iEntityList[i] < MAX_CLIENTS)
+		{ //client stuck inside me. go nonsolid.
+			int clNum = iEntityList[i];
+
+			numListedEntities = trap_EntitiesInBox( g_entities[clNum].r.absmin, g_entities[clNum].r.absmax, iEntityList, MAX_GENTITIES );
+
+			i = 0;
+			while (i < numListedEntities)
+			{
+				if (iEntityList[i] == ent->s.number)
+				{
+					clTrapped = qtrue;
+					break;
+				}
+				i++;
+			}
+			break;
+		}
+
+		i++;
+	}
+
+	if (clTrapped)
+	{
+		ent->r.contents = 0;
+		ent->s.fireflag = 0;
+		ent->nextthink = level.time + FRAMETIME;
+		return;
+	}
+	else
+	{
+		ent->r.contents = CONTENTS_SOLID;
+	}
+
+	ent->nextthink = level.time + FRAMETIME;
+
+	if ( ent->enemy )
+	{
+		// make sure that the enemy is still valid
+		mcpas_adjust_enemy( ent );
+	}
+
+	if (ent->enemy)
+	{
+		if (!ent->enemy->client)
+		{
+			if (Q_stricmp(ent->enemy->classname,"bodyque") != 0)
+			{
+				if (Q_stricmp(ent->enemy->classname,"forcefield") != 0)
+				{
+					ent->enemy = NULL;
+				}
+			}
+		}
+		else if (ent->enemy->s.number == ent->s.number)
+		{
+			ent->enemy = NULL;
+		}
+		else if (ent->enemy->health < 1)
+		{
+			ent->enemy = NULL;
+		}
+	}
+
+	if ( !ent->enemy )
+	{
+		mcpas_find_enemies( ent );
+	}
+
+	if (ent->enemy)
+	{
+		ent->s.bolt2 = ent->enemy->s.number;
+	}
+	else
+	{
+		ent->s.bolt2 = ENTITYNUM_NONE;
+	}
+
+	moved = qfalse;
+	diffYaw = 0.0f; diffPitch = 0.0f;
+
+	ent->speed = AngleNormalize360( ent->speed );
+	ent->random = AngleNormalize360( ent->random );
+
+	if ( ent->enemy )
+	{
+		// ...then we'll calculate what new aim adjustments we should attempt to make this frame
+		// Aim at enemy
+		if ( ent->enemy->client )
+		{
+			VectorCopy( ent->enemy->client->ps.origin, org );
+		}
+		else
+		{
+			VectorCopy( ent->enemy->r.currentOrigin, org );
+		}
+
+		VectorSubtract( org, ent->r.currentOrigin, enemyDir );
+		vectoangles( enemyDir, desiredAngles );
+
+		diffYaw = AngleSubtract( ent->speed, desiredAngles[YAW] );
+		diffPitch = AngleSubtract( ent->random, desiredAngles[PITCH] );
+	}
+	else
+	{
+		// no enemy, so make us slowly sweep back and forth as if searching for a new one
+		diffYaw = sin( level.time * 0.0001f + ent->count ) * 2.0f;
+	}
+
+	if ( fabs(diffYaw) > 0.25f )
+	{
+		moved = qtrue;
+
+		if ( fabs(diffYaw) > 10.0f )
+		{
+			// cap max speed
+			ent->speed += (diffYaw > 0.0f) ? -10.0f : 10.0f;
+		}
+		else
+		{
+			// small enough
+			ent->speed -= diffYaw;
+		}
+	}
+
+
+	if ( fabs(diffPitch) > 0.25f )
+	{
+		moved = qtrue;
+
+		if ( fabs(diffPitch) > 4.0f )
+		{
+			// cap max speed
+			ent->random += (diffPitch > 0.0f) ? -4.0f : 4.0f;
+		}
+		else
+		{
+			// small enough
+			ent->random -= diffPitch;
+		}
+	}
+
+	// the bone axes are messed up, so hence some dumbness here
+	VectorSet( frontAngles, -ent->random, 0.0f, 0.0f );
+	VectorSet( backAngles, 0.0f, 0.0f, ent->speed );
+
+	if ( moved )
+	{
+	}
+	else
+	{
+		ent->s.loopSound = 0;
+	}
+
+	if ( ent->enemy && ent->attackDebounceTime < level.time )
+	{
+		ent->count--;
+			mcpas_fire( ent );
+			ent->s.fireflag = 1;
+			ent->attackDebounceTime = level.time + 200;
+	}
+	else
+	{
+		ent->s.fireflag = 0;
+	}
+}
+
+//---------------------------------
+void mcSP_PAS( gentity_t *base )
+//---------------------------------
+{
+	if ( base->count == 0 )
+	{
+		// give ammo
+		base->count = TURRET_AMMO_COUNT;
+	}
+
+	base->s.bolt1 = 1; //This is a sort of hack to indicate that this model needs special turret things done to it
+	base->s.bolt2 = ENTITYNUM_NONE; //store our current enemy index
+
+	base->damage = 0; // start animation flag
+
+	VectorSet( base->r.mins, -8, -8, 0 );
+	VectorSet( base->r.maxs, 8, 8, 24 );
+
+	G_RunObject(base);
+
+	base->think = mcpas_think;
+	base->nextthink = level.time + FRAMETIME;
+
+	//if ( !base->health )
+	//{
+		//base->health = 50;
+	//}
+
+	//base->takedamage = qtrue;
+	//base->die  = mcturret_die;
+
+	base->physicsObject = qtrue;
+
+	G_Sound( base, CHAN_BODY, G_SoundIndex( "sound/chars/turret/startup.wav" ));
+}
+
+
+
+//------------------------------------------------------------------------
+void mcspawnsentry( gentity_t *ent, int mygroup )
+//------------------------------------------------------------------------
+{
+	vec3_t fwd, fwdorg;
+	vec3_t yawonly;
+	vec3_t mins, maxs;
+	gentity_t *sentry;
+
+	if (!ent || !ent->client)
+	{
+		return;
+	}
+
+	VectorSet( mins, -8, -8, 0 );
+	VectorSet( maxs, 8, 8, 24 );
+
+
+	yawonly[ROLL] = 0;
+	yawonly[PITCH] = 0;
+	yawonly[YAW] = ent->client->ps.viewangles[YAW];
+
+	AngleVectors(yawonly, fwd, NULL, NULL);
+
+	fwdorg[0] = ent->client->ps.origin[0] + fwd[0]*64;
+	fwdorg[1] = ent->client->ps.origin[1] + fwd[1]*64;
+	fwdorg[2] = ent->client->ps.origin[2] + fwd[2]*64;
+
+	sentry = G_Spawn();
+
+	sentry->classname = "mcsentry";
+	sentry->s.modelindex = G_ModelIndex("models/items/psgun.glm"); //replace ASAP
+
+	sentry->s.g2radius = 30.0f;
+	sentry->s.modelGhoul2 = 1;
+
+	G_SetOrigin(sentry, fwdorg);
+	VectorClear(sentry->s.origin);
+	VectorCopy(sentry->r.currentOrigin, sentry->s.origin);
+	sentry->parent = ent;
+	sentry->r.contents = CONTENTS_SOLID;
+	sentry->s.solid = 2;
+	sentry->clipmask = MASK_SOLID;
+	VectorCopy(mins, sentry->r.mins);
+	VectorCopy(maxs, sentry->r.maxs);
+	sentry->boltpoint3 = ent->s.number;
+	sentry->boltpoint2 = ent->client->sess.sessionTeam; //so we can remove ourself if our owner changes teams
+	sentry->r.absmin[0] = sentry->s.pos.trBase[0] + sentry->r.mins[0];
+	sentry->r.absmin[1] = sentry->s.pos.trBase[1] + sentry->r.mins[1];
+	sentry->r.absmin[2] = sentry->s.pos.trBase[2] + sentry->r.mins[2];
+	sentry->r.absmax[0] = sentry->s.pos.trBase[0] + sentry->r.maxs[0];
+	sentry->r.absmax[1] = sentry->s.pos.trBase[1] + sentry->r.maxs[1];
+	sentry->r.absmax[2] = sentry->s.pos.trBase[2] + sentry->r.maxs[2];
+	sentry->s.eType = ET_GENERAL;
+	sentry->s.pos.trType = TR_GRAVITY;//STATIONARY;
+	sentry->s.pos.trTime = level.time;
+	sentry->touch = mcSentryTouch;
+	sentry->nextthink = level.time;
+	sentry->boltpoint4 = ENTITYNUM_NONE; //boltpoint4 used as enemy index
+
+	sentry->bolt_Head = 1000;
+
+	sentry->bolt_LLeg = level.time;
+
+	//sentry->noDamageTeam = ent->client->sess.sessionTeam;
+
+
+	trap_LinkEntity(sentry);
+
+	sentry->s.owner = mygroup;
+	sentry->s.shouldtarget = qtrue;
+	/*if (g_gametype.integer >= GT_TEAM)
+	{
+		sentry->s.teamowner = ent->client->sess.sessionTeam;
+	}
+	else
+	{
+		sentry->s.teamowner = 16;
+	}*/
+	mcSP_PAS( sentry );
+}
+
+
+
+//------------------------------------------------------------------------
+void mcspawnsentry2( int mygroup, int MX, int MY, int MZ )
+//------------------------------------------------------------------------
+{
+	vec3_t fwd, fwdorg;
+	vec3_t mins, maxs;
+	gentity_t *sentry;
+
+
+	VectorSet( mins, -8, -8, 0 );
+	VectorSet( maxs, 8, 8, 24 );
+
+
+
+	//fwdorg[0] = ent->client->ps.origin[0] + fwd[0]*64;
+	//fwdorg[1] = ent->client->ps.origin[1] + fwd[1]*64;
+	//fwdorg[2] = ent->client->ps.origin[2] + fwd[2]*64;
+	fwdorg[0] = MX;
+	fwdorg[1] = MY;
+	fwdorg[2] = MZ;
+
+	sentry = G_Spawn();
+
+	sentry->classname = "mcsentry";
+	sentry->s.modelindex = G_ModelIndex("models/items/psgun.glm"); //replace ASAP
+
+	sentry->s.g2radius = 30.0f;
+	sentry->s.modelGhoul2 = 1;
+
+	G_SetOrigin(sentry, fwdorg);
+	VectorClear(sentry->s.origin);
+	VectorCopy(sentry->r.currentOrigin, sentry->s.origin);
+	sentry->parent = NULL;
+	sentry->r.contents = CONTENTS_SOLID;
+	sentry->s.solid = 2;
+	sentry->clipmask = MASK_SOLID;
+	VectorCopy(mins, sentry->r.mins);
+	VectorCopy(maxs, sentry->r.maxs);
+	//sentry->boltpoint3 = ent->s.number;
+	//sentry->boltpoint2 = ent->client->sess.sessionTeam; //so we can remove ourself if our owner changes teams
+	sentry->r.absmin[0] = sentry->s.pos.trBase[0] + sentry->r.mins[0];
+	sentry->r.absmin[1] = sentry->s.pos.trBase[1] + sentry->r.mins[1];
+	sentry->r.absmin[2] = sentry->s.pos.trBase[2] + sentry->r.mins[2];
+	sentry->r.absmax[0] = sentry->s.pos.trBase[0] + sentry->r.maxs[0];
+	sentry->r.absmax[1] = sentry->s.pos.trBase[1] + sentry->r.maxs[1];
+	sentry->r.absmax[2] = sentry->s.pos.trBase[2] + sentry->r.maxs[2];
+	sentry->s.eType = ET_GENERAL;
+	sentry->s.pos.trType = TR_GRAVITY;//STATIONARY;
+	sentry->s.pos.trTime = level.time;
+	sentry->touch = mcSentryTouch;
+	sentry->nextthink = level.time;
+	sentry->boltpoint4 = ENTITYNUM_NONE; //boltpoint4 used as enemy index
+
+	sentry->bolt_Head = 1000;
+
+	sentry->bolt_LLeg = level.time;
+
+	//sentry->noDamageTeam = ent->client->sess.sessionTeam;
+
+
+	trap_LinkEntity(sentry);
+
+	sentry->s.owner = mygroup;
+	sentry->s.shouldtarget = qtrue;
+	/*if (g_gametype.integer >= GT_TEAM)
+	{
+		sentry->s.teamowner = ent->client->sess.sessionTeam;
+	}
+	else
+	{
+		sentry->s.teamowner = 16;
+	}*/
+	mcSP_PAS( sentry );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+///////////////////////////
+/////////MCSHIELDX
+///////////////////////////
+
+
+// Count down the health of the shield.
+void mcShieldxThink(gentity_t *self)
+{
+	self->s.trickedentindex = 0;
+
+	//self->health -= SHIELD_HEALTH_DEC;
+	self->nextthink = level.time + 1000;
+	self->health -= 10;
+	return;
+}
+
+
+
+
+
+// Try to turn the shield back on after a delay.
+void mcShieldxGoSolid(gentity_t *self)
+{
+	trace_t		tr;
+
+	trap_Trace (&tr, self->r.currentOrigin, self->r.mins, self->r.maxs, self->r.currentOrigin, self->s.number, CONTENTS_BODY );
+	if(tr.startsolid)
+	{	// gah, we can't activate yet
+		self->nextthink = level.time + 200;
+		self->think = mcShieldxGoSolid;
+		trap_LinkEntity(self);
+	}
+	else
+	{
+		self->s.eFlags &= ~EF_NODRAW;
+
+		self->r.contents = CONTENTS_SOLID;
+		self->nextthink = level.time + 1000;
+		self->think = mcShieldxThink;
+		self->takedamage = qtrue;
+		trap_LinkEntity(self);
+
+		// Play raising sound...
+		G_AddEvent(self, EV_GENERAL_SOUND, shieldActivateSound);
+		self->s.loopSound = shieldLoopSound;
+	}
+
+	return;
+}
+
+
+// Turn the shield off to allow a friend to pass through.
+void mcShieldxGoNotSolid(gentity_t *self)
+{
+	// make the shield non-solid very briefly
+	self->r.contents = 0;
+	self->s.eFlags |= EF_NODRAW;
+	// nextthink needs to have a large enough interval to avoid excess accumulation of Activate messages
+	self->nextthink = level.time + 200;
+	self->think = mcShieldxGoSolid;
+	self->takedamage = qfalse;
+	trap_LinkEntity(self);
+
+	// Play kill sound...
+	G_AddEvent(self, EV_GENERAL_SOUND, shieldDeactivateSound);
+	self->s.loopSound = 0;
+}
+
+
+// Somebody (a player) has touched the shield.  See if it is a "friend".
+/*
+void mcShieldxTouch(gentity_t *self, gentity_t *other, trace_t *trace)
+{
+		if (Q_stricmp(self->message,other->client->sess.doorpassword) == 0)
+		{
+			mcShieldxGoNotSolid(self);
+		}
+		else
+		{
+			if (self->health < 0)
+			{
+				trap_SendServerCommand( other->s.number, va("cp \"%s\n\"", self->mctarget ) );
+				trap_SendServerCommand( other->s.number, va("print \"%s\n\"", self->mctargetname ) );
+
+				self->health = 20;
+			}
+		}
+}
+
+
+// After a short delay, create the shield by expanding in all directions.
+void mcCreateShieldx(gentity_t *ent)
+{
+	trace_t		tr;
+	vec3_t		mins, maxs, end, posTraceEnd, negTraceEnd, start;
+	int			height, posWidth, negWidth, halfWidth = 0;
+	qboolean	xaxis;
+	int			paramData = 0;
+	static int	shieldID;
+
+	// trace upward to find height of shield
+	ent->count = 0;
+	VectorCopy(ent->r.currentOrigin, end);
+	end[2] += MAX_SHIELD_HEIGHT;
+	trap_Trace (&tr, ent->r.currentOrigin, NULL, NULL, end, ent->s.number, MASK_SHOT );
+	height = (int)(MAX_SHIELD_HEIGHT * tr.fraction);
+
+	// use angles to find the proper axis along which to align the shield
+	VectorSet(mins, -SHIELD_HALFTHICKNESS, -SHIELD_HALFTHICKNESS, 0);
+	VectorSet(maxs, SHIELD_HALFTHICKNESS, SHIELD_HALFTHICKNESS, height);
+	VectorCopy(ent->r.currentOrigin, posTraceEnd);
+	VectorCopy(ent->r.currentOrigin, negTraceEnd);
+
+	if ((int)(ent->s.angles[YAW]) == 0) // shield runs along y-axis
+	{
+		posTraceEnd[1]+=MAX_SHIELD_HALFWIDTH;
+		negTraceEnd[1]-=MAX_SHIELD_HALFWIDTH;
+		xaxis = qfalse;
+	}
+	else  // shield runs along x-axis
+	{
+		posTraceEnd[0]+=MAX_SHIELD_HALFWIDTH;
+		negTraceEnd[0]-=MAX_SHIELD_HALFWIDTH;
+		xaxis = qtrue;
+	}
+
+	// trace horizontally to find extend of shield
+	// positive trace
+	VectorCopy(ent->r.currentOrigin, start);
+	start[2] += (height>>1);
+	trap_Trace (&tr, start, 0, 0, posTraceEnd, ent->s.number, MASK_SHOT );
+	posWidth = MAX_SHIELD_HALFWIDTH * tr.fraction;
+	// negative trace
+	trap_Trace (&tr, start, 0, 0, negTraceEnd, ent->s.number, MASK_SHOT );
+	negWidth = MAX_SHIELD_HALFWIDTH * tr.fraction;
+
+	// kef -- monkey with dimensions and place origin in center
+	halfWidth = (posWidth + negWidth)>>1;
+	if (xaxis)
+	{
+		ent->r.currentOrigin[0] = ent->r.currentOrigin[0] - negWidth + halfWidth;
+	}
+	else
+	{
+		ent->r.currentOrigin[1] = ent->r.currentOrigin[1] - negWidth + halfWidth;
+	}
+	ent->r.currentOrigin[2] += (height>>1);
+
+	// set entity's mins and maxs to new values, make it solid, and link it
+	if (xaxis)
+	{
+		VectorSet(ent->r.mins, -halfWidth, -SHIELD_HALFTHICKNESS, -(height>>1));
+		VectorSet(ent->r.maxs, halfWidth, SHIELD_HALFTHICKNESS, height>>1);
+	}
+	else
+	{
+		VectorSet(ent->r.mins, -SHIELD_HALFTHICKNESS, -halfWidth, -(height>>1));
+		VectorSet(ent->r.maxs, SHIELD_HALFTHICKNESS, halfWidth, height);
+	}
+	ent->clipmask = MASK_SHOT;
+
+	// Information for shield rendering.
+
+//	xaxis - 1 bit
+//	height - 0-254 8 bits
+//	posWidth - 0-255 8 bits
+//  negWidth - 0 - 255 8 bits
+
+	paramData = (xaxis << 24) | (height << 16) | (posWidth << 8) | (negWidth);
+	ent->s.time2 = paramData;
+
+	//ent->health = ceil(SHIELD_HEALTH*1);
+	ent->health = -10;
+
+	ent->s.time = ent->health;//???
+	//ent->pain = mcShieldPain;
+	//ent->die = mcShieldDie;
+	ent->touch = mcShieldTouch;
+
+	// see if we're valid
+	trap_Trace (&tr, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, ent->r.currentOrigin, ent->s.number, CONTENTS_BODY ); 
+
+	if (tr.startsolid)
+	{	// Something in the way!
+		// make the shield non-solid very briefly
+		ent->r.contents = 0;
+		ent->s.eFlags |= EF_NODRAW;
+		// nextthink needs to have a large enough interval to avoid excess accumulation of Activate messages
+		ent->nextthink = level.time + 200;
+		ent->think = mcShieldxGoSolid;
+		ent->takedamage = qfalse;
+		trap_LinkEntity(ent);
+	}
+	else
+	{	// Get solid.
+		ent->r.contents = CONTENTS_PLAYERCLIP|CONTENTS_SHOTCLIP;//CONTENTS_SOLID;
+
+		ent->nextthink = level.time;
+		ent->think = mcShieldxThink;
+
+		ent->takedamage = qfalse;
+		trap_LinkEntity(ent);
+
+		// Play raising sound...
+		G_AddEvent(ent, EV_GENERAL_SOUND, shieldActivateSound);
+		ent->s.loopSound = shieldLoopSound;
+	}
+
+	mcShieldGoSolid(ent);
+
+	return;
+}
+
+qboolean mcPlacexShield(gentity_t *playerent, int mygroup)
+{
+	static const gitem_t *shieldItem = NULL;
+	gentity_t	*shield = NULL;
+	trace_t		tr;
+	vec3_t		fwd, pos, dest, mins = {-4,-4, 0}, maxs = {4,4,4};
+
+	if (shieldAttachSound==0)
+	{
+		shieldLoopSound = G_SoundIndex("sound/movers/doors/forcefield_lp.wav");
+		shieldAttachSound = G_SoundIndex("sound/weapons/detpack/stick.wav");
+		shieldActivateSound = G_SoundIndex("sound/movers/doors/forcefield_on.wav");
+		shieldDeactivateSound = G_SoundIndex("sound/movers/doors/forcefield_off.wav");
+		shieldDamageSound = G_SoundIndex("sound/effects/bumpfield.wav");
+		shieldItem = BG_FindItemForHoldable(HI_SHIELD);
+	}
+
+	// can we place this in front of us?
+	AngleVectors (playerent->client->ps.viewangles, fwd, NULL, NULL);
+	fwd[2] = 0;
+	VectorMA(playerent->client->ps.origin, SHIELD_PLACEDIST, fwd, dest);
+	trap_Trace (&tr, playerent->client->ps.origin, mins, maxs, dest, playerent->s.number, MASK_SHOT );
+	if (tr.fraction > 0.9)
+	{//room in front
+		VectorCopy(tr.endpos, pos);
+		// drop to floor
+		VectorSet( dest, pos[0], pos[1], pos[2] - 4096 );
+		trap_Trace( &tr, pos, mins, maxs, dest, playerent->s.number, MASK_SOLID );
+		if ( !tr.startsolid && !tr.allsolid )
+		{
+			// got enough room so place the portable shield
+			shield = G_Spawn();
+
+			//shield->currentState.otherEntityNum2 = TEAM_RED;
+			shield->s.otherEntityNum2 = TEAM_RED;
+			shield->s.teamowner = TEAM_RED;
+			// Figure out what direction the shield is facing.
+			if (fabs(fwd[0]) > fabs(fwd[1]))
+			{	// shield is north/south, facing east.
+				shield->s.angles[YAW] = 0;
+			}
+			else
+			{	// shield is along the east/west axis, facing north
+				shield->s.angles[YAW] = 90;
+			}
+			shield->think = mcCreateShieldx;
+			shield->nextthink = level.time + 500;	// power up after .5 seconds
+			//shield->parent = playerent;
+
+			shield->s.otherEntityNum2 = TEAM_RED;
+			shield->s.teamowner = TEAM_RED;
+			// Set team number.
+			//shield->s.otherEntityNum2 = TEAM_RED;//playerent->client->sess.sessionTeam;
+
+			shield->s.eType = ET_SPECIAL;
+			shield->s.modelindex =  HI_SHIELD;	// this'll be used in CG_Useable() for rendering.
+			//shield->classname = shieldItem->classname;
+			strcpy("mcshieldx",shield->classname);
+
+			shield->r.contents = CONTENTS_TRIGGER;
+
+			shield->touch = 0;
+			// using an item causes it to respawn
+			shield->use = 0; //Use_Item;
+
+			// allow to ride movers
+			shield->s.groundEntityNum = tr.entityNum;
+			VectorCopy(tr.endpos,shield->s.origin);
+			G_SetOrigin( shield, tr.endpos );
+
+			shield->s.eFlags &= ~EF_NODRAW;
+			shield->r.svFlags &= ~SVF_NOCLIENT;
+
+			trap_LinkEntity (shield);
+
+			shield->s.owner = mygroup;
+			shield->s.shouldtarget = qtrue;
+
+			// Play placing sound...
+			G_AddEvent(shield, EV_GENERAL_SOUND, shieldAttachSound);
+
+			return qtrue;
+		}
+	}
+	// no room
+	return qfalse;
+}
+
+qboolean mcPlaceShieldx2(int mX, int mY, int mZ, int mangle, int mygroup)
+{
+	static const gitem_t *shieldItem = NULL;
+	gentity_t	*shield = NULL;
+
+	if (shieldAttachSound==0)
+	{
+		shieldLoopSound = G_SoundIndex("sound/movers/doors/forcefield_lp.wav");
+		shieldAttachSound = G_SoundIndex("sound/weapons/detpack/stick.wav");
+		shieldActivateSound = G_SoundIndex("sound/movers/doors/forcefield_on.wav");
+		shieldDeactivateSound = G_SoundIndex("sound/movers/doors/forcefield_off.wav");
+		shieldDamageSound = G_SoundIndex("sound/effects/bumpfield.wav");
+		shieldItem = BG_FindItemForHoldable(HI_SHIELD);
+	}
+	shield = G_Spawn();
+	shield->s.angles[YAW] = mangle;
+	shield->think = mcCreateShieldx;
+	shield->nextthink = level.time + 500;	// power up after .5 seconds
+	shield->s.eType = ET_SPECIAL;
+	shield->s.modelindex =  HI_SHIELD;	// this'll be used in CG_Useable() for rendering.
+	//strcpy(shield->classname,"mcshield");
+	shield->classname = "mcshieldx";
+	shield->r.contents = CONTENTS_TRIGGER;
+	shield->touch = 0;
+	shield->use = 0; //Use_Item;
+	//shield->s.groundEntityNum = tr.entityNum;
+	shield->s.otherEntityNum2 = TEAM_RED;
+	VectorClear(shield->s.origin);
+	shield->s.origin[0] = mX;
+	shield->s.origin[1] = mY;
+	shield->s.origin[2] = mZ;
+	G_SetOrigin( shield, shield->s.origin );
+	shield->s.eFlags &= ~EF_NODRAW;
+	shield->r.svFlags &= ~SVF_NOCLIENT;
+	trap_LinkEntity (shield);
+	shield->s.owner = mygroup;
+	shield->s.shouldtarget = qtrue;
+	//shield->currentState.otherEntityNum2 = TEAM_RED;
+	shield->s.teamowner = TEAM_RED;
+	G_AddEvent(shield, EV_GENERAL_SOUND, shieldAttachSound);
+	return qtrue;
+}*/
+
+
+
+void mcgravityball_think(gentity_t *ent)
+{
+	int	i;
+	//trap_Printf("thinking");
+	for (i = 0;i < 31;i += 1)
+	{
+		//trap_Printf("looping");
+		gentity_t	*t;
+		t = &g_entities[i];
+		if (t && t->inuse && t->client && !t->client->noclip)
+		{
+			vec3_t	iVel, iDir, fwd, iMark;
+			float d;
+			VectorClear(iVel);
+			VectorClear(iDir);
+			VectorClear(fwd);
+			VectorClear(iMark);
+			//iMark[0] = t->client->ps.origin[0] - ent->r.currentOrigin[0];
+			//iMark[1] = t->client->ps.origin[1] - ent->r.currentOrigin[1];
+			//iMark[2] = t->client->ps.origin[2] - ent->r.currentOrigin[2];
+			iMark[0] = ent->r.currentOrigin[0] - t->client->ps.origin[0];
+			iMark[1] = ent->r.currentOrigin[1] - t->client->ps.origin[1];
+			iMark[2] = ent->r.currentOrigin[2]- t->client->ps.origin[2];
+			vectoangles( iMark, iDir );
+			AngleVectors(iDir, fwd, NULL, NULL);
+			//d = DotProduct(ent->r.currentOrigin, t->client->ps.origin);
+			d = (sqrt((ent->r.currentOrigin[0]-t->client->ps.origin[0])*(ent->r.currentOrigin[0]-t->client->ps.origin[0])+(ent->r.currentOrigin[1]-t->client->ps.origin[1])*(ent->r.currentOrigin[1]-t->client->ps.origin[1])+(ent->r.currentOrigin[2]-t->client->ps.origin[2])*(ent->r.currentOrigin[2]-t->client->ps.origin[2])))/10;
+			//iVel[0] = t->client->ps.velocity[0]+fwd[0]*(((float)ent->speed)/(d));
+			//iVel[1] = t->client->ps.velocity[0]+fwd[1]*(((float)ent->speed)/(d));
+			//iVel[2] = t->client->ps.velocity[0]+fwd[2]*(((float)ent->speed)/(d));
+			//trap_Printf(va("%f\n",d));
+			//VectorClear(t->client->ps.velocity);
+			//VectorCopy(iVel, t->client->ps.velocity);
+			//t->client->ps.velocity[0] = iVel[0];
+			//t->client->ps.velocity[1] = iVel[1];
+			//t->client->ps.velocity[2] = iVel[2];
+			t->client->ps.velocity[0] += fwd[0]*(((float)ent->speed)/(d));
+			t->client->ps.velocity[1] += fwd[1]*(((float)ent->speed)/(d));
+			t->client->ps.velocity[2] += fwd[2]*(((float)ent->speed)/(d));
+			//trap_Printf(va("Player: %s^7. Vel: %i,%i,%i", t->client->pers.netname, iVel[0], iVel[1], iVel[2]));
+		}
+	}
+	ent->nextthink = level.time;
+}
+void mcgravityball(gentity_t *ent)
+{
+	char *model;
+	vec3_t	nullvec;
+	nullvec[YAW] = 0;
+	nullvec[PITCH] = 0;
+	nullvec[ROLL] = 0;
+	ent->s.eType = ET_GENERAL;
+	model = "nullmodel";
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelindex2 = G_ModelIndex( model );
+	ent->classname = "mc_gravityball";
+	ent->think = mcgravityball_think;
+	ent->nextthink = level.time;
+	G_SetOrigin(ent, ent->s.origin);
+	G_SetAngles(ent, nullvec);
+	if (!ent->speed) // Gravity Strength
+	{
+		ent->speed = 100;
+	}
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	VectorSet( ent->r.maxs, 25, 25, 21 );
+	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	trap_LinkEntity( ent );
+}
+void mctsent_think(gentity_t *ent)
+{
+	int	i;
+	ent->nextthink = level.time+50;
+	for (i = 0;i < 31;i += 1)
+	{
+		gentity_t	*t;
+		trace_t		tr;
+		t = &g_entities[i];
+		if (t && t->inuse && t->client)
+		{
+			/*
+			if (Q_stricmp(t->client->sess.userlogged,"") != 0)
+			{
+				if (Q_stricmp(ent->mctarget, t->client->sess.userlogged) == 0)
+				{
+					continue;
+				}
+				if (Q_stricmp(ent->mctargetname, t->client->sess.userlogged) == 0)
+				{
+					continue;
+				}
+				if (Q_stricmp(ent->mcmessage, t->client->sess.userlogged) == 0)
+				{
+					continue;
+				}
+			}
+			*/
+			trap_Trace( &tr, ent->r.currentOrigin, NULL, NULL, t->client->ps.origin, ent->s.number, MASK_SHOT );
+			if ((tr.entityNum == i)||(tr.fraction == 1.0))
+			{
+					if (isinnewgroup(t, ent->group) == 1)
+				{
+					continue;
+				}
+				if (ent->bolt_Waist == 2)
+				{
+					if (t->client->ps.fallingToDeath < level.time - 10000)
+					{
+					//t->health = 0;
+					//t->client->ps.stats[STAT_HEALTH] = 0;
+					//t->client->ps.persistant[PERS_ATTACKER] = ENTITYNUM_WORLD;
+					//t->client->damage_fromWorld = qtrue;
+					//t->flags = FL_NO_KNOCKBACK;
+					//t->die(t, ent, ent, 99999, MOD_REPEATER_ALT);
+					/////player_die(t, ent,ent, 100000, MOD_REPEATER_ALT);
+						t->client->ps.otherKillerTime = level.time + 20000;
+						t->client->ps.otherKillerDebounceTime = level.time + 10000;
+						t->client->ps.fallingToDeath = level.time;
+						t->health = -1;
+						G_EntitySound(t, CHAN_VOICE, G_SoundIndex("*falling1.wav"));
+					}
+				}
+				else if (ent->bolt_Waist == 1)
+				{
+					trap_DropClient(t->s.number, va("was auto-kicked for entering a room he shouldn't have."));
+					return;
+				}
+				else
+				{
+					G_FreeEntity(ent);
+					return;
+				}
+			}
+		}
+	}
+}
+void mctsent(gentity_t *ent)
+{
+	char	*type;
+	char	*usersafe;
+	char	*usersafe2;
+	char	*usersafe3;
+	G_SpawnString( "reaction", "", &type );
+	if (Q_stricmp(type, "kick") == 0)
+	{
+		ent->bolt_Waist = 1;
+	}
+	else if (Q_stricmp(type, "kill") == 0)
+	{
+		ent->bolt_Waist = 2;
+	}
+	else
+	{
+		G_Printf("mctsent auto removed - no reaction tag\n");
+		G_FreeEntity(ent);
+		return;
+	}
+	//G_SpawnString( "usersafe", "", &usersafe );
+	//strcpy(ent->mctarget, usersafe);
+	//G_SpawnString( "usersafe2", "", &usersafe2 );
+	//strcpy(ent->mctargetname, usersafe2);
+	//G_SpawnString( "usersafe3", "", &usersafe3 );
+	//strcpy(ent->mcmessage, usersafe3);
+	ent->think = mctsent_think;
+	ent->nextthink = level.time+50;
+}
+
+
+void mcgravityball2_think(gentity_t *ent)
+{
+	int	i;
+	//trap_Printf("thinking");
+	for (i = 0;i < 31;i += 1)
+	{
+		//trap_Printf("looping");
+		gentity_t	*t;
+		t = &g_entities[i];
+		if (t && t->inuse && t->client && !t->client->noclip)
+		{
+			vec3_t	iVel, iDir, fwd, iMark;
+			float d;
+			VectorClear(iVel);
+			VectorClear(iDir);
+			VectorClear(fwd);
+			VectorClear(iMark);
+			//iMark[0] = t->client->ps.origin[0] - ent->r.currentOrigin[0];
+			//iMark[1] = t->client->ps.origin[1] - ent->r.currentOrigin[1];
+			//iMark[2] = t->client->ps.origin[2] - ent->r.currentOrigin[2];
+			iMark[0] = ent->r.currentOrigin[0] - t->client->ps.origin[0];
+			iMark[1] = ent->r.currentOrigin[1] - t->client->ps.origin[1];
+			iMark[2] = ent->r.currentOrigin[2]- t->client->ps.origin[2];
+			vectoangles( iMark, iDir );
+			AngleVectors(iDir, fwd, NULL, NULL);
+			//d = DotProduct(ent->r.currentOrigin, t->client->ps.origin);
+			d = (sqrt((ent->r.currentOrigin[0]-t->client->ps.origin[0])*(ent->r.currentOrigin[0]-t->client->ps.origin[0])+(ent->r.currentOrigin[1]-t->client->ps.origin[1])*(ent->r.currentOrigin[1]-t->client->ps.origin[1])+(ent->r.currentOrigin[2]-t->client->ps.origin[2])*(ent->r.currentOrigin[2]-t->client->ps.origin[2])))/10;
+			//iVel[0] = t->client->ps.velocity[0]+fwd[0]*(((float)ent->speed)/(d));
+			//iVel[1] = t->client->ps.velocity[0]+fwd[1]*(((float)ent->speed)/(d));
+			//iVel[2] = t->client->ps.velocity[0]+fwd[2]*(((float)ent->speed)/(d));
+			//trap_Printf(va("%f\n",d));
+			//VectorClear(t->client->ps.velocity);
+			//VectorCopy(iVel, t->client->ps.velocity);
+			//t->client->ps.velocity[0] = iVel[0];
+			//t->client->ps.velocity[1] = iVel[1];
+			//t->client->ps.velocity[2] = iVel[2];
+			t->client->ps.velocity[0] += fwd[0]*(((float)ent->speed)/(d));
+			t->client->ps.velocity[1] += fwd[1]*(((float)ent->speed)/(d));
+			t->client->ps.velocity[2] += fwd[2]*(((float)ent->speed)/(d));
+			//trap_Printf(va("Player: %s^7. Vel: %i,%i,%i", t->client->pers.netname, iVel[0], iVel[1], iVel[2]));
+		}
+	}
+	i = 32;
+	for (i = 32;i < 1024;i += 1)
+	{
+		//trap_Printf("looping");
+		gentity_t	*t;
+		t = &g_entities[i];
+		if (t && t->inuse && t->s.eType == ET_MISSILE)
+		{
+			vec3_t	iVel, iDir, fwd, iMark;
+			float d;
+			VectorClear(iVel);
+			VectorClear(iDir);
+			VectorClear(fwd);
+			VectorClear(iMark);
+			//iMark[0] = t->r.currentOrigin[0] - ent->r.currentOrigin[0];
+			//iMark[1] = t->r.currentOrigin[1] - ent->r.currentOrigin[1];
+			//iMark[2] = t->r.currentOrigin[2] - ent->r.currentOrigin[2];
+			iMark[0] = ent->r.currentOrigin[0] - t->r.currentOrigin[0];
+			iMark[1] = ent->r.currentOrigin[1] - t->r.currentOrigin[1];
+			iMark[2] = ent->r.currentOrigin[2]- t->r.currentOrigin[2];
+			vectoangles( iMark, iDir );
+			AngleVectors(iDir, fwd, NULL, NULL);
+			//d = DotProduct(ent->r.currentOrigin, t->client->ps.origin);
+			d = (sqrt((ent->r.currentOrigin[0]-t->r.currentOrigin[0])*(ent->r.currentOrigin[0]-t->r.currentOrigin[0])+(ent->r.currentOrigin[1]-t->r.currentOrigin[1])*(ent->r.currentOrigin[1]-t->r.currentOrigin[1])+(ent->r.currentOrigin[2]-t->r.currentOrigin[2])*(ent->r.currentOrigin[2]-t->r.currentOrigin[2])))/10;
+			//iVel[0] = t->s.pos.trDelta[0]+fwd[0]*(((float)ent->speed)/(d));
+			//iVel[1] = t->s.pos.trDelta[0]+fwd[1]*(((float)ent->speed)/(d));
+			//iVel[2] = t->s.pos.trDelta[0]+fwd[2]*(((float)ent->speed)/(d));
+			//trap_Printf(va("%f\n",d));
+			//VectorClear(t->s.pos.trDelta);
+			//VectorCopy(iVel, t->s.pos.trDelta);
+			//t->client->ps.velocity[0] = iVel[0];
+			//t->client->ps.velocity[1] = iVel[1];
+			//t->client->ps.velocity[2] = iVel[2];
+			t->s.pos.trDelta[0] += fwd[0]*(((float)ent->speed)/(d));
+			t->s.pos.trDelta[1] += fwd[1]*(((float)ent->speed)/(d));
+			t->s.pos.trDelta[2] += fwd[2]*(((float)ent->speed)/(d));
+		}
+	}
+	ent->nextthink = level.time;
+}
+void mcgravityball2(gentity_t *ent)
+{
+	char *model;
+	vec3_t	nullvec;
+	nullvec[YAW] = 0;
+	nullvec[PITCH] = 0;
+	nullvec[ROLL] = 0;
+	ent->s.eType = ET_GENERAL;
+	model = "nullmodel";
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelindex2 = G_ModelIndex( model );
+	ent->classname = "mc_gravityball2";
+	ent->think = mcgravityball2_think;
+	ent->nextthink = level.time;
+	G_SetOrigin(ent, ent->s.origin);
+	G_SetAngles(ent, nullvec);
+	if (!ent->speed) // Gravity Strength
+	{
+		ent->speed = 100;
+	}
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	VectorSet( ent->r.maxs, 25, 25, 21 );
+	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	trap_LinkEntity( ent );
+}
+
+void togglesolid_use( gentity_t *ent, gentity_t *other, gentity_t *activator )
+{
+	int	i;
+	i = 0;
+	for (i = 0;i < 1020;i+=1)
+	{
+		gentity_t	*tent;
+		tent = &g_entities[i];
+		if (tent && tent->inuse && tent->targetname)
+		{
+			if (Q_stricmp(tent->targetname, ent->target) == 0)
+			{
+				if (tent->r.linked)
+				{
+					trap_UnlinkEntity(tent);
+				}
+				else
+				{
+					trap_LinkEntity(tent);
+				}
+			}
+		}
+	}
+}
+void SP_target_togglesolid( gentity_t *ent )
+{
+	ent->use = togglesolid_use;
+}
+
+
+
+
+void mc_lulul_think(gentity_t *ent)
+{
+	gentity_t	*ient;
+	vec3_t	iVel, iDir, fwd, iMark;
+	float d;
+	ient = &g_entities[ent->boltpoint1];
+	if (!ient || !ient->inuse)
+	{
+		G_FreeEntity(ent);
+		G_Printf("GAVEUP2\n");
+		return;
+	}
+	VectorClear(iVel);
+	VectorClear(iDir);
+	VectorClear(fwd);
+	VectorClear(iMark);
+	iMark[0] = ent->r.currentOrigin[0] - ient->r.currentOrigin[0];
+	iMark[1] = ent->r.currentOrigin[1] - ient->r.currentOrigin[1];
+	iMark[2] = ent->r.currentOrigin[2] - ient->r.currentOrigin[2];
+	vectoangles( iMark, iDir );
+	AngleVectors(iDir, fwd, NULL, NULL);
+	d = (sqrt((ent->r.currentOrigin[0]-ient->r.currentOrigin[0])*(ent->r.currentOrigin[0]-ient->r.currentOrigin[0])+(ent->r.currentOrigin[1]-ient->r.currentOrigin[1])*(ent->r.currentOrigin[1]-ient->r.currentOrigin[1])+(ent->r.currentOrigin[2]-ient->r.currentOrigin[2])*(ent->r.currentOrigin[2]-ient->r.currentOrigin[2])))/10;
+	ent->s.pos.trDelta[0] += fwd[0]*(((float)ent->speed)/(d));
+	ent->s.pos.trDelta[1] += fwd[1]*(((float)ent->speed)/(d));
+	ent->s.pos.trDelta[2] += fwd[2]*(((float)ent->speed)/(d));
+	ent->nextthink = level.time;
+	ent->think = mc_lulul_think;
+	trap_LinkEntity(ent);
+	G_Printf("THINK %d (%i,%i,%i)\n", d, (int)ent->s.pos.trDelta[0], (int)ent->s.pos.trDelta[1], (int)ent->s.pos.trDelta[2]);
+}
+
+void mc_lulul_think_choose(gentity_t *ent)
+{
+	int	i;
+	for (i = 0;i < 31;i += 1)
+	{
+		gentity_t	*ient;
+		ient = &g_entities[i];
+		if (ient && ient->inuse)
+		{
+			ent->boltpoint1 = i;
+			ent->nextthink = level.time;
+			ent->think = mc_lulul_think;
+			G_Printf("FOUNDPLAYER\n");
+			return;
+		}
+	}
+	G_Printf("GAVEUP\n");
+	G_FreeEntity(ent);
+}
+
+void SP_mc_lulul(gentity_t *ent)
+{
+	vec3_t	mvel;
+	char	*model;
+	mvel[0] = 0;
+	mvel[1] = 0;
+	mvel[2] = 20;
+	G_SetOrigin( ent, ent->s.origin );
+	G_SetAngles( ent, ent->s.angles );
+	// START VEL
+	VectorCopy(ent->r.currentOrigin, ent->s.pos.trBase); // START ORIGIN
+	SnapVector(ent->s.pos.trBase); // Remove decimals?
+	VectorCopy(mvel, ent->s.pos.trDelta); // VELOCITY
+	SnapVector(ent->s.pos.trDelta); // Remove decimals?
+	ent->s.pos.trType = TR_LINEAR;
+	ent->s.pos.trTime = level.time;
+	ent->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+	// END VEL
+	// START MODEL
+	model = "FAILMODEL.md3";
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelindex2 = G_ModelIndex( model );
+	strcpy(ent->mcmessage,model);
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	VectorCopy( ent->s.angles, ent->s.apos.trBase );
+	VectorSet( ent->r.maxs, 25, 25, 21 );
+	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	// END MODEL
+	ent->think = mc_lulul_think_choose;
+	ent->nextthink = level.time + 5000;
+	ent->s.eType = ET_GENERAL;
+	//missile->parent = owner; // ANTI COLLIDE
+	//missile->r.ownerNum = owner->s.number; // ANTI COLLIDE
+	trap_LinkEntity( ent );
 }
 

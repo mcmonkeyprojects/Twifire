@@ -38,3 +38,5 @@ w_force
 w_saber
 q_math
 q_shared
+g_nox_syscalls
+g_twifireadmincommands

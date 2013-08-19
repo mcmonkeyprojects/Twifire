@@ -1,3 +1,4 @@
+pause
 @set include=
 @set savedpath=%path%
 @set path=%path%;..\..\..\bin

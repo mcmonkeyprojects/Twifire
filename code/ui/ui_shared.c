@@ -3925,6 +3925,7 @@ static bind_t g_bindings[] =
 	{"messagemode2",	-1,					-1,		-1, -1},
 	{"messagemode3",	-1,					-1,		-1, -1},
 	{"messagemode4",	-1,					-1,		-1, -1},
+	{"adminsay",	-1,					-1,		-1, -1},
 	{"+use",			-1,					-1,		-1,	-1},
 	{"+force_jump",		-1,					-1,		-1,	-1},
 	{"force_throw",		A_F1,				-1,		-1,	-1},
@@ -4492,7 +4493,7 @@ void Item_TextScroll_Paint(itemDef_t *item)
 void Item_ListBox_Paint(itemDef_t *item) {
 	float x, y, size, count, i, thumb;
 	qhandle_t image;
-	qhandle_t optionalImage1, optionalImage2, optionalImage3;
+	qhandle_t optionalImage1, optionalImage2, optionalImage3, optionalImage4;
 	listBoxDef_t *listPtr = (listBoxDef_t*)item->typeData;
 
 	// the listbox is horizontal or vertical and has a fixed size scroll bar going either direction
@@ -4554,7 +4555,7 @@ void Item_ListBox_Paint(itemDef_t *item) {
 			//
 		}
 
-		text = DC->feederItemText(item->special, item->cursorPos, 0, &optionalImage1, &optionalImage2, &optionalImage3);
+		text = DC->feederItemText(item->special, item->cursorPos, 0, &optionalImage1, &optionalImage2, &optionalImage3, &optionalImage4);
 		if (text) 
 		{
 			DC->drawText(item->window.rect.x, item->window.rect.y+item->window.rect.h, item->textscale, item->window.foreColor, text, 0, 0, item->textStyle, item->iMenuFont);
@@ -4619,7 +4620,7 @@ void Item_ListBox_Paint(itemDef_t *item) {
 					for (j = 0; j < listPtr->numColumns; j++) 
 					{
 						int imageStartX = listPtr->columnInfo[j].pos;
-						text = DC->feederItemText(item->special, i, j, &optionalImage1, &optionalImage2, &optionalImage3);
+						text = DC->feederItemText(item->special, i, j, &optionalImage1, &optionalImage2, &optionalImage3, &optionalImage4);
 						/*
 						if (optionalImage >= 0) {
 							DC->drawHandlePic(x + 4 + listPtr->columnInfo[j].pos, y - 1 + listPtr->elementHeight / 2, listPtr->columnInfo[j].width, listPtr->columnInfo[j].width, optionalImage);
@@ -4635,6 +4636,9 @@ void Item_ListBox_Paint(itemDef_t *item) {
 							imageStartX = listPtr->columnInfo[j+1].pos;
 						}
 						DC->setColor( NULL );
+						if (optionalImage4 >= 0) {
+							DC->drawHandlePic(imageStartX - listPtr->elementHeight*4, y+2, listPtr->elementHeight, listPtr->elementHeight, optionalImage4);
+						} 
 						if (optionalImage3 >= 0) {
 							DC->drawHandlePic(imageStartX - listPtr->elementHeight*3, y+2, listPtr->elementHeight, listPtr->elementHeight, optionalImage3);
 						} 
@@ -4648,8 +4652,8 @@ void Item_ListBox_Paint(itemDef_t *item) {
 				} 
 				else 
 				{
-					text = DC->feederItemText(item->special, i, 0, &optionalImage1, &optionalImage2, &optionalImage3 );
-					if ( optionalImage1 >= 0 || optionalImage2 >= 0 || optionalImage3 >= 0) 
+					text = DC->feederItemText(item->special, i, 0, &optionalImage1, &optionalImage2, &optionalImage3, &optionalImage4 );
+					if ( optionalImage1 >= 0 || optionalImage2 >= 0 || optionalImage3 >= 0 || optionalImage4 >= 0) 
 					{
 						//DC->drawHandlePic(x + 4 + listPtr->elementHeight, y, listPtr->columnInfo[j].width, listPtr->columnInfo[j].width, optionalImage);
 					} 

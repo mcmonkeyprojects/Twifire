@@ -329,6 +329,9 @@ static void CG_TaskSuicide_f (void ) {
 }
 
 
+static void mc_test_command (void ) {
+	trap_SendConsoleCommand("echo flol\n");
+}
 
 /*
 ==================
@@ -418,6 +421,7 @@ static consoleCommand_t	commands[] = {
 	{ "weapnext", CG_NextWeapon_f },
 	{ "weapprev", CG_PrevWeapon_f },
 	{ "weapon", CG_Weapon_f },
+	{ "mctestcommand", mc_test_command },
 	{ "tell_target", CG_TellTarget_f },
 	{ "tell_attacker", CG_TellAttacker_f },
 	{ "vtell_target", CG_VoiceTellTarget_f },

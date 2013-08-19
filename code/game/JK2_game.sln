@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual C++ Express 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "JK2game", "JK2_game.vcxproj", "{013A003B-45D6-F495-412D-75823D4131F5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug JK2|Win32 = Debug JK2|Win32
+		Final JK2|Win32 = Final JK2|Win32
+		Release JK2|Win32 = Release JK2|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{013A003B-45D6-F495-412D-75823D4131F5}.Debug JK2|Win32.ActiveCfg = Debug JK2|Win32
+		{013A003B-45D6-F495-412D-75823D4131F5}.Debug JK2|Win32.Build.0 = Debug JK2|Win32
+		{013A003B-45D6-F495-412D-75823D4131F5}.Final JK2|Win32.ActiveCfg = Final JK2|Win32
+		{013A003B-45D6-F495-412D-75823D4131F5}.Final JK2|Win32.Build.0 = Final JK2|Win32
+		{013A003B-45D6-F495-412D-75823D4131F5}.Release JK2|Win32.ActiveCfg = Release JK2|Win32
+		{013A003B-45D6-F495-412D-75823D4131F5}.Release JK2|Win32.Build.0 = Release JK2|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

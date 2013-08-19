@@ -6,10 +6,10 @@
 qboolean	G_SpawnString( const char *key, const char *defaultString, char **out ) {
 	int		i;
 
-	if ( !level.spawning ) {
-		*out = (char *)defaultString;
-//		G_Error( "G_SpawnString() called while not spawning" );
-	}
+	//if ( !level.spawning ) {
+		// *out = (char *)defaultString;
+		//G_Error( "G_SpawnString() called while not spawning" );
+	//}
 
 	for ( i = 0 ; i < level.numSpawnVars ; i++ ) {
 		if ( !Q_stricmp( key, level.spawnVars[i][0] ) ) {
@@ -93,12 +93,21 @@ field_t fields[] = {
 	{"random", FOFS(random), F_FLOAT},
 	{"count", FOFS(count), F_INT},
 	{"health", FOFS(health), F_INT},
+	{"delay", FOFS(delay), F_INT},
 	{"light", 0, F_IGNORE},
 	{"dmg", FOFS(damage), F_INT},
+	{"owner", FOFS(s.owner), F_INT},
+	{"toggle", FOFS(boltpoint3), F_INT},
 	{"angles", FOFS(s.angles), F_VECTOR},
 	{"angle", FOFS(s.angles), F_ANGLEHACK},
 	{"targetShaderName", FOFS(targetShaderName), F_LSTRING},
 	{"targetShaderNewName", FOFS(targetShaderNewName), F_LSTRING},
+	{"fxFile", FOFS(fxFile), F_LSTRING},
+	{"mins", FOFS(r.mins), F_VECTOR},
+	{"maxs", FOFS(r.maxs), F_VECTOR},
+	{"group", FOFS(group), F_LSTRING},
+	{"upmessage", FOFS(upmes), F_LSTRING},
+	{"downmessage", FOFS(downmes), F_LSTRING},
 
 	{NULL}
 };
@@ -120,8 +129,11 @@ void SP_info_secondplace(gentity_t *ent);
 void SP_info_thirdplace(gentity_t *ent);
 void SP_info_podium(gentity_t *ent);
 
-void SP_info_saga_objective (gentity_t *ent);
+void SP_mc_alarm(gentity_t *ent);
 
+void SP_info_saga_objective (gentity_t *ent);
+void SP_jakes_model( gentity_t *ent );
+void SP_jakes_model_zocken( gentity_t *ent );
 void SP_func_plat (gentity_t *ent);
 void SP_func_static (gentity_t *ent);
 void SP_func_rotating (gentity_t *ent);
@@ -135,12 +147,27 @@ void SP_func_breakable (gentity_t *ent);
 void SP_func_glass (gentity_t *ent);
 void SP_func_usable( gentity_t *ent);
 
+
+void SP_mc_falldeath( gentity_t *ent);
+void SP_mc_light2 ( gentity_t *ent );
+void SP_mc_lulul(gentity_t *ent);
+
+void SP_target_106use( gentity_t *ent );
+void SP_target_togglesolid( gentity_t *ent );
+
+
+void SP_target_xteleporter( gentity_t *self );
+
+
 void SP_trigger_always (gentity_t *ent);
 void SP_trigger_multiple (gentity_t *ent);
+void SP_jakes_model (gentity_t *ent);
+void SP_mctrigger_multiple (gentity_t *ent);
 void SP_trigger_push (gentity_t *ent);
 void SP_trigger_teleport (gentity_t *ent);
 void SP_trigger_hurt (gentity_t *ent);
 
+void SP_target_speedup (gentity_t *ent);
 void SP_target_remove_powerups( gentity_t *ent );
 void SP_target_give (gentity_t *ent);
 void SP_target_delay (gentity_t *ent);
@@ -149,6 +176,11 @@ void SP_target_print (gentity_t *ent);
 void SP_target_laser (gentity_t *self);
 void SP_target_character (gentity_t *ent);
 void SP_target_score( gentity_t *ent );
+void SP_target_mcspeed( gentity_t *ent );
+void SP_target_mcchat( gentity_t *ent );
+void SP_target_mcgravity( gentity_t *ent );
+void SP_target_mccredits( gentity_t *ent );
+void SP_target_mccreditrelay( gentity_t *ent );
 void SP_target_teleporter( gentity_t *ent );
 void SP_target_relay (gentity_t *ent);
 void SP_target_kill (gentity_t *ent);
@@ -162,6 +194,11 @@ void SP_info_notnull (gentity_t *self);
 void SP_info_camp (gentity_t *self);
 void SP_path_corner (gentity_t *self);
 
+
+void mcgravityball(gentity_t *ent);
+void mcgravityball2(gentity_t *ent);
+
+
 void SP_misc_teleporter_dest (gentity_t *self);
 void SP_misc_model(gentity_t *ent);
 void SP_misc_G2model(gentity_t *ent);
@@ -174,6 +211,7 @@ void SP_misc_model_ammo_power_converter( gentity_t *ent );
 void SP_misc_model_health_power_converter( gentity_t *ent );
 
 void SP_fx_runner( gentity_t *ent );
+void SP_fx_mcrunner( gentity_t *ent );
 
 #ifdef ANIMENT_SPAWNER
 void SP_misc_animent_spawner(gentity_t *ent);
@@ -190,13 +228,19 @@ void SP_team_CTF_blueplayer( gentity_t *ent );
 
 void SP_team_CTF_redspawn( gentity_t *ent );
 void SP_team_CTF_bluespawn( gentity_t *ent );
-
+//void SP_mc_note( gentity_t *ent );
+void SP_mc_mbreakable( gentity_t *ent );
 void SP_item_botroam( gentity_t *ent )
 {
 }
 
 void SP_emplaced_gun( gentity_t *ent );
+void SP_mcbutton( gentity_t *ent );
+void SP_mcbutton2( gentity_t *ent );
+//void SP_mcsolid( gentity_t *ent );
+void SP_mcioncannon( gentity_t *ent );
 
+void mctsent(gentity_t *ent);
 spawn_t	spawns[] = {
 	// info entities don't do anything at all, but provide positional
 	// information for things controlled by other processes
@@ -212,6 +256,35 @@ spawn_t	spawns[] = {
 
 	{"info_saga_objective", SP_info_saga_objective},
 
+
+	
+	//{"mcnote", SP_mc_note},
+	{"mc_telerizer", SP_target_xteleporter},
+	{"mc_light",  SP_mc_light2},
+	{"target_106use", SP_target_106use},
+	{"mc_gravityball", mcgravityball},
+	{"mc_gravityball2", mcgravityball2},
+	{"mc_tsent", mctsent},
+	{"mc_trigger", SP_mctrigger_multiple},
+	{"jmodel", SP_jakes_model},
+	{"mc_speedup", SP_target_speedup},
+	{"target_mcspeed", SP_target_mcspeed},
+	{"target_mcchat", SP_target_mcchat},
+	{"target_mcgravity", SP_target_mcgravity},
+	{"target_mccredits", SP_target_mccredits},
+	{"target_mccreditrelay", SP_target_mccreditrelay},
+	{"mc_togglesolid", SP_target_togglesolid},
+	{"fx_mcrunner", SP_fx_mcrunner},
+	{"mcbutton", SP_mcbutton},
+	{"mcbutton2", SP_mcbutton2},
+	{"mc_alarm", SP_mc_alarm},
+	{"mc_lulul", SP_mc_lulul},
+	{"mc_falldeath", SP_mc_falldeath},
+	{"misc_model_breakable", SP_mc_mbreakable},
+	{"misc_ion_cannon", SP_mcioncannon},
+
+
+
 	{"func_plat", SP_func_plat},
 	{"func_button", SP_func_button},
 	{"func_door", SP_func_door},
@@ -225,6 +298,7 @@ spawn_t	spawns[] = {
 	{"func_breakable", SP_func_breakable},
 	{"func_glass", SP_func_glass},
 	{"func_usable", SP_func_usable},
+
 
 	// Triggers are brush objects that cause an effect when contacted
 	// by a living player, usually involving firing targets.
@@ -258,14 +332,16 @@ spawn_t	spawns[] = {
 
 	{"misc_teleporter_dest", SP_misc_teleporter_dest},
 	{"misc_model", SP_misc_model},
-	{"misc_G2model", SP_misc_G2model},
 	{"misc_portal_surface", SP_misc_portal_surface},
+	{"misc_G2model", SP_misc_G2model},
 	{"misc_portal_camera", SP_misc_portal_camera},
 
 	{"misc_shield_floor_unit", SP_misc_shield_floor_unit},
 	{"misc_model_shield_power_converter", SP_misc_model_shield_power_converter},
 	{"misc_model_ammo_power_converter", SP_misc_model_ammo_power_converter},
 	{"misc_model_health_power_converter", SP_misc_model_health_power_converter},
+	{"jakes_models", SP_jakes_model},
+	{"jakes_models_zocken", SP_jakes_model_zocken},
 
 	{"fx_runner", SP_fx_runner},
 #ifdef ANIMENT_SPAWNER
@@ -287,6 +363,7 @@ spawn_t	spawns[] = {
 	{"item_botroam", SP_item_botroam},
 
 	{"emplaced_gun", SP_emplaced_gun},
+	/*{"mcsolid", SP_mcsolid},*/
 
 	{0, 0}
 };
@@ -311,6 +388,7 @@ qboolean G_CallSpawn( gentity_t *ent ) {
 	// check item spawn functions
 	for ( item=bg_itemlist+1 ; item->classname ; item++ ) {
 		if ( !strcmp(item->classname, ent->classname) ) {
+			G_SetOrigin( ent, ent->s.origin );
 			G_SpawnItem( ent, item );
 			return qtrue;
 		}
@@ -320,11 +398,13 @@ qboolean G_CallSpawn( gentity_t *ent ) {
 	for ( s=spawns ; s->name ; s++ ) {
 		if ( !strcmp(s->name, ent->classname) ) {
 			// found it
+			G_SetOrigin( ent, ent->s.origin );
 			s->spawn(ent);
 			return qtrue;
 		}
 	}
 	G_Printf ("%s doesn't have a spawn function\n", ent->classname);
+	level.mmfailclass += 1;
 	return qfalse;
 }
 
@@ -504,7 +584,8 @@ char *G_AddSpawnVarToken( const char *string ) {
 
 	l = strlen( string );
 	if ( level.numSpawnVarChars + l + 1 > MAX_SPAWN_VARS_CHARS ) {
-		G_Error( "G_AddSpawnVarToken: MAX_SPAWN_CHARS" );
+		//G_Error( "G_AddSpawnVarToken: MAX_SPAWN_CHARS" );
+		return "";
 	}
 
 	dest = level.spawnVarChars + level.numSpawnVarChars;
@@ -514,7 +595,23 @@ char *G_AddSpawnVarToken( const char *string ) {
 
 	return dest;
 }
+void AddSpawnField(char *field, char *value)
+{
+	int	i;
 
+	for(i=0;i<level.numSpawnVars;i++)
+	{
+		if (Q_stricmp(level.spawnVars[i][0], field) == 0)
+		{
+			level.spawnVars[ i ][1] = G_AddSpawnVarToken( value );
+			return;
+		}
+	}
+
+	level.spawnVars[ level.numSpawnVars ][0] = G_AddSpawnVarToken( field );
+	level.spawnVars[ level.numSpawnVars ][1] = G_AddSpawnVarToken( value );
+	level.numSpawnVars++;
+}
 /*
 ====================
 G_ParseSpawnVars
@@ -763,7 +860,7 @@ void SP_worldspawn( void )
 
 	G_SpawnString( "classname", "", &text );
 	if ( Q_stricmp( text, "worldspawn" ) ) {
-		G_Error( "SP_worldspawn: The first entity isn't 'worldspawn'" );
+		//G_Error( "SP_worldspawn: The first entity isn't 'worldspawn'" );
 	}
 
 	//The server will precache the standard model and animations, so that there is no hit
@@ -799,8 +896,8 @@ void SP_worldspawn( void )
 	G_SpawnString( "music", "", &text );
 	trap_SetConfigstring( CS_MUSIC, text );
 
-	G_SpawnString( "message", "", &text );
-	trap_SetConfigstring( CS_MESSAGE, text );				// map specific message
+	G_SpawnString( "message", "Twifire Server", &text );
+	trap_SetConfigstring( CS_MESSAGE, text );
 
 	trap_SetConfigstring( CS_MOTD, g_motd.string );		// message of the day
 
@@ -850,8 +947,8 @@ void SP_worldspawn( void )
 
 		if (lengthRed != lengthGreen || lengthGreen != lengthBlue)
 		{
-			Com_Error(ERR_DROP, "Style %d has inconsistent lengths: R %d, G %d, B %d", 
-				i, lengthRed, lengthGreen, lengthBlue);
+			//Com_Error(ERR_DROP, "Style %d has inconsistent lengths: R %d, G %d, B %d", 
+				//i, lengthRed, lengthGreen, lengthBlue);
 		}
 	}		
 }
@@ -864,6 +961,7 @@ G_SpawnEntitiesFromString
 Parses textual entity definitions out of an entstring and spawns gentities.
 ==============
 */
+
 void G_SpawnEntitiesFromString( void ) {
 	// allow calls to G_Spawn*()
 	level.spawning = qtrue;
@@ -873,7 +971,7 @@ void G_SpawnEntitiesFromString( void ) {
 	// has a "spawn" function to perform any global setup
 	// needed by a level (setting configstrings or cvars, etc)
 	if ( !G_ParseSpawnVars() ) {
-		G_Error( "SpawnEntities: no entities" );
+		//G_Error( "SpawnEntities: no entities" );
 	}
 	SP_worldspawn();
 

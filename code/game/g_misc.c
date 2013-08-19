@@ -64,9 +64,70 @@ TELEPORTERS
 =================================================================================
 */
 
+void fixforundopl(gentity_t *ent);
+void TeleportPlayer_LAWLTHISFAILS( gentity_t *player, vec3_t origin, vec3_t angles ) {
+	gentity_t	*tent;
+	fixforundopl(player);
+	// use temp events at source and destination to prevent the effect
+	// from getting dropped by a second player event
+	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR )
+	{
+		vec3_t	angrev;
+		angrev[YAW] = player->client->ps.viewangles[YAW]+180;
+		angrev[PITCH] = player->client->ps.viewangles[PITCH]+180;
+		angrev[ROLL] = 0;
+		G_PlayEffect_ID(G_EffectIndex( "mp/jedispawn" ), player->client->ps.origin, player->client->ps.viewangles);
+		G_SoundAtLoc( player->client->ps.origin, CHAN_VOICE, G_SoundIndex("sound/player/teleout.mp3") );
+		G_PlayEffect_ID(G_EffectIndex( "mp/jedispawn" ), origin, angrev);
+		G_SoundAtLoc( origin, CHAN_VOICE, G_SoundIndex("sound/player/telein.mp3") );
+	}
+
+	// unlink to make sure it can't possibly interfere with G_KillBox
+	if (mc_telefrag.integer == 1)
+	{
+	trap_UnlinkEntity (player);
+	}
+
+	VectorCopy ( origin, player->client->ps.origin );
+	player->client->ps.origin[2] += 1;
+
+	// spit the player out
+	AngleVectors( angles, player->client->ps.velocity, NULL, NULL );
+	VectorScale( player->client->ps.velocity, mc_teleportspeed.integer, player->client->ps.velocity );
+	player->client->ps.pm_time = 160;		// hold time
+	player->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+
+	// toggle the teleport bit so the client knows to not lerp
+	player->client->ps.eFlags ^= EF_TELEPORT_BIT;
+
+	// set angles
+	SetClientViewAngle( player, angles );
+
+	// kill anything at the destination
+	if (mc_telefrag.integer == 1)
+	{
+	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		G_KillBox (player);
+	}
+	}
+
+	// save results of pmove
+	BG_PlayerStateToEntityState( &player->client->ps, &player->s, qtrue );
+
+	// use the precise origin for linking
+	VectorCopy( player->client->ps.origin, player->r.currentOrigin );
+
+	if (mc_telefrag.integer == 1)
+	{
+	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		trap_LinkEntity (player);
+	}
+	}
+}
+
 void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	gentity_t	*tent;
-
+	fixforundopl(player);
 	// use temp events at source and destination to prevent the effect
 	// from getting dropped by a second player event
 	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR ) {
@@ -78,14 +139,17 @@ void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	}
 
 	// unlink to make sure it can't possibly interfere with G_KillBox
+	if (mc_telefrag.integer == 1)
+	{
 	trap_UnlinkEntity (player);
+	}
 
 	VectorCopy ( origin, player->client->ps.origin );
 	player->client->ps.origin[2] += 1;
 
 	// spit the player out
 	AngleVectors( angles, player->client->ps.velocity, NULL, NULL );
-	VectorScale( player->client->ps.velocity, 400, player->client->ps.velocity );
+	VectorScale( player->client->ps.velocity, mc_teleportspeed.integer, player->client->ps.velocity );
 	player->client->ps.pm_time = 160;		// hold time
 	player->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
 
@@ -96,8 +160,11 @@ void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	SetClientViewAngle( player, angles );
 
 	// kill anything at the destination
+	if (mc_telefrag.integer == 1)
+	{
 	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		G_KillBox (player);
+	}
 	}
 
 	// save results of pmove
@@ -106,10 +173,34 @@ void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	// use the precise origin for linking
 	VectorCopy( player->client->ps.origin, player->r.currentOrigin );
 
+	if (mc_telefrag.integer == 1)
+	{
 	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		trap_LinkEntity (player);
 	}
+	}
 }
+
+void TeleportPlayer2( gentity_t *player, vec3_t origin, vec3_t angles ) {
+	gentity_t	*tent;
+	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		tent = G_TempEntity( player->client->ps.origin, EV_PLAYER_TELEPORT_OUT );
+		tent->s.clientNum = player->s.clientNum;
+		tent = G_TempEntity( origin, EV_PLAYER_TELEPORT_IN );
+		tent->s.clientNum = player->s.clientNum;
+	}
+	VectorCopy ( origin, player->client->ps.origin );
+	player->client->ps.origin[2] += 1;
+	AngleVectors( angles, player->client->ps.velocity, NULL, NULL );
+	VectorScale( player->client->ps.velocity, mc_teleportspeed.integer, player->client->ps.velocity );
+	player->client->ps.pm_time = 160;
+	player->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+	player->client->ps.eFlags ^= EF_TELEPORT_BIT;
+	SetClientViewAngle( player, angles );
+	BG_PlayerStateToEntityState( &player->client->ps, &player->s, qtrue );
+	VectorCopy( player->client->ps.origin, player->r.currentOrigin );
+}
+
 
 
 /*QUAKED misc_teleporter_dest (1 0 0) (-32 -32 -24) (32 32 -16)
@@ -147,8 +238,7 @@ void SP_misc_model( gentity_t *ent ) {
 */
 void SP_misc_G2model( gentity_t *ent ) {
 
-#if 0
-	char name1[200] = "models/players/kyle/modelmp.glm";
+/*	char name1[200] = "models/players/kyle/model.glm";
 	trap_G2API_InitGhoul2Model(&ent->s, name1, G_ModelIndex( name1 ), 0, 0, 0, 0);
 	trap_G2API_SetBoneAnim(ent->s.ghoul2, 0, "model_root", 0, 12, BONE_ANIM_OVERRIDE_LOOP, 1.0f, level.time, -1, -1);
 	ent->s.radius = 150;
@@ -158,9 +248,8 @@ void SP_misc_G2model( gentity_t *ent ) {
 
 	G_SetOrigin( ent, ent->s.origin );
 	VectorCopy( ent->s.angles, ent->s.apos.trBase );
-#else
-	G_FreeEntity( ent );
-#endif
+	//G_FreeEntity( ent );
+*/
 }
 
 //===========================================================
@@ -1500,6 +1589,69 @@ void fx_runner_link( gentity_t *ent )
 }
 
 //----------------------------------------------------------
+void SP_jakes_model_zocken ( gentity_t *ent ) //cm - Jake
+{
+	char *model;
+	char *clipped;
+	clipped = "2";
+	G_SpawnString( "model", "", &model );
+	G_SpawnString( "spawnflags", "", &clipped );
+	ent->s.eType = ET_GENERAL;
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelindex2 = G_ModelIndex( model );
+	//strcpy(ent->model,model);
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	G_SetOrigin( ent, ent->s.origin );
+	VectorCopy( ent->s.angles, ent->s.apos.trBase );
+	//VectorSet( ent->r.maxs, 10, 10, 21 ); //This is our non-walkthroughable box.
+	VectorSet( ent->r.maxs, 25, 25, 21 );
+	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	G_SetAngles(ent, ent->s.angles);
+
+	trap_LinkEntity( ent );
+}
+void SP_mc_mbreakable ( gentity_t *ent )
+{
+	char *model;
+	G_SpawnString( "model", "", &model );
+	ent->s.eType = ET_GENERAL;
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelindex2 = G_ModelIndex( model );
+	strcpy(ent->mcmessage,model);
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	G_SetOrigin( ent, ent->s.origin );
+	G_SetAngles(ent, ent->s.angles);
+	VectorCopy( ent->s.angles, ent->s.apos.trBase );
+	//VectorSet( ent->r.maxs, 10, 10, 21 ); //This is our non-walkthroughable box.
+	if (ent->spawnflags != 1)
+	{
+		VectorSet( ent->r.maxs, 1, 1, 5 ); // Delete the worthless default collision.
+		VectorScale( ent->r.maxs, -1, ent->r.mins );
+	}
+
+	trap_LinkEntity( ent );
+}
+void SP_jakes_model ( gentity_t *ent ) //cm - Jake
+{
+	char *model;
+	G_SpawnString( "model", "", &model );
+	ent->s.eType = ET_GENERAL;
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelindex2 = G_ModelIndex( model );
+	strcpy(ent->mcmessage,model);
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	G_SetOrigin( ent, ent->s.origin );
+	G_SetAngles(ent, ent->s.angles);
+	VectorCopy( ent->s.angles, ent->s.apos.trBase );
+	//VectorSet( ent->r.maxs, 10, 10, 21 ); //This is our non-walkthroughable box.
+	VectorSet( ent->r.maxs, 25, 25, 21 );
+	VectorScale( ent->r.maxs, -1, ent->r.mins );
+
+	trap_LinkEntity( ent );
+}
 void SP_fx_runner( gentity_t *ent )
 {
 	char		*fxFile;
@@ -1513,6 +1665,7 @@ void SP_fx_runner( gentity_t *ent )
 		// didn't have angles, so give us the default of up
 		VectorSet( ent->s.angles, -90, 0, 0 );
 	}
+	G_SetAngles(ent, ent->s.angles);
 
 	// make us useable if we can be targeted
 	if ( ent->targetname )
@@ -1524,7 +1677,7 @@ void SP_fx_runner( gentity_t *ent )
 
 	G_SpawnString( "fxTarget", "", &ent->roffname );
 
-	if ( !fxFile || !fxFile[0] )
+	if (( !fxFile || !fxFile[0] )&&(ent->bolt_Head == 0))
 	{
 		Com_Printf( S_COLOR_RED"ERROR: fx_runner %s at %s has no fxFile specified\n", ent->targetname, vtos(ent->s.origin) );
 		G_FreeEntity( ent );
@@ -1533,12 +1686,59 @@ void SP_fx_runner( gentity_t *ent )
 
 	// Try and associate an effect file, unfortunately we won't know if this worked or not 
 	//	until the CGAME trys to register it...
-	ent->bolt_Head = G_EffectIndex( fxFile );
-	//It is dirty, yes. But no one likes adding things to the entity structure.
+	if (ent->bolt_Head == 0)
+	{
+		ent->bolt_Head = G_EffectIndex( fxFile );
+		strcpy(ent->mcmessage,fxFile);
+		//It is dirty, yes. But no one likes adding things to the entity structure.
+	}
 
 	// Give us a bit of time to spawn in the other entities, since we may have to target one of 'em
 	ent->think = fx_runner_link; 
 	ent->nextthink = level.time + 300;
+
+	// Save our position and link us up!
+	G_SetOrigin( ent, ent->s.origin );
+
+	VectorSet( ent->r.maxs, 20, 20, 20 );
+	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	ent->r.contents = CONTENTS_ABSEIL;
+	trap_LinkEntity( ent );
+}
+////////////////////////
+void fx_mcrunner_think( gentity_t *ent )
+{
+	// call the effect with the desired position and orientation
+	G_AddEvent( ent, EV_PLAY_EFFECT_ID, ent->bolt_Head );
+	G_FreeEntity( ent );
+}
+
+void SP_fx_mcrunner( gentity_t *ent )
+{
+	char		*fxFile;
+
+
+	if (!ent->s.angles[0] && !ent->s.angles[1] && !ent->s.angles[2])
+	{
+		// didn't have angles, so give us the default of up
+		VectorSet( ent->s.angles, -90, 0, 0 );
+	}
+
+	// make us useable if we can be targeted
+	if ( ent->targetname )
+	{
+		ent->use = fx_runner_use;
+	}
+
+
+	// Try and associate an effect file, unfortunately we won't know if this worked or not 
+	//	until the CGAME trys to register it...
+	//ent->bolt_Head = G_EffectIndex( fxFile );
+	//It is dirty, yes. But no one likes adding things to the entity structure.
+
+	// Give us a bit of time to spawn in the other entities, since we may have to target one of 'em
+	ent->think = fx_mcrunner_think; 
+	ent->nextthink = level.time + 1;
 
 	// Save our position and link us up!
 	G_SetOrigin( ent, ent->s.origin );
@@ -1548,7 +1748,7 @@ void SP_fx_runner( gentity_t *ent )
 
 	trap_LinkEntity( ent );
 }
-
+//////////////////
 //rww - here starts the main example g2animent stuff
 #define ANIMENT_TYPE_STORMTROOPER			0
 #define ANIMENT_TYPE_RODIAN					1
@@ -2847,7 +3047,9 @@ void G_SpawnExampleAnimEnt(vec3_t pos, int aeType, animentCustomInfo_t *aeInfo)
 	}
 	else
 	{
-		G_Error("Unknown AnimEnt type!\n");
+		//G_Error("Unknown AnimEnt type!\n");
+		G_FreeEntity(animEnt);
+		return;
 	}
 
 	animEnt->s.g2radius = 100;
@@ -3288,7 +3490,7 @@ void G_CreateExampleAnimEnt(gentity_t *ent)
 
 	fwdPos[0] = ent->client->ps.origin[0] + fwd[0]*128;
 	fwdPos[1] = ent->client->ps.origin[1] + fwd[1]*128;
-	fwdPos[2] = ent->client->ps.origin[2] + fwd[2]*128;
+	fwdPos[2] = ent->client->ps.origin[2];// + fwd[2]*128;
 
 	if (iArg == ANIMENT_TYPE_CUSTOM)
 	{
@@ -3338,4 +3540,747 @@ void G_CreateExampleAnimEnt(gentity_t *ent)
 	G_SpawnExampleAnimEnt(fwdPos, iArg, &aeInfo);
 }
 //rww - here ends the main example g2animent stuff
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void SP_mc_light2 ( gentity_t *ent )
+{
+	int	hred;
+	int	hgreen;
+	int	hblue;
+	int	hintensity;
+	G_SpawnInt( "red", "1", &hred );
+	G_SpawnInt( "green", "1", &hgreen );
+	G_SpawnInt( "blue", "1", &hblue );
+	G_SpawnInt( "intensity", "100", &hintensity );
+	ent->classname = "mc_light";
+	ent->s.constantLight = hred + (hgreen<<8) + (hblue<<16) + (hintensity<<24); // default red light
+	G_SetOrigin(ent,ent->s.origin);
+	ent->r.contents = CONTENTS_ABSEIL;
+	ent->r.mins[0] = -20;
+	ent->r.mins[1] = -20;
+	ent->r.mins[2] = -20;
+	ent->r.maxs[0] = 20;
+	ent->r.maxs[1] = 20;
+	ent->r.maxs[2] = 20;
+	trap_LinkEntity(ent);
+}
+
+
+
+
+void SP_mc_light ( gentity_t *ent )
+{
+	ent->classname = "mc_light";
+	ent->s.constantLight = 1 + (0<<8) + (0<<16) + (100<<24); // default red light
+	G_SetOrigin(ent,ent->s.origin);
+	ent->r.contents = CONTENTS_ABSEIL;
+	ent->r.mins[0] = -20;
+	ent->r.mins[1] = -20;
+	ent->r.mins[2] = -20;
+	ent->r.maxs[0] = 20;
+	ent->r.maxs[1] = 20;
+	ent->r.maxs[2] = 20;
+	trap_LinkEntity(ent);
+}
+
+
+
+void SP_mcioncannon( gentity_t *ent)
+{
+	char *model;
+	model = "models/map_objects/imp_mine/ion_cannon.glm";
+	ent->s.eType = ET_GENERAL;
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	ent->bolt_Head = 0;
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelGhoul2 = 1;
+	strcpy(ent->mcmessage,model);
+	ent->s.g2radius = 110;
+	G_SetOrigin( ent, ent->s.origin );
+	VectorCopy( ent->s.angles, ent->pos1 );
+	VectorCopy( ent->s.angles, ent->r.currentAngles );
+	VectorCopy( ent->s.angles, ent->s.apos.trBase );
+	ent->s.pos.trType = TR_STATIONARY;
+	trap_LinkEntity(ent);
+}
+
+void SP_mc_ghoul( gentity_t *ent )
+{
+	char *model;
+	G_SpawnString( "model", "", &model );
+	ent->s.eType = ET_GENERAL;
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	ent->bolt_Head = 0;
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelGhoul2 = 1;
+	strcpy(ent->mcmessage,model);
+	ent->s.g2radius = 110;
+	//VectorSet( ent->r.maxs, 10, 10, 21 ); //This is our non-walkthroughable box.
+	VectorSet( ent->r.maxs, 25, 25, 21 );
+	G_SetOrigin( ent, ent->s.origin );
+	VectorCopy( ent->s.angles, ent->pos1 );
+	VectorCopy( ent->s.angles, ent->r.currentAngles );
+	VectorCopy( ent->s.angles, ent->s.apos.trBase );
+	ent->s.pos.trType = TR_STATIONARY;
+	ent->classname = "jmodel2";
+	trap_LinkEntity(ent);
+
+	//ent->s.solid = SOLID_BBOX;
+	//char name[] = "models/map_objects/imp_mine/turret_chair.glm";
+	//char name[] = "models/map_objects/mp/turret_chair.glm";
+	//vec3_t down;
+	//trace_t tr;
+	//RegisterItem( BG_FindItemForWeapon(WP_BLASTER) );
+	/*
+	VectorCopy(ent->s.origin, down);
+
+	down[2] -= 1024;
+
+	trap_Trace(&tr, ent->s.origin, ent->r.mins, ent->r.maxs, down, ent->s.number, MASK_SOLID);
+
+	if (tr.fraction != 1 && !tr.allsolid && !tr.startsolid)
+	{
+		VectorCopy(tr.endpos, ent->s.origin);
+	}*/
+	//ent->spawnflags |= 4; // deadsolid
+	//ent->health = EMPLACED_GUN_HEALTH;
+	/*if (ent->spawnflags & EMPLACED_CANRESPAWN)
+	{
+		ent->health *= 0.4;
+	}*/
+	//ent->boltpoint4 = 0;
+	//ent->takedamage = qtrue;
+	//ent->pain = emplaced_gun_pain;
+	//ent->die = emplaced_gun_die;
+	//ent->splashDamage = 80;
+	//ent->splashRadius = 128;
+	//G_SpawnInt( "count", "600", &ent->count );
+	//ent->s.weapon = WP_EMPLACED_GUN;
+	//ent->think = emplaced_gun_update;
+	//ent->nextthink = level.time + 50;
+	//ent->s.owner = MAX_CLIENTS+1;
+	//ent->s.shouldtarget = qtrue;
+	//ent->s.teamowner = 0;
+}
+/*
+void SP_mc_note( gentity_t *ent, gentity_t *spawner, char *mpublic )
+{
+	char	*model;
+	char	*flagmodel;
+	qboolean mpublic2;
+	if (mpublic[0] == 'y'){mpublic2 = qtrue;}
+	else if (mpublic[1] == 'y'){mpublic2 = qtrue;}
+	else if (mpublic[0] == '1'){mpublic2 = qtrue;}
+	else if (mpublic[1] == '1'){mpublic2 = qtrue;}
+	else if (mpublic[0] == 't'){mpublic2 = qtrue;}
+	else if (mpublic[1] == 't'){mpublic2 = qtrue;}
+	else if (mpublic[0] == 'n'){mpublic2 = qfalse;}
+	else if (mpublic[1] == 'n'){mpublic2 = qfalse;}
+	else if (mpublic[0] == 'f'){mpublic2 = qfalse;}
+	else if (mpublic[1] == 'f'){mpublic2 = qfalse;}
+	else if (mpublic[0] == '0'){mpublic2 = qfalse;}
+	else if (mpublic[1] == '0'){mpublic2 = qfalse;}
+	else if (mpublic[0] == 'Y'){mpublic2 = qtrue;}
+	else if (mpublic[1] == 'Y'){mpublic2 = qtrue;}
+	else if (mpublic[0] == 'T'){mpublic2 = qtrue;}
+	else if (mpublic[1] == 'T'){mpublic2 = qtrue;}
+	else if (mpublic[0] == 'N'){mpublic2 = qfalse;}
+	else if (mpublic[1] == 'N'){mpublic2 = qfalse;}
+	else if (mpublic[0] == 'F'){mpublic2 = qfalse;}
+	else if (mpublic[1] == 'F'){mpublic2 = qfalse;}
+	else if (mpublic[1] == 'R'){mpublic2= qfalse;}
+	else if (mpublic[2] == 'R'){mpublic2= qfalse;}
+	else if (mpublic[1] == 'U'){mpublic2= qtrue;}
+	else if (mpublic[2] == 'U'){mpublic2= qtrue;}
+	else {mpublic2 = qfalse;}
+	if (mpublic2)
+	{
+		flagmodel = "models/flags/r_flag.md3";
+		ent->s.bolt1 = 1;
+	}
+	else
+	{
+		flagmodel = "models/flags/b_flag.md3";
+		ent->s.bolt1 = 0;
+	}
+	G_SpawnString( "model", "", &model );
+	ent->s.eType = ET_GENERAL;
+	ent->s.modelindex = G_ModelIndex( flagmodel );
+	ent->s.modelindex2 = G_ModelIndex( flagmodel );
+	strcpy(ent->mcmessage,model);
+	if (spawner)
+	{
+		strcpy(ent->mctargetname,spawner->client->sess.userlogged);
+	}
+	ent->r.contents = CONTENTS_TRIGGER;
+	//ent->r.contents = CONTENTS_SOLID;
+	//ent->clipmask = MASK_SOLID;
+	G_SetOrigin( ent, ent->s.origin );
+	VectorCopy( ent->s.angles, ent->s.apos.trBase );
+	VectorSet( ent->r.maxs, 25, 25, 80 );
+	VectorScale( ent->r.maxs, -1, ent->r.mins );
+	ent->r.mins[2] = -10;
+	ent->classname = "mc_note";
+	trap_LinkEntity( ent );
+}
+*/
+
+
+
+void SP_mc_ghoulx7( gentity_t *ent, gentity_t *creator, char *model )
+{
+	trap_UnlinkEntity (ent);
+	trap_UnlinkEntity (creator);
+	ent->s.eType = ET_GENERAL;
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	ent->bolt_Head = 0;
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelGhoul2 = 1;
+	strcpy(ent->mcmessage,model);
+	ent->r.svFlags |= SVF_BROADCAST;
+	ent->s.g2radius = 110;
+	ent->s.eType = ET_BODY;
+	ent->s.eFlags = EF_DEAD;
+	VectorSet( ent->r.maxs, 25, 25, 21 );
+	VectorSet( ent->r.mins, -25, -25, -21 );
+	VectorCopy(creator->client->ps.origin, ent->s.origin);
+	G_SetOrigin( ent, ent->s.origin );
+	VectorCopy( ent->s.angles, ent->pos1 );
+	VectorCopy( ent->s.angles, ent->r.currentAngles );
+	VectorCopy( ent->s.angles, ent->s.apos.trBase );
+	ent->s.pos.trType = TR_STATIONARY;
+	ent->classname = "jmodel2";
+	ent->s.torsoAnim = ent->s.legsAnim = creator->client->ps.torsoAnim & ~ANIM_TOGGLEBIT;
+	trap_LinkEntity(ent);
+}
+void mc_alarm_nothink(gentity_t *ent)
+{
+}
+void mc_alarm_think(gentity_t *ent)
+{
+	G_Soundm2( ent, CHAN_ANNOUNCER, G_SoundIndex("sound\\effects\\alarm2") );
+	ent->nextthink = level.time + 2000;
+	ent->boltpoint1 += 1;
+	if (ent->boltpoint1 >= 5)
+	{
+		ent->think = mc_alarm_nothink;
+	}
+}
+void mc_alarm_use( gentity_t *ent, gentity_t *other, gentity_t *activator )
+{
+	if (ent->think == mc_alarm_think)
+	{
+		ent->think = mc_alarm_nothink;
+		ent->boltpoint1 = 0;
+	}
+	else
+	{
+		ent->think = mc_alarm_think;
+		ent->nextthink = level.time;
+		ent->boltpoint1 = 0;
+	}
+}
+void SP_mc_alarm(gentity_t *ent)
+{
+	ent->think = mc_alarm_nothink;
+	ent->nextthink = level.time;
+	ent->use = mc_alarm_use;
+	ent->boltpoint1 = 0;
+}
+
+
+
+
+
+char *mineblock_for_type(int type)
+{
+	switch (type)
+	{
+		case 0: return "models/map_objects/peoplemap/mc_dirtblock.md3";
+		case 1: return "models/map_objects/peoplemap/mc_grassblock.md3";
+		case 2: return "models/map_objects/peoplemap/mc_tntblock.md3";
+		case 3: return "models/map_objects/peoplemap/mc_stoneblock.md3";
+		case 4: return "models/map_objects/peoplemap/mc_glassblock.md3";
+		case 5: return "models/map_objects/peoplemap/mc_sandblock.md3";
+		case 6: return "models/map_objects/peoplemap/mc_extra.md3";
+		case 7: return "models/map_objects/peoplemap/mc_extra2.md3";
+		case 8: return "models/map_objects/peoplemap/mc_woodblock.md3";
+		case 9: return "models/map_objects/peoplemap/mc_torch.md3";
+		case 10: return "models/map_objects/peoplemap/mc_select.md3";
+		default: return "models/map_objects/peoplemap/mc_dirtblock.md3";
+	}
+}
+
+void mineblock_use( gentity_t *self, gentity_t *other, gentity_t *activator )
+{
+}
+void mineblock_think(gentity_t *ent)
+{
+}
+void SP_mineblock(gentity_t *ent)
+{
+	char *model = mineblock_for_type(ent->boltpoint1);
+	ent->classname = "mc_mineblock";
+	ent->think = mineblock_think;
+	ent->use = mineblock_use;
+	ent->nextthink = level.time;
+	ent->s.eType = ET_GENERAL;
+	ent->s.modelindex = G_ModelIndex( model );
+	ent->s.modelindex2 = G_ModelIndex( model );
+	strcpy(ent->mcmessage,model);
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	//G_SetOrigin( ent, ent->s.origin );
+	VectorSet( ent->s.angles, 0, 0, 0 );
+	VectorSet( ent->r.maxs, 16, 16, 32 ); //This is our non-walkthroughable box.
+	VectorSet( ent->r.mins, -16, -16, 0 );
+	trap_LinkEntity( ent );
+	if (ent->boltpoint1 == 9)
+	{
+		ent->s.constantLight = 1 + (1<<8) + (100<<16) + (150<<24);
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int weapforname(char *name)
+{
+	if (strstr(name,"blaster"))
+	{
+		return WP_BLASTER;
+	}
+	if (strstr(name,"e-11"))
+	{
+		return WP_BLASTER;
+	}
+	if (strstr(name,"rifle"))
+	{
+		return WP_BLASTER;
+	}
+	if (strstr(name,"bryar"))
+	{
+		return WP_BRYAR_PISTOL;
+	}
+	if (strstr(name,"briar"))
+	{
+		return WP_BRYAR_PISTOL;
+	}
+	if (strstr(name,"pistol"))
+	{
+		return WP_BRYAR_PISTOL;
+	}
+	if (strstr(name,"disrup"))
+	{
+		return WP_DISRUPTOR;
+	}
+	if (strstr(name,"tenloss"))
+	{
+		return WP_DISRUPTOR;
+	}
+	if (strstr(name,"dxr"))
+	{
+		return WP_DISRUPTOR;
+	}
+	if (strstr(name,"snipe"))
+	{
+		return WP_DISRUPTOR;
+	}
+	if (strstr(name,"stun"))
+	{
+		return WP_STUN_BATON;
+	}
+	if (strstr(name,"baton"))
+	{
+		return WP_STUN_BATON;
+	}
+	if (strstr(name,"wookie"))
+	{
+		return WP_BOWCASTER;
+	}
+	if (strstr(name,"bow"))
+	{
+		return WP_BOWCASTER;
+	}
+	if (strstr(name,"caster"))
+	{
+		return WP_BOWCASTER;
+	}
+	if (strstr(name,"repeater"))
+	{
+		return WP_REPEATER;
+	}
+	if (strstr(name,"imperial"))
+	{
+		return WP_REPEATER;
+	}
+	if (strstr(name,"heavy"))
+	{
+		return WP_REPEATER;
+	}
+	if (strstr(name,"golan"))
+	{
+		return WP_FLECHETTE;
+	}
+	if (strstr(name,"arms"))
+	{
+		return WP_FLECHETTE;
+	}
+	if (strstr(name,"fc1"))
+	{
+		return WP_FLECHETTE;
+	}
+	if (strstr(name,"flec"))
+	{
+		return WP_FLECHETTE;
+	}
+	if (strstr(name,"merr"))
+	{
+		return WP_ROCKET_LAUNCHER;
+	}
+	if (strstr(name,"sonn"))
+	{
+		return WP_ROCKET_LAUNCHER;
+	}
+	if (strstr(name,"plx"))
+	{
+		return WP_ROCKET_LAUNCHER;
+	}
+	if (strstr(name,"rocket"))
+	{
+		return WP_ROCKET_LAUNCHER;
+	}
+	if (strstr(name,"launcher"))
+	{
+		return WP_ROCKET_LAUNCHER;
+	}
+	if (strstr(name,"portable"))
+	{
+		return WP_ROCKET_LAUNCHER;
+	}
+	if (strstr(name,"missle"))
+	{
+		return WP_ROCKET_LAUNCHER;
+	}
+	if (strstr(name,"missile"))
+	{
+		return WP_ROCKET_LAUNCHER;
+	}
+	if (strstr(name,"thermal"))
+	{
+		return WP_THERMAL;
+	}
+	if (strstr(name,"deton"))
+	{
+		return WP_THERMAL;
+	}
+	if (strstr(name,"grenade"))
+	{
+		return WP_THERMAL;
+	}
+	if (strstr(name,"gernade"))
+	{
+		return WP_THERMAL;
+	}
+	if (strstr(name,"trip"))
+	{
+		return WP_TRIP_MINE;
+	}
+	if (strstr(name,"trap"))
+	{
+		return WP_TRIP_MINE;
+	}
+	if (strstr(name,"mine"))
+	{
+		return WP_TRIP_MINE;
+	}
+	if (strstr(name,"det"))
+	{
+		return WP_DET_PACK;
+	}
+	if (strstr(name,"pack"))
+	{
+		return WP_DET_PACK;
+	}
+	if (strstr(name,"saber"))
+	{
+		return WP_SABER;
+	}
+	if (strstr(name,"emplaced"))
+	{
+		return WP_EMPLACED_GUN;
+	}
+	if (strstr(name,"demp"))
+	{
+		return WP_DEMP2;
+	}
+	if (strstr(name,"electro"))
+	{
+		return WP_DEMP2;
+	}
+	if (strstr(name,"destructive"))
+	{
+		return WP_DEMP2;
+	}
+	if (strstr(name,"magnet"))
+	{
+		return WP_DEMP2;
+	}
+	if (strstr(name,"pulse"))
+	{
+		return WP_DEMP2;
+	}
+	if (strstr(name,"none"))
+	{
+		return WP_NONE;
+	}
+	return WP_BLASTER;
+}
+
+char *mc_bouncechar(char *chr)
+{
+	return chr;
+}
+char *mc_bouncechar2(char *chr)
+{
+	return chr;
+}
+void mc_CreateExampleAnimEnt(gentity_t *ent)
+{
+	vec3_t fwd, fwdPos;
+	animentCustomInfo_t aeInfo;
+	char	arg[MAX_STRING_CHARS];
+	int		argNum = trap_Argc();
+	gentity_t	*animEnt;
+	vec3_t		playerMins;
+	vec3_t		playerMaxs;
+	fileHandle_t	f;
+	int		i;
+	int		iL;
+	int		len;
+	char		buffer[4096];
+	int		health;
+	health = 50;
+
+	memset(&aeInfo, 0, sizeof(aeInfo));
+
+	trap_Argv( 1, arg, sizeof( arg ) );
+	if ((Q_stricmp(arg, "info") == 0)||(Q_stricmp(arg, "") == 0))
+	{
+		trap_SendServerCmd(ent->s.number, va("print \"^1/amnpcspawn <NPC name>\n\"", arg));
+		return;
+	}
+	len = trap_FS_FOpenFile(va("npcs/npc_%s.cfg", arg), &f, FS_READ);
+	if (!f)
+	{
+		trap_SendServerCmd(ent->s.number, va("print \"^1Unknown npc ~^5%s^1~.\n\"", arg));
+		return;
+	}
+	if (len > 4090)
+	{
+		len = 4090;
+	}
+	iL = 0;
+	trap_FS_Read( buffer , len, f );
+	//G_Printf(buffer);
+	aeInfo.aeAlignment = 1;
+	for (i = 0;i < len;i += 1)
+	{
+		if (buffer[i] == '\n')
+		{
+			int iF;
+			int iS;
+			int iT;
+			char	name[1024];
+			char	value[1024];
+			iS = 0;
+			iT = 0;
+			//G_Printf("SKIP%i\n", i);
+			stringclear(name,1020);
+			stringclear(value,1020);
+			for (iF = iL; iF < i;iF += 1)
+			{
+				//G_Printf("iF%i iL%i i%
+				if (buffer[iF] == ':')
+				{
+					iT = 1;
+					iS = 0;
+					//G_Printf("COLON%i\n",iF);
+					continue;
+				}
+				if (iT == 0)
+				{
+					name[iS] = buffer[iF];
+				}
+				else
+				{
+					value[iS] = buffer[iF];
+				}
+				iS += 1;
+			}
+			//G_Printf("D: %s - %s\n", name, value);
+			if (Q_stricmp(name,"health") == 0)
+			{
+				health = atoi(value);
+			}
+			else if (Q_stricmp(name,"model") == 0)
+			{
+				aeInfo.modelPath = va("%s", value);
+				//G_Printf("M: %s\nM2: %s\nM3: %s\n", aeInfo.modelPath, value, va(value));
+			}
+			else if (Q_stricmp(name,"alignment") == 0)
+			{
+				aeInfo.aeAlignment = atoi(value);
+			}
+			else if (Q_stricmp(name,"sound") == 0)
+			{
+				aeInfo.soundPath = mc_bouncechar2(value);
+			}
+			else if (Q_stricmp(name,"weapon") == 0)
+			{
+				aeInfo.aeWeapon = weapforname(value);
+			}
+			//stringclear(name,1020);
+			//stringclear(value,1020);
+			iL = i+1;
+		}
+	}
+
+	if ((!aeInfo.modelPath) || (Q_stricmp(aeInfo.modelPath,"") == 0))
+	{
+			aeInfo.modelPath = "models/players/stormtrooper/model.glm";
+	}
+	if ((!aeInfo.soundPath) || (Q_stricmp(aeInfo.soundPath,"") == 0))
+	{
+			aeInfo.soundPath = "sound/chars/jan/misc";
+	}
+	//G_Printf("m:%s\ns:%s\n", aeInfo.modelPath, aeInfo.soundPath);
+	AngleVectors(ent->client->ps.viewangles, fwd, 0, 0);
+
+	fwdPos[0] = ent->client->ps.origin[0] + fwd[0]*128;
+	fwdPos[1] = ent->client->ps.origin[1] + fwd[1]*128;
+	fwdPos[2] = ent->client->ps.origin[2];// + fwd[2]*128;
+
+
+	VectorSet(playerMins, -15, -15, DEFAULT_MINS_2);
+	VectorSet(playerMaxs, 15, 15, DEFAULT_MAXS_2);
+
+	animEnt = G_Spawn();
+
+	animEnt->watertype = 3; //set the animent type
+
+	ExampleAnimEntCustomDataEntry(animEnt, aeInfo.aeAlignment, aeInfo.aeWeapon, aeInfo.modelPath, aeInfo.soundPath);
+	AnimEntCustomSoundPrecache(&aeInfo);
+
+	animEnt->s.eType = ET_GRAPPLE; //ET_GRAPPLE is the reserved special type for G2 anim ents.
+
+	if (qtrue)
+	{
+		animentCustomInfo_t *aeInfo = ExampleAnimEntCustomData(animEnt);
+
+		if (aeInfo)
+		{
+			animEnt->s.modelindex = G_ModelIndex(aeInfo->modelPath);
+		}
+		else
+		{
+			animEnt->s.modelindex = G_ModelIndex( "models/players/stormtrooper/model.glm" );
+		}
+	}
+
+	animEnt->s.g2radius = 100;
+
+	if (qtrue)
+	{
+		animentCustomInfo_t *aeInfo = ExampleAnimEntCustomData(animEnt);
+
+		if (aeInfo)
+		{
+			animEnt->s.weapon = aeInfo->aeWeapon;
+		}
+		else
+		{
+			animEnt->s.weapon = WP_BLASTER;
+		}
+	}
+
+	animEnt->s.modelGhoul2 = 1; //Deal with it like any other ghoul2 ent, as far as killing instances.
+
+	G_SetOrigin(animEnt, fwdPos);
+
+	animEnt->classname = "g2animent";
+			
+	VectorCopy (playerMins, animEnt->r.mins);
+	VectorCopy (playerMaxs, animEnt->r.maxs);
+
+	animEnt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+
+	animEnt->clipmask = MASK_PLAYERSOLID;
+	animEnt->r.contents = MASK_PLAYERSOLID;
+
+	animEnt->takedamage = qtrue;
+
+	animEnt->health = health;
+
+	animEnt->s.owner = MAX_CLIENTS+1;
+	animEnt->s.shouldtarget = qtrue;
+	animEnt->s.teamowner = 0;
+
+	trap_LinkEntity(animEnt);
+
+	animEnt->pain = ExampleAnimEnt_Pain;
+	animEnt->die = ExampleAnimEnt_Die;
+
+	animEnt->touch = ExampleAnimEntTouch;
+
+	animEnt->think = ExampleAnimEntUpdateSelf;
+	animEnt->nextthink = level.time + 50;
+
+	animEnt->s.torsoAnim = BOTH_ATTACK3;
+	animEnt->s.legsAnim = BOTH_STAND3;
+
+	//initialize the "AI" values
+	animEnt->bolt_Waist = -1; //the waypoint index
+	animEnt->bolt_Motion = ENTITYNUM_NONE; //the enemy index
+	animEnt->splashMethodOfDeath = 0; //don't stand still while you have an enemy
+	animEnt->splashRadius = 0; //timer for randomly deciding to stand still
+	animEnt->boltpoint3 = 0; //running forward on the trail
+	trap_SendServerCmd(ent->s.number, va("print \"^2NPC spawned.\n\"", arg));
+	trap_FS_FCloseFile( f );
+}
+
 

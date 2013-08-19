@@ -515,7 +515,7 @@ qboolean WP_SabersCheckLock2( gentity_t *attacker, gentity_t *defender, sabersLo
 	pmv.ps = &attacker->client->ps;
 	pmv.animations = bgGlobalAnimations;
 	pmv.cmd = attacker->client->pers.cmd;
-	pmv.trace = trap_Trace;
+	pmv.trace = nox_trap_Trace;
 	pmv.pointcontents = trap_PointContents;
 	pmv.gametype = g_gametype.integer;
 

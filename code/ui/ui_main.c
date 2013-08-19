@@ -108,6 +108,7 @@ int	uiSkinColor=TEAM_FREE;
 static const serverFilter_t serverFilters[] = {
 	{"All", "" },
 	{"Jedi Knight 2", "" },
+	{"Twimod", "" },
 };
 static const int numServerFilters = sizeof(serverFilters) / sizeof(serverFilter_t);
 
@@ -5004,8 +5005,14 @@ static void UI_BuildServerDisplayList(qboolean force) {
 				}
 			}
 				
-			if (ui_serverFilterType.integer > 0) {
+			if (ui_serverFilterType.integer == 1) {
 				if (Q_stricmp(Info_ValueForKey(info, "game"), serverFilters[ui_serverFilterType.integer].basedir) != 0) {
+					trap_LAN_MarkServerVisible(ui_netSource.integer, i, qfalse);
+					continue;
+				}
+			}
+			if (ui_serverFilterType.integer > 1) {
+				if (Q_stricmp(Info_ValueForKey(info, "game"), "Twimod") != 0) {
 					trap_LAN_MarkServerVisible(ui_netSource.integer, i, qfalse);
 					continue;
 				}
@@ -5543,14 +5550,14 @@ static void UI_UpdatePendingPings() {
 }
 
 static const char *UI_FeederItemText(float feederID, int index, int column, 
-									 qhandle_t *handle1, qhandle_t *handle2, qhandle_t *handle3) {
+									 qhandle_t *handle1, qhandle_t *handle2, qhandle_t *handle3, qhandle_t *handle4) {
 	static char info[MAX_STRING_CHARS];
 	static char hostname[1024];
 	static char clientBuff[32];
 	static char needPass[32];
 	static int lastColumn = -1;
 	static int lastTime = 0;
-	*handle1 = *handle2 = *handle3 = -1;
+	*handle1 = *handle2 = *handle3 = *handle4 = -1;
 	if (feederID == FEEDER_HEADS) {
 		int actual;
 		return UI_SelectedHead(index, &actual);
@@ -5623,11 +5630,18 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 						return Info_ValueForKey(info, "addr");
 					} else {
 						int gametype = 0;
+												if ( Q_stricmp(Info_ValueForKey(info, "game"), "Twimod") == 0 )
+					{
+            						*handle4 = trap_R_RegisterShaderNoMip( "gfx/menus/twimod" );
+          }
 						//check for password
 						if ( atoi(Info_ValueForKey(info, "needpass")) )
 						{
 							*handle3 = trap_R_RegisterShaderNoMip( "gfx/menus/needpass" );
 						}
+					//	if (Info_ValueForKey(info, "Game name") == "Twimod v1.1.0")
+
+      
 						//check for saberonly and restricted force powers
 						gametype = atoi(Info_ValueForKey(info, "gametype"));
 						if ( gametype != GT_JEDIMASTER )
@@ -5693,6 +5707,7 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 							return hostname;
 						}
 					}
+
 				case SORT_MAP : 
 					return Info_ValueForKey(info, "mapname");
 				case SORT_CLIENTS : 

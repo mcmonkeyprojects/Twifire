@@ -551,6 +551,14 @@ void AddScore( gentity_t *ent, vec3_t origin, int score ) {
 	ent->client->ps.persistant[PERS_SCORE] += score;
 	if ( g_gametype.integer == GT_TEAM )
 		level.teamScores[ ent->client->ps.persistant[PERS_TEAM] ] += score;
+	if (mc_lms.integer > 0)
+	{
+		if (ent->client->ps.persistant[PERS_SCORE] <= 0)
+		{
+			SetTeam(ent, "s");
+			CheckExitRules();
+		}
+	}
 	CalculateRanks();
 }
 
@@ -1806,7 +1814,19 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	if ( self->client->ps.pm_type == PM_DEAD ) {
 		return;
 	}
-
+	if (self->client->sess.freeze)
+	{
+		self->client->sess.freeze = qfalse;
+		self->client->ps.pm_type = PM_NORMAL;
+		self->client->ps.saberMove = LS_NONE;
+		self->client->ps.saberBlocked = 0;
+		self->client->ps.saberBlocking = 0;
+		self->client->sess.dienow = 1;
+		StandardSetBodyAnim(self, BOTH_STAND1, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_HOLDLESS);
+		self->health = 1;
+		self->client->ps.stats[STAT_HEALTH] = 1;
+		return;
+	}
 	if ( level.intermissiontime ) {
 		return;
 	}
@@ -1920,7 +1940,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	{
 		self->client->ps.fd.suicides++;
 	}
-
+	if (mc_lms.integer > 0){AddScore(self, self->r.currentOrigin, -1);}
 	if (attacker && attacker->client) {
 		attacker->client->lastkilled_client = self->s.number;
 
@@ -1941,16 +1961,16 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 					g_entities[otherClNum].inuse && g_entities[otherClNum].client &&
 					otherClNum != attacker->s.number)
 				{
-					AddScore( &g_entities[otherClNum], self->r.currentOrigin, 1 );
+					if (mc_lms.integer == 0){AddScore( &g_entities[otherClNum], self->r.currentOrigin, 1 );}
 				}
 				else
 				{
-					AddScore( attacker, self->r.currentOrigin, -1 );
+					if (mc_lms.integer == 0){AddScore( attacker, self->r.currentOrigin, -1 );}
 				}
 			}
 			else
 			{
-				AddScore( attacker, self->r.currentOrigin, -1 );
+				if (mc_lms.integer == 0){AddScore( attacker, self->r.currentOrigin, -1 );}
 			}
 			if (g_gametype.integer == GT_JEDIMASTER)
 			{
@@ -1968,7 +1988,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 				if ((attacker->client && attacker->client->ps.isJediMaster) ||
 					(self->client && self->client->ps.isJediMaster))
 				{
-					AddScore( attacker, self->r.currentOrigin, 1 );
+					if (mc_lms.integer == 0){AddScore( attacker, self->r.currentOrigin, 1 );}
 					
 					if (self->client && self->client->ps.isJediMaster)
 					{
@@ -1982,13 +2002,13 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 
 					if (jmEnt && jmEnt->client)
 					{
-						AddScore( jmEnt, self->r.currentOrigin, 1 );
+						if (mc_lms.integer == 0){AddScore( jmEnt, self->r.currentOrigin, 1 );}
 					}
 				}
 			}
 			else
 			{
-				AddScore( attacker, self->r.currentOrigin, 1 );
+				if (mc_lms.integer == 0){AddScore( attacker, self->r.currentOrigin, 1 );}
 			}
 
 			if( meansOfDeath == MOD_STUN_BATON ) {
@@ -2044,16 +2064,16 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 				g_entities[otherClNum].inuse && g_entities[otherClNum].client &&
 				otherClNum != self->s.number)
 			{
-				AddScore( &g_entities[otherClNum], self->r.currentOrigin, 1 );
+				if (mc_lms.integer == 0){AddScore( &g_entities[otherClNum], self->r.currentOrigin, 1 );}
 			}
 			else
 			{
-				AddScore( self, self->r.currentOrigin, -1 );
+				if (mc_lms.integer == 0){AddScore( self, self->r.currentOrigin, -1 );}
 			}
 		}
 		else
 		{
-			AddScore( self, self->r.currentOrigin, -1 );
+			if (mc_lms.integer == 0){AddScore( self, self->r.currentOrigin, -1 );}
 		}
 	}
 
@@ -2731,7 +2751,6 @@ void DismembermentTest(gentity_t *self)
 	G_GetDismemberBolt(self, boltPoint, sect);
 	G_Dismember( self, boltPoint, sect, 90, 0, BOTH_DEATH1 );
 }
-
 void DismembermentByNum(gentity_t *self, int num)
 {
 	int sect = G2_MODELPART_HEAD;
@@ -3010,16 +3029,46 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	float		famt = 0;
 	float		hamt = 0;
 	float		shieldAbsorbed = 0;
-
 	if (targ && targ->damageRedirect)
 	{
 		G_Damage(&g_entities[targ->damageRedirectTo], inflictor, attacker, dir, point, damage, dflags, mod);
 		return;
 	}
-
+	if ((mc_lms.integer > 0)&&(level.lmsnojoin == 0))
+	{
+		return;
+	}
 	if (!targ->takedamage) {
 		return;
 	}
+	if ((targ->s.number < 32) && targ && targ->client && targ->inuse && targ->client->sess.supergod == 1)
+	{
+		return;
+	}
+
+	// Deathspike: Now this looks better then that old sloppy function.
+	if (mod != MOD_CRUSH && mod != MOD_TELEFRAG && mod != MOD_SUICIDE && mod != MOD_TRIGGER_HURT 
+		&& ((targ->s.number < 32) && (targ && targ->client && targ->inuse) && (attacker && attacker->client && attacker->inuse)))
+	{
+		if (targ->client->chatGod || targ->client->sess.punish || targ->client->sess.sleep || targ->client->sess.protect)
+		{
+			if (targ->client->sess.protect&&(!(dflags & DAMAGE_NO_PROTECTION))) return; // Protect will stop damage whatsoever (and the shield will block alot too xP)
+			else if (targ->client->chatGod && !targ->client->sess.punish && !targ->client->sess.sleep && targ->client->ps.duelInProgress); // Chatgod in duel, is no godmode.
+			else return;
+		}
+		if (attacker && attacker->client && attacker->client->sess.protect)
+		{ // Protected persons wont harm others with saber
+			return;
+		}
+	}
+
+	if ((targ->s.number < 32) && targ && targ->client && targ->client->sess.protect && mod != MOD_TELEFRAG&&(!(dflags & DAMAGE_NO_PROTECTION)))
+	{ // Special case protect.
+		return;
+	}
+
+
+
 
 	if (targ && targ->client && targ->client->ps.duelInProgress)
 	{
@@ -3034,17 +3083,17 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	}
 	if (attacker && attacker->client && attacker->client->ps.duelInProgress)
 	{
-		if (targ && targ->client && targ->s.number != attacker->client->ps.duelIndex)
+		if ((targ->s.number < 32) && targ && targ->client && targ->s.number != attacker->client->ps.duelIndex)
 		{
 			return;
 		}
-		else if (targ && targ->client && mod != MOD_SABER)
+		else if ((targ->s.number < 32) && targ && targ->client && mod != MOD_SABER)
 		{
 			return;
 		}
 	}
 
-	if (targ && targ->client && (targ->client->ps.fd.forcePowersActive & (1 << FP_RAGE)))
+	if ((targ->s.number < 32) && targ && targ->client && (targ->client->ps.fd.forcePowersActive & (1 << FP_RAGE)))
 	{
 		damage *= 0.5;
 	}
@@ -3079,7 +3128,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 
 	client = targ->client;
 
-	if ( client ) {
+	if ((targ->s.number < 32) &&  client ) {
 		if ( client->noclip ) {
 			return;
 		}
@@ -3102,13 +3151,21 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		knockback = 0;
 	}
 
-	if (targ && targ->client && targ->client->ps.usingATST)
+	if ((targ->s.number < 32) && (targ && targ->client && targ->client->ps.usingATST)&&(!(dflags & DAMAGE_NO_PROTECTION)))
+	{
+		knockback = 0;
+	}
+	if ((targ->s.number < 32) && (targ->client->invulnerableTimer > level.time)&&(!(dflags & DAMAGE_NO_PROTECTION)))
+	{
+		knockback = 0;
+	}
+	if ((targ->s.number < 32) && targ->flags & FL_GODMODE && (!(dflags & DAMAGE_NO_PROTECTION)))
 	{
 		knockback = 0;
 	}
 
 	// figure momentum add, even if the damage won't be taken
-	if ( knockback && targ->client ) {
+	if ( knockback && (targ->s.number < 32) && targ->client ) {
 		vec3_t	kvel;
 		float	mass;
 
@@ -3120,9 +3177,46 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 		else
 		{
-			VectorScale (dir, g_knockback.value * (float)knockback / mass, kvel);
+			VectorScale (dir, (g_knockback.value * (float)knockback / mass)+mc_addknockback.integer, kvel);
 		}
-		VectorAdd (targ->client->ps.velocity, kvel, targ->client->ps.velocity);
+		if (targ->client->sess.knockbackuponly == 0)
+		{
+			vec3_t	mvel;
+			VectorClear(mvel);
+			//mvel[0] = 0;
+			//mvel[1] = 0;
+			//mvel[2] = kvel[2];
+			if (targ->client->sess.steve == 1)
+			{
+				mvel[0] = kvel[0] * -1;
+				mvel[1] = kvel[1] * - 1;
+				mvel[2] = kvel[2];
+			}
+			else
+			{
+				mvel[0] = kvel[0];
+				mvel[1] = kvel[1];
+				mvel[2] = kvel[2];
+			}
+			VectorAdd (targ->client->ps.velocity, mvel, targ->client->ps.velocity);
+		}
+		else
+		{
+			vec3_t	mvel;
+			VectorClear(mvel);
+			mvel[0] = 0;
+			mvel[1] = 0;
+			//mvel[2] = kvel[2];
+			if (targ->client->sess.steve == 1)
+			{
+				mvel[2] = kvel[2] * -1;
+			}
+			else
+			{
+				mvel[2] = kvel[2];
+			}
+			VectorAdd (targ->client->ps.velocity, mvel, targ->client->ps.velocity);
+		}
 
 		if (attacker && attacker->client && attacker != targ)
 		{
@@ -3218,11 +3312,11 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 
 		// check for godmode
-		if ( targ->flags & FL_GODMODE ) {
+		if ((targ->s.number < 32) &&  targ->flags & FL_GODMODE ) {
 			return;
 		}
 
-		if (targ && targ->client && (targ->client->ps.eFlags & EF_INVULNERABLE) &&
+		if ((targ->s.number < 32) && targ && targ->client && (targ->client->ps.eFlags & EF_INVULNERABLE) &&
 			attacker && attacker->client && targ != attacker)
 		{
 			if (targ->client->invulnerableTimer <= level.time)
@@ -3244,6 +3338,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		{
 			return;
 		}
+		damage *= attacker->client->sess.damagemod+1;
 	}
 
 	// battlesuit protects from all radius damage (but takes knockback)
@@ -3267,6 +3362,13 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			attacker->client->ps.persistant[PERS_HITS]++;
 		}
 		attacker->client->ps.persistant[PERS_ATTACKEE_ARMOR] = (targ->health<<8)|(client->ps.stats[STAT_ARMOR]);
+	}
+	if ((targ->s.number < 32) && client && client->sess.knockbackonly == 1)
+	{
+		if (!(dflags & DAMAGE_NO_PROTECTION))
+		{
+			return;
+		}
 	}
 
 	// always give half damage if hurting self
@@ -3311,7 +3413,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	// add to the damage inflicted on a player this frame
 	// the total will be turned into screen blends and view angle kicks
 	// at the end of the frame
-	if ( client ) {
+	if ( (targ->s.number < 32) && client ) {
 		if ( attacker ) {
 			client->ps.persistant[PERS_ATTACKER] = attacker->s.number;
 		} else {
@@ -3343,13 +3445,13 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		Team_CheckHurtCarrier(targ, attacker);
 	}
 
-	if (targ->client) {
+	if ((targ->s.number < 32) && targ->client) {
 		// set the last client who damaged the target
 		targ->client->lasthurt_client = attacker->s.number;
 		targ->client->lasthurt_mod = mod;
 	}
 
-	if (take && targ->client && (targ->client->ps.fd.forcePowersActive & (1 << FP_PROTECT)))
+	if (take &&(targ->s.number < 32) && targ->client && (targ->client->ps.fd.forcePowersActive & (1 << FP_PROTECT)))
 	{
 		if (targ->client->ps.fd.forcePower)
 		{
@@ -3457,8 +3559,24 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		{
 			take /= (targ->client->ps.fd.forcePowerLevel[FP_RAGE]+1);
 		}
+		if ((targ->s.number < 32) && targ->client && targ->client->sess.freeze)
+		{
+			if (targ->health-take < 0)
+			{
+				targ->client->sess.freeze = qfalse;
+				targ->client->ps.pm_type = PM_NORMAL;
+				targ->client->ps.saberMove = LS_NONE;
+				targ->client->ps.saberBlocked = 0;
+				targ->client->ps.saberBlocking = 0;
+				targ->client->sess.dienow = 1;
+				StandardSetBodyAnim(targ, BOTH_STAND1, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_HOLDLESS);
+				targ->health = 1;
+				targ->client->ps.stats[STAT_HEALTH] = 1;
+				return;
+			}
+		}
 		targ->health = targ->health - take;
-		if ( targ->client ) {
+		if ((targ->s.number < 32) &&  targ->client ) {
 			targ->client->ps.stats[STAT_HEALTH] = targ->health;
 		}
 
@@ -3512,6 +3630,24 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 
 		G_LogWeaponDamage(attacker->s.number, mod, take);
 	}
+	/*
+	if (targ->health <= 0)
+	{
+		if (targ->client)
+		{
+			if (targ->client->sess.freeze)
+			{
+				targ->client->sess.freeze = qfalse;
+				targ->client->ps.pm_type = PM_NORMAL;
+				targ->client->ps.saberMove = LS_NONE;
+				targ->client->ps.saberBlocked = 0;
+				targ->client->ps.saberBlocking = 0;
+				StandardSetBodyAnim(targ, BOTH_STAND1, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_HOLDLESS);
+				targ->health = 1;
+				targ->client->ps.stats[STAT_HEALTH] = 1;
+			}
+		}
+	}*/
 
 }
 
@@ -3610,6 +3746,11 @@ qboolean G_RadiusDamage ( vec3_t origin, gentity_t *attacker, float damage, floa
 		if (!ent->takedamage)
 			continue;
 
+		if( ent != attacker && ent->client && ent->client->ps.duelInProgress && attacker->client && ent->client->ps.duelIndex != attacker->client->ps.clientNum )
+		{
+			continue;
+		}
+
 		// find the distance from the edge of the bounding box
 		for ( i = 0 ; i < 3 ; i++ ) {
 			if ( origin[i] < ent->r.absmin[i] ) {
@@ -3642,3 +3783,37 @@ qboolean G_RadiusDamage ( vec3_t origin, gentity_t *attacker, float damage, floa
 
 	return hitClient;
 }
+/*
+
+void	mcknockback(gentity_t  *targ, int amount, vec3_t dir)
+{
+		vec3_t	kvel;
+		float	mass;
+
+		mass = 200;
+		VectorNormalize(dir);
+		VectorScale (dir, g_knockback.value * (float)knockback / mass, kvel);
+		VectorAdd (targ->client->ps.velocity, kvel, targ->client->ps.velocity);
+
+		if (attacker && attacker->client && attacker != targ)
+		{
+			targ->client->ps.otherKiller = attacker->s.number;
+			targ->client->ps.otherKillerTime = level.time + 5000;
+			targ->client->ps.otherKillerDebounceTime = level.time + 100;
+		}
+		// set the timer so that the other client can't cancel
+		// out the movement immediately
+		if ( !targ->client->ps.pm_time && (g_saberDmgVelocityScale.integer || mod != MOD_SABER) ) {
+			int		t;
+
+			t = knockback * 2;
+			if ( t < 50 ) {
+				t = 50;
+			}
+			if ( t > 200 ) {
+				t = 200;
+			}
+			targ->client->ps.pm_time = t;
+			targ->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+		}
+}*/

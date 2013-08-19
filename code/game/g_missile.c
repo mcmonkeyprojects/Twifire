@@ -314,8 +314,52 @@ G_MissileImpact
 void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	gentity_t		*other;
 	qboolean		hitClient = qfalse;
+	int			hoek;
 	other = &g_entities[trace->entityNum];
 
+	if (ent->s.eFlags & 8192)
+	{
+		if (other->client)
+		{
+			if (isingroup(other,ent->s.owner) == 1)
+			{
+				//goto killProj;
+				ent->think = G_FreeEntity;
+				ent->nextthink = level.time+5;
+				return;
+			}
+			trap_SendServerCommand( other->s.number, va("cp \"^1This area can only \n^1be passed by %s^1.\n\"", stringforgroup(ent->s.owner ) ));
+			/*if (ent->s.owner == other->client->sess.mcgroup)
+			{
+				goto killProj;
+			}
+			if (ent->s.owner == 1)
+			{
+				trap_SendServerCommand( other->s.number, va("cp \"^1This area can only \n^1be passed by members of clan ^0[HACKS]^1.\n\"" ) );
+			}
+			else if (ent->s.owner == 2)
+			{
+				trap_SendServerCommand( other->s.number, va("cp \"^1This area can only \n^1be passed by members of clan ^0AoF^1.\n\"" ) );
+			}
+			else if (ent->s.owner == 10)
+			{
+				trap_SendServerCommand( other->s.number, va("cp \"^1This area is \n^1restricted to certain players.\n\"" ) );
+			}*/
+		}
+	}
+	else
+	{
+		if (other->client)
+		{
+			if (other->client->sess.reflect == 1)
+			{
+				G_BounceMissile( ent, trace );
+				ent->bounceCount = 0;
+				ent->r.ownerNum = ENTITYNUM_WORLD;
+				return;
+			}
+		}
+	}
 	// check for bounce
 	if ( !other->takedamage &&
 		(ent->bounceCount > 0 || ent->bounceCount == -5) &&
@@ -350,6 +394,8 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	}
 	*/
 
+	if (!(ent->s.eFlags & 8192))
+	{
 	if (other->r.contents & CONTENTS_LIGHTSABER)
 	{ //hit this person's saber, so..
 		gentity_t *otherOwner = &g_entities[other->r.ownerNum];
@@ -368,7 +414,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			goto killProj;
 		}
 	}
-
+	}
 	if (other->takedamage && other->client &&
 		ent->s.weapon != WP_ROCKET_LAUNCHER &&
 		ent->s.weapon != WP_THERMAL &&
@@ -377,6 +423,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		ent->s.weapon != WP_DEMP2 &&
 		ent->methodOfDeath != MOD_REPEATER_ALT &&
 		ent->methodOfDeath != MOD_FLECHETTE_ALT_SPLASH &&
+		(!(ent->s.eFlags & 8192)) &&
 		other->client->ps.saberBlockTime < level.time &&
 		WP_SaberCanBlock(other, ent->r.currentOrigin, 0, 0, qtrue, 0))
 	{ //only block one projectile per 200ms (to prevent giant swarms of projectiles being blocked)
@@ -429,7 +476,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		}
 		return;
 	}
-	else if (other->r.contents & CONTENTS_LIGHTSABER)
+	else if ((other->r.contents & CONTENTS_LIGHTSABER)&&(!(ent->s.eFlags & 8192)))
 	{ //hit this person's saber, so..
 		gentity_t *otherOwner = &g_entities[other->r.ownerNum];
 
@@ -519,6 +566,12 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			if ( VectorLength( velocity ) == 0 ) {
 				velocity[2] = 1;	// stepped on a grenade
 			}
+			if (ent->s.eFlags & 8192)
+			{
+				hoek = ent->client->ps.viewangles[YAW] * (M_PI*2 / 360);
+				velocity[0] = velocity[0] + (cos(hoek) * 5); // X
+				velocity[1] = velocity[1] + (sin(hoek) * 5); // Y
+			}
 
 			if (ent->s.weapon == WP_BOWCASTER || ent->s.weapon == WP_FLECHETTE ||
 				ent->s.weapon == WP_ROCKET_LAUNCHER)
@@ -536,13 +589,25 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			}
 			else
 			{
-				G_Damage (other, ent, &g_entities[ent->r.ownerNum], velocity,
-					/*ent->s.origin*/ent->r.currentOrigin, ent->damage, 
-					0, ent->methodOfDeath);
+				if (!(ent->s.eFlags & 8192))
+				{
+					G_Damage (other, ent, &g_entities[ent->r.ownerNum], velocity,
+						/*ent->s.origin*/ent->r.currentOrigin, ent->damage, 
+						0, ent->methodOfDeath);
+				}
+				else
+				{
+					G_Damage (other, ent, &g_entities[ent->r.ownerNum], velocity,
+						/*ent->s.origin*/ent->r.currentOrigin, ent->damage, 
+						DAMAGE_NO_PROTECTION, ent->methodOfDeath);
+				}
 			}
 		}
 	}
 killProj:
+	
+
+	
 	// is it cheaper in bandwidth to just remove this ent and create a new
 	// one, rather than changing the missile into the explosion?
 
@@ -646,12 +711,13 @@ void G_RunMissile( gentity_t *ent ) {
 	}
 
 	if ( tr.fraction != 1) {
+		
+
 		// never explode or bounce on sky
+
 		if ( tr.surfaceFlags & SURF_NOIMPACT ) {
 			// If grapple, reset owner
-			if (ent->parent && ent->parent->client && ent->parent->client->hook == ent) {
-				ent->parent->client->hook = NULL;
-			}
+
 
 			if (ent->s.weapon == WP_SABER && ent->isSaberEntity)
 			{
@@ -660,8 +726,11 @@ void G_RunMissile( gentity_t *ent ) {
 			}
 			else if (ent->s.weapon != G2_MODEL_PART)
 			{
-				G_FreeEntity( ent );
-				return;
+				if (mc_weapons_impactsky.integer == 0)
+				{
+					G_FreeEntity( ent );
+					return;
+				}
 			}
 		}
 		G_MissileImpact( ent, &tr );
@@ -705,6 +774,8 @@ passthrough:
 
 
 //=============================================================================
+
+
 
 
 

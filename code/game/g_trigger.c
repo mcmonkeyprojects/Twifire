@@ -8,8 +8,8 @@ void InitTrigger( gentity_t *self ) {
 	if (!VectorCompare (self->s.angles, vec3_origin))
 		G_SetMovedir (self->s.angles, self->movedir);
 
-	trap_SetBrushModel( self, self->model );
-	self->r.contents = CONTENTS_TRIGGER;		// replaces the -1 from trap_SetBrushModel
+	mc_SetBrushModel( self, self->model );
+	self->r.contents = CONTENTS_TRIGGER;		// replaces the -1 from mc_SetBrushModel
 	self->r.svFlags = SVF_NOCLIENT;
 }
 
@@ -56,11 +56,11 @@ void multi_trigger( gentity_t *ent, gentity_t *activator ) {
 
 	if ( activator->client ) {
 		if ( ( ent->spawnflags & 2 ) &&
-			activator->client->sess.sessionTeam != TEAM_RED ) {
+			((activator->client->sess.sessionTeam != TEAM_RED)||(g_gametype.integer != TEAM_FREE)) ) {
 			return;
 		}
 		if ( ( ent->spawnflags & 4 ) &&
-			activator->client->sess.sessionTeam != TEAM_BLUE ) {
+			((activator->client->sess.sessionTeam != TEAM_BLUE)||(g_gametype.integer != TEAM_FREE)) ) {
 			return;
 		}
 	}
@@ -429,11 +429,17 @@ void hurt_use( gentity_t *self, gentity_t *other, gentity_t *activator ) {
 
 void hurt_touch( gentity_t *self, gentity_t *other, trace_t *trace ) {
 	int		dflags;
-
 	if ( !other->takedamage ) {
 		return;
 	}
-
+	if ((mc_lms.integer > 0)&&(level.lmsnojoin == 0))
+	{
+		return;
+	}
+	if (other && other->client && other->client->sess.supergod == 1)
+	{
+		return;
+	}
 	if ( self->timestamp > level.time ) {
 		return;
 	}
@@ -587,3 +593,282 @@ void SP_func_timer( gentity_t *self ) {
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* MC TRIGGER */
+
+
+// the wait time has passed, so set back up for another activation
+void mcmulti_wait( gentity_t *ent ) {
+	ent->nextthink = 0;
+}
+
+
+// the trigger was just activated
+// ent->activator should be set to the activator so it can be held through a delay
+// so wait for the delay time before firing
+void mcmulti_trigger( gentity_t *ent, gentity_t *activator ) {
+	gentity_t *rofftarget = NULL, *testent = NULL;
+	gentity_t *te;
+	int i = MAX_CLIENTS;
+
+	if (ent->teamnodmg &&
+		activator && activator->client &&
+		ent->teamnodmg == activator->client->sess.sessionTeam &&
+		!g_ff_objectives.integer)
+	{
+		return;
+	}
+
+	if ( ent->nextthink ) {
+		return;		// can't retrigger until the wait is over
+	}
+	if (ent->spawnflags & 1)
+	{
+		if (!activator->client)
+		{
+			return;
+		}
+
+		if (!(activator->client->pers.cmd.buttons & BUTTON_USE))
+		{
+			return;
+		}
+		if (Q_stricmp(ent->mcpassword,"") != 0)
+		{
+			if (Q_stricmp(ent->mcpassword, activator->client->sess.doorpassword) != 0)
+			{
+				trap_SendServerCommand( activator->s.number, va("print \"^1Invalid password.\n\""));
+				ent->think = multi_wait;
+				ent->nextthink = level.time + 1000;
+				return;
+			}
+		}
+	}
+	ent->activator = activator;
+	if ( g_gametype.integer >= GT_TEAM )
+	{
+	if ( activator->client ) {
+		if ( ( ent->spawnflags & 2 ) &&
+			activator->client->sess.sessionTeam != TEAM_RED ) {
+			return;
+		}
+		if ( ( ent->spawnflags & 4 ) &&
+			activator->client->sess.sessionTeam != TEAM_BLUE ) {
+			return;
+		}
+	}
+	}
+
+	G_UseTargets (ent, ent->activator);
+
+	if (ent->roffname && ent->roffid != -1)
+	{
+		if (ent->rofftarget)
+		{
+			while (i < MAX_GENTITIES)
+			{
+				testent = &g_entities[i];
+
+				if (testent && testent->targetname && strcmp(testent->targetname, ent->rofftarget) == 0)
+				{
+					rofftarget = testent;
+					break;
+				}
+				i++;
+			}
+		}
+		else
+		{
+			rofftarget = activator;
+		}
+
+		if (rofftarget)
+		{
+			trap_ROFF_Play(rofftarget->s.number, ent->roffid, qfalse);
+
+			//Play it at the same time on the client, so that we can catch client-side notetrack events and not have to send
+			//them over from the server (this wouldn't work for things like effects due to lack of ability to precache them
+			//on the server)
+
+			//remember the entity's original position in case of a server-side "loop" notetrack
+			VectorCopy(rofftarget->s.pos.trBase, rofftarget->s.origin2);
+			VectorCopy(rofftarget->s.apos.trBase, rofftarget->s.angles2);
+
+			te = G_TempEntity( rofftarget->s.pos.trBase, EV_PLAY_ROFF );
+			te->s.eventParm = ent->roffid;
+			te->s.weapon = rofftarget->s.number;
+			te->s.trickedentindex = 0;
+
+			//But.. this may not produce desired results for clients who connect while a ROFF is playing.
+
+			rofftarget->roffid = ent->roffid; //let this entity know the most recent ROFF played on him
+		}
+	}
+
+	if ( ent->wait > 0 ) {
+		ent->think = multi_wait;
+		ent->nextthink = level.time + ( ent->wait + ent->random * crandom() ) * 1000;
+	} else {
+		// we can't just remove (self) here, because this is a touch function
+		// called while looping through area links...
+		//ent->touch = 0;
+		//ent->nextthink = level.time + FRAMETIME;
+		//ent->think = G_FreeEntity;
+	}
+}
+
+void mcUse_Multi( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
+	if ((!activator->client) || (isinnewgroup(activator, ent->group) == 1))
+	{
+		mcmulti_trigger( ent, activator );
+	}
+}
+
+void mcTouch_Multi( gentity_t *self, gentity_t *other, trace_t *trace ) {
+	if( !other->client ) {
+		return;
+	}
+	if (isinnewgroup(other, self->group) == 1)
+	{
+		mcmulti_trigger( self, other );
+	}
+}
+
+/*QUAKED mc_trigger (.5 .5 .5) ? USE_BUTTON RED_ONLY BLUE_ONLY
+USE_BUTTON - Won't fire unless player is in it and pressing use button (in addition to any other conditions)
+RED_ONLY - Only red team can use
+BLUE_ONLY - Only blue team can use
+
+"roffname"		If set, will play a roff upon activation
+"rofftarget"	If set with roffname, will activate the roff an entity with
+				this as its targetname. Otherwise uses roff on activating entity.
+"wait" : Seconds between triggerings, 0.5 default, -1 = one time only.
+"random"	wait variance, default is 0
+Variable sized repeatable trigger.  Must be targeted at one or more entities.
+so, the basic time between firing is a random time between
+(wait - random) and (wait + random)
+*/
+void SP_mctrigger_multiple( gentity_t *ent ) {
+	char	*pass;
+	G_SpawnString ("password", "", &pass);
+	strcpy(ent->mcpassword, pass);
+	
+	if (!VectorCompare (ent->s.angles, vec3_origin))
+		G_SetMovedir (ent->s.angles, ent->movedir);
+
+	if (!ent->speed) {
+		ent->speed = 50;
+	}
+	ent->r.contents = CONTENTS_TRIGGER;
+	ent->r.svFlags = SVF_NOCLIENT;
+	if ((ent->r.mins[0] == 0)&&(ent->r.mins[1] == 0)&&(ent->r.mins[2] == 0)&&(ent->r.maxs[0] == 0)&&(ent->r.maxs[1] == 0)&&(ent->r.maxs[2] == 0))
+	{
+		VectorSet( ent->r.maxs, ent->speed, ent->speed, ent->speed );
+		VectorScale( ent->r.maxs, -1, ent->r.mins );
+	}
+	
+	if (ent->roffname)
+	{
+		ent->roffid = trap_ROFF_Cache(ent->roffname);
+	}
+	else
+	{
+		ent->roffid = -1;
+	}
+
+	G_SpawnFloat( "wait", "0.5", &ent->wait );
+	if (ent->wait < 0.5)
+	{
+		ent->wait = 0.5;
+	}
+	G_SpawnFloat( "random", "0", &ent->random );
+	G_SetOrigin(ent, ent->s.origin);
+	if ( ent->random >= ent->wait && ent->wait >= 0 ) {
+		ent->random = ent->wait - FRAMETIME;
+		G_Printf( "trigger_multiple has random >= wait\n" );
+	}
+
+	ent->touch = mcTouch_Multi;
+	ent->use = mcUse_Multi;
+
+	trap_LinkEntity (ent);
+}
+
+
+///////////// MC_SPEEDUP
+
+
+
+
+void Use_target_speedup( gentity_t *self, gentity_t *other, gentity_t *activator ) {
+	vec3_t	oppDir;
+	if ( !activator->client ) {
+		return;
+	}
+
+	if ( activator->client->ps.pm_type != PM_NORMAL && activator->client->ps.pm_type != PM_FLOAT ) {
+		return;
+	}
+	VectorNormalize2( activator->client->ps.velocity, oppDir );
+	VectorScale( oppDir, -1, oppDir );
+	oppDir[0] = activator->client->ps.velocity[0]+self->speed;
+	oppDir[1] = activator->client->ps.velocity[1]+self->speed;
+	oppDir[2] = activator->client->ps.velocity[2]+self->speed;
+
+	activator->client->ps.velocity[0] = oppDir[0];
+	activator->client->ps.velocity[1] = oppDir[1];
+	activator->client->ps.velocity[2] = oppDir[2];
+
+	// play fly sound every 1.5 seconds
+	if ( activator->fly_sound_debounce_time < level.time ) {
+		activator->fly_sound_debounce_time = level.time + 1500;
+		if (self->noise_index)
+		{
+			G_Sound( activator, CHAN_AUTO, self->noise_index );
+		}
+	}
+}
+void blankvoid(gentity_t *self)
+{
+	return;
+}
+/*QUAKED mc_speedup (.5 .5 .5) (-8 -8 -8) (8 8 8) bouncepad
+Pushes the activator in the direction.of angle, or towards a target apex.
+"speed"		defaults to 2
+if "bouncepad", play bounce noise instead of none
+*/
+
+void SP_target_speedup( gentity_t *self ) {
+	if (!self->speed) {
+		self->speed = 2;
+	}
+	G_SetMovedir (self->s.angles, self->s.origin2);
+	VectorScale (self->s.origin2, self->speed, self->s.origin2);
+
+	if ( self->spawnflags & 1 ) {
+		self->noise_index = G_SoundIndex("sound/weapons/force/jump.wav");
+	} else {
+		self->noise_index = 0;	//G_SoundIndex("sound/misc/windfly.wav");
+	}
+	if ( self->target ) {
+		VectorCopy( self->s.origin, self->r.absmin );
+		VectorCopy( self->s.origin, self->r.absmax );
+		self->think = blankvoid;
+		self->nextthink = level.time + FRAMETIME;
+	}
+	self->use = Use_target_push;
+}

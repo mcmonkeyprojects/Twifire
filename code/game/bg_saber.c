@@ -19,6 +19,8 @@ int PM_irand_timesync(int val1, int val2)
 	return i;
 }
 
+extern int dsp_isEmpowered(int clientNum);
+// Deathspike: Extern check that sees if you are empowered or not.
 void BG_ForcePowerDrain( playerState_t *ps, forcePowers_t forcePower, int overrideAmt )
 {
 	//take away the power
@@ -31,6 +33,12 @@ void BG_ForcePowerDrain( playerState_t *ps, forcePowers_t forcePower, int overri
 	}
 	*/
 	//No longer grant infinite force with boon.
+// NIX FÜR KLEINE COMPILER...
+
+	if (dsp_isEmpowered(ps->clientNum) && !ps->duelInProgress)
+	{ // Deathspike: Grant unlimited force to people who are empowered
+		return;
+	}
 
 	if ( !drain )
 	{
@@ -90,6 +98,9 @@ void BG_ForcePowerDrain( playerState_t *ps, forcePowers_t forcePower, int overri
 		ps->fd.forcePower = 0;
 	}
 }
+
+
+
 
 // Silly, but I'm replacing these macros so they are shorter!
 #define AFLAG_IDLE	(SETANIM_FLAG_NORMAL)
@@ -1405,7 +1416,14 @@ void PM_WeaponLightsaber(void)
 		//This will get set to false again once the saber makes it back to its owner game-side
 		if (!pm->ps->saberInFlight)
 		{
-			pm->ps->fd.forcePower -= forcePowerNeeded[pm->ps->fd.forcePowerLevel[FP_SABERTHROW]][FP_SABERTHROW];
+			extern int dsp_isEmpowered(int clientNum);
+			// NIX FÜR KLEINE SPAßTEN COMPILER
+			
+			if (!dsp_isEmpowered(pm->ps->clientNum))
+			{
+				pm->ps->fd.forcePower -= forcePowerNeeded[pm->ps->fd.forcePowerLevel[FP_SABERTHROW]][FP_SABERTHROW];
+			}
+			
 		}
 
 		pm->ps->saberInFlight = qtrue;

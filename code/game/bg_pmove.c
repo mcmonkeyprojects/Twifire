@@ -6,9 +6,7 @@
 #include "q_shared.h"
 #include "bg_public.h"
 #include "bg_local.h"
-
 #define MAX_WEAPON_CHARGE_TIME 5000
-
 pmove_t		*pm;
 pml_t		pml;
 
@@ -29,6 +27,12 @@ float	pm_friction = 6.0f;
 float	pm_waterfriction = 1.0f;
 float	pm_flightfriction = 3.0f;
 float	pm_spectatorfriction = 5.0f;
+
+// Twimod Jetpack
+float	pm_jetpackfriction = 0.4f;
+float	pm_jetpackaccelerate = 0.3f;		// 0.3 - MBII
+float	pm_jetpackspeed = 5.0f;				// 5.0 - MBII
+// /Twimod Jetpack
 
 int		c_pmove = 0;
 
@@ -133,7 +137,7 @@ float forceJumpHeight[NUM_FORCE_POWER_LEVELS] =
 	32,//normal jump (+stepheight+crouchdiff = 66)
 	96,//(+stepheight+crouchdiff = 130)
 	192,//(+stepheight+crouchdiff = 226)
-	384//(+stepheight+crouchdiff = 418)
+	LOLER//(+stepheight+crouchdiff = 418)
 };
 
 float forceJumpStrength[NUM_FORCE_POWER_LEVELS] = 
@@ -146,11 +150,20 @@ float forceJumpStrength[NUM_FORCE_POWER_LEVELS] =
 
 int PM_GetSaberStance(void)
 {
-	if (pm->ps->fd.saberAnimLevel == FORCE_LEVEL_2)
+	//JediDog: This will fix the problem when you get stuck sometimes while using 'thedestroyer' cheat
+	if (pm->ps->dualBlade)
+	{ //dual blades
+		return BOTH_STAND1;
+	}
+	else if ((pm->ps->fd.saberAnimLevel == FORCE_LEVEL_1) && !(pm->ps->dualBlade))
+	{ //fast
+		return BOTH_SABERFAST_STANCE;
+	}
+	else if ((pm->ps->fd.saberAnimLevel == FORCE_LEVEL_2) && !(pm->ps->dualBlade))
 	{ //medium
 		return BOTH_STAND2;
 	}
-	if (pm->ps->fd.saberAnimLevel == FORCE_LEVEL_3)
+	else if ((pm->ps->fd.saberAnimLevel == FORCE_LEVEL_3) && !(pm->ps->dualBlade))
 	{ //strong
 		return BOTH_SABERSLOW_STANCE;
 	}
@@ -284,6 +297,25 @@ static void PM_Friction( void ) {
 	if ( pm->waterlevel ) {
 		drop += speed*pm_waterfriction*pm->waterlevel*pml.frametime;
 	}
+
+	// Twimod Jetpack
+	if ( pm->ps->pm_type == PM_SPECTATOR || pm->ps->pm_type == PM_FLOAT || pm->ps->eFlags & EF_JETPACK_ACTIVE )
+	{
+		if (pm->ps->pm_type == PM_FLOAT)
+		{ //almost no friction while floating
+			drop += speed*0.1*pml.frametime;
+		}
+		else if ( pm->ps->eFlags & EF_JETPACK_ACTIVE )
+		{ //not much friction while jetpacking
+			drop += speed*pm_jetpackfriction*pml.frametime;
+		}
+		else
+		{
+			drop += speed*pm_spectatorfriction*pml.frametime;
+		}
+	}
+	// /Twimod Jetpack
+
 
 	if ( pm->ps->pm_type == PM_SPECTATOR || pm->ps->pm_type == PM_FLOAT )
 	{
@@ -634,6 +666,60 @@ PM_CheckJump
 */
 static qboolean PM_CheckJump( void ) 
 {
+	
+
+	// Twimod Jetpack
+	if( pm->ps->eFlags & EF_JETPACK_ACTIVE )
+	{
+		if ( pm->ps->velocity[2] > -1200						// Not falling down very fast
+			// && !( pm->ps->pm_flags & PMF_JUMP_HELD )			// Have to have released jump since last press
+			&& ( pm->cmd.forwardmove || pm->cmd.rightmove ))	// Pushing in a direction
+		{
+			vec3_t		checkDir, traceto, mins, maxs, fwdAngles;
+			trace_t		trace;
+			vec3_t		idealNormal;
+
+			VectorSet( mins, pm->mins[0], pm->mins[1], 0.0f );
+			VectorSet( maxs, pm->maxs[0], pm->maxs[1], 24.0f );
+			VectorSet( fwdAngles, 0, pm->ps->viewangles[YAW], 0.0f );
+
+			if ( pm->cmd.rightmove )
+			{
+				if ( pm->cmd.rightmove > 0 )
+				{
+					AngleVectors( fwdAngles, NULL, checkDir, NULL );
+				}
+				else if ( pm->cmd.rightmove < 0 )
+				{
+					AngleVectors( fwdAngles, NULL, checkDir, NULL );
+					VectorScale( checkDir, -1, checkDir );
+				}
+			}
+			else if ( pm->cmd.forwardmove > 0 )
+			{
+				AngleVectors( fwdAngles, checkDir, NULL, NULL );
+			}
+			else if ( pm->cmd.forwardmove < 0 )
+			{
+				AngleVectors( fwdAngles, checkDir, NULL, NULL );
+				VectorScale( checkDir, -1, checkDir );
+			}
+
+			VectorMA( pm->ps->origin, 8, checkDir, traceto );
+			pm->trace( &trace, pm->ps->origin, mins, maxs, traceto, pm->ps->clientNum, CONTENTS_SOLID );//FIXME: clip brushes too?
+			VectorSubtract( pm->ps->origin, traceto, idealNormal );
+			VectorNormalize( idealNormal );
+		}
+
+		return qfalse;
+	}
+
+	if ( pm->ps->eFlags & EF_JETPACK_ACTIVE )
+	{
+		return qfalse;
+	}
+	// /Twimod Jetpack
+
 	if (pm->ps->usingATST)
 	{
 		return qfalse;
@@ -1404,6 +1490,9 @@ static void PM_WaterMove( void ) {
 	PM_SlideMove( qfalse );
 }
 
+
+
+
 /*
 ===================
 PM_FlyMove
@@ -1526,6 +1615,10 @@ static void PM_AirMove( void ) {
 
 	PM_StepSlideMove ( qtrue );
 }
+
+
+
+
 
 /*
 ===================
@@ -2212,7 +2305,9 @@ static void PM_GroundTrace( void ) {
 			return;
 	}
 
-	if (pm->ps->pm_type == PM_FLOAT)
+	// Twimod Jetpack
+	if (pm->ps->pm_type == PM_FLOAT || pm->ps->eFlags & EF_JETPACK_ACTIVE )
+	// /Twimod Jetpack
 	{
 		PM_GroundTraceMissed();
 		pml.groundPlane = qfalse;
@@ -2772,6 +2867,11 @@ void PM_BeginWeaponChange( int weapon ) {
 		pm->ps->zoomTime = pm->ps->commandTime;
 	}
 
+
+		pm->ps->rocketLockTime = 0;
+
+
+
 	PM_AddEvent( EV_CHANGE_WEAPON );
 	pm->ps->weaponstate = WEAPON_DROPPING;
 	pm->ps->weaponTime += 200;
@@ -2867,9 +2967,9 @@ static qboolean PM_DoChargedWeapons( void )
 			VectorMA(muzzlePoint, muzzleOffPoint[1], right, muzzlePoint);
 			muzzlePoint[2] += pm->ps->viewheight + muzzleOffPoint[2];
 
-			ang[0] = muzzlePoint[0] + ang[0]*2048;
-			ang[1] = muzzlePoint[1] + ang[1]*2048;
-			ang[2] = muzzlePoint[2] + ang[2]*2048;
+			ang[0] = muzzlePoint[0] + ang[0]*get_max_rocket_dist(2048);//2048;
+			ang[1] = muzzlePoint[1] + ang[1]*get_max_rocket_dist(2048);//2048;
+			ang[2] = muzzlePoint[2] + ang[2]*get_max_rocket_dist(2048);//2048;
 
 			pm->trace(&tr, muzzlePoint, NULL, NULL, ang, pm->ps->clientNum, MASK_PLAYERSOLID);
 
@@ -3770,7 +3870,7 @@ static void PM_Animate( void ) {
 	if ( pm->cmd.buttons & BUTTON_GESTURE ) {
 		if ( pm->ps->torsoTimer < 1 && pm->ps->forceHandExtend == HANDEXTEND_NONE &&
 			pm->ps->legsTimer < 1 && pm->ps->weaponTime < 1 && pm->ps->saberLockTime < pm->cmd.serverTime) {
-
+pm->ps->rocketLockTime = 0;
 			pm->ps->forceHandExtend = HANDEXTEND_TAUNT;
 
 			//FIXME: random taunt anims?
@@ -4071,6 +4171,8 @@ void BG_CmdForRoll( int anim, usercmd_t *pCmd )
 
 qboolean PM_SaberInTransition( int move );
 
+
+
 void BG_AdjustClientSpeed(playerState_t *ps, usercmd_t *cmd, int svTime)
 {
 	//For prediction, always reset speed back to the last known server base speed
@@ -4080,7 +4182,7 @@ void BG_AdjustClientSpeed(playerState_t *ps, usercmd_t *cmd, int svTime)
 
 	if (ps->forceHandExtend == HANDEXTEND_DODGE)
 	{
-		ps->speed = 0;
+		ps->speed = 20;
 	}
 
 	if (ps->forceHandExtend == HANDEXTEND_KNOCKDOWN)
@@ -4155,9 +4257,11 @@ void BG_AdjustClientSpeed(playerState_t *ps, usercmd_t *cmd, int svTime)
 		ps->speed *= 0.75;
 	}
 
+
+
 	if (ps->fd.forcePowersActive & (1 << FP_GRIP))
 	{
-		ps->speed *= 0.4;
+		//ps->speed *= 0.4;
 	}
 
 	if (ps->fd.forcePowersActive & (1 << FP_SPEED))
@@ -4273,6 +4377,84 @@ void BG_AdjustClientSpeed(playerState_t *ps, usercmd_t *cmd, int svTime)
 		//Automatically slow down as the roll ends.
 	}
 }
+// Twimod Jetpack
+static void PM_JetpackMove( void ) {
+	int		i;
+	vec3_t	wishvel;
+	float	wishspeed;
+	vec3_t	wishdir;
+	float	scale;
+	int		anim = BOTH_FORCEINAIR1;
+	//int	parts = SETANIM_BOTH;
+
+	pm->ps->viewheight = DEFAULT_VIEWHEIGHT;	// Never crouch etc.
+
+	// normal slowdown
+	PM_Friction ();
+
+	scale = PM_CmdScale( &pm->cmd );
+
+	PM_SetMovementDir();
+
+	//
+	// user intentions
+	//
+	if ( !scale && !pm->cmd.upmove ) {
+		wishvel[0]	= 0;
+		wishvel[1]	= 0;
+		wishvel[2]	= pm->ps->speed * (pm->cmd.upmove/127.0f);
+
+	//	wishvel[2]	+= cos( pm->framecount / 200.0f ) * 150.0f;
+
+		pm->ps->eFlags	&= ~EF_JETPACK_FLAMING;
+	} else if ( !scale ) {
+		wishvel[0]	= 0;
+		wishvel[1]	= 0;
+		wishvel[2]	= pm->ps->speed * (pm->cmd.upmove/127.0f);
+
+		pm->ps->eFlags	|= EF_JETPACK_FLAMING;
+	} else {
+		for (i=0 ; i<3 ; i++) {
+			wishvel[i] = scale * pml.forward[i]*pm->cmd.forwardmove + scale * pml.right[i]*pm->cmd.rightmove;
+		}
+
+		wishvel[2] += scale * pm->cmd.upmove;
+		pm->ps->eFlags	|= EF_JETPACK_FLAMING;
+	}
+
+	if ( pm->cmd.rightmove )
+	{
+		if ( pm->cmd.rightmove > 0 )
+		{
+			anim = BOTH_INAIRRIGHT1;
+		}
+		else if ( pm->cmd.rightmove < 0 )
+		{
+			anim = BOTH_INAIRLEFT1;
+		}
+	}
+	else 
+	{
+		anim = BOTH_INAIRBACK1;
+	}
+
+	PM_SetAnim( SETANIM_LEGS, anim, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 300 );
+	
+	VectorCopy (wishvel, wishdir);
+	wishspeed	= VectorNormalize(wishdir);
+
+	PM_Accelerate( wishdir, wishspeed * pm_jetpackspeed, pm_jetpackaccelerate );
+	PM_SlideMove( qfalse );
+
+	//Com_Printf("Origin=%f - Prev=%f\n", pm->ps->origin[2], pml.previous_origin[2]);
+	//Com_Printf( "MeCommands: %i - %i - %i\n", pm->cmd.forwardmove, pm->cmd.rightmove, pm->cmd.upmove );
+	if( pml.previous_origin[2] < pm->ps->origin[2])
+	{
+		pml.previous_origin[2] = pm->ps->origin[2];
+	}
+}
+// /Twimod Jetpack
+
 
 /*
 ================
@@ -4543,11 +4725,25 @@ void PmoveSingle (pmove_t *pmove) {
 	{
 		PM_FlyMove ();
 	}
+	// Twimod Jetpack
+	else if ( pm->ps->eFlags & EF_JETPACK_ACTIVE && !pml.groundPlane )
+	{
+		PM_JetpackMove();
+	}
+	// /Twimod Jetpack
+
+
+
+
+
 	else
 	{
 		if (pm->ps->pm_flags & PMF_TIME_WATERJUMP) {
 			PM_WaterJumpMove();
-		} else if ( pm->waterlevel > 1 ) {
+		} 
+
+
+		else if ( pm->waterlevel > 1 ) {
 			// swimming
 			PM_WaterMove();
 		} else if ( pml.walking ) {

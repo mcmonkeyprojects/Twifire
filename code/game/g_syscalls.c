@@ -6,7 +6,7 @@
 // g_syscalls.asm is included instead when building a qvm
 
 static int (QDECL *syscall)( int arg, ... ) = (int (QDECL *)( int, ...))-1;
-
+	gentity_t *ent;
 
 void dllEntry( int (QDECL *syscallptr)( int arg,... ) ) {
 	syscall = syscallptr;
@@ -50,7 +50,8 @@ void trap_Cvar_VariableStringBuffer( const char *var_name, char *buffer, int buf
 	syscall( G_CVAR_VARIABLE_STRING_BUFFER, var_name, buffer, bufsize );
 }
 
-int		trap_Argc( void ) {
+int		trap_Argc( void )
+{
 	return syscall( G_ARGC );
 }
 
@@ -116,6 +117,7 @@ void trap_SetBrushModel( gentity_t *ent, const char *name ) {
 }
 
 void trap_Trace( trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentmask ) {
+
 	syscall( G_TRACE, results, start, mins, maxs, end, passEntityNum, contentmask, 0, 10 );
 }
 

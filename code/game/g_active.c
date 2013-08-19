@@ -2,17 +2,17 @@
 //
 
 #include "g_local.h"
-
+void dsp_clanBother( int clientNum );
+void dsp_stringEscape(char *in, char *out, int outSize);
+extern void dsp_clanBother( int clientNum );
 qboolean PM_SaberInTransition( int move );
 qboolean PM_SaberInStart( int move );
 qboolean PM_SaberInReturn( int move );
-
 void P_SetTwitchInfo(gclient_t	*client)
 {
 	client->ps.painTime = level.time;
 	client->ps.painDirection ^= 1;
 }
-
 /*
 ===============
 G_DamageFeedback
@@ -108,7 +108,7 @@ void P_WorldEffects( gentity_t *ent ) {
 	qboolean	envirosuit;
 	int			waterlevel;
 
-	if ( ent->client->noclip ) {
+	if ( ent->client->noclip || ent->client->sess.nodrown) {
 		ent->client->airOutTime = level.time + 12000;	// don't need air
 		return;
 	}
@@ -120,7 +120,9 @@ void P_WorldEffects( gentity_t *ent ) {
 	//
 	// check for drowning
 	//
-	if ( waterlevel == 3 ) {
+	if ( waterlevel == 3 || level.waterworld > 0) {
+		ent->waterlevel = 3;
+		waterlevel = 3;
 		// envirosuit give air
 		if ( envirosuit ) {
 			ent->client->airOutTime = level.time + 10000;
@@ -129,12 +131,12 @@ void P_WorldEffects( gentity_t *ent ) {
 		// if out of air, start drowning
 		if ( ent->client->airOutTime < level.time) {
 			// drown!
-			ent->client->airOutTime += 1000;
+			ent->client->airOutTime += mc_drown_delay.integer;
 			if ( ent->health > 0 ) {
 				// take more damage the longer underwater
-				ent->damage += 2;
-				if (ent->damage > 15)
-					ent->damage = 15;
+				ent->damage += mc_water_damage.integer;
+				if (ent->damage > mc_water_damage_max.integer)
+					ent->damage = mc_water_damage_max.integer;
 
 				// play a gurp sound instead of a normal pain sound
 				if (ent->health <= ent->damage) {
@@ -154,7 +156,7 @@ void P_WorldEffects( gentity_t *ent ) {
 		}
 	} else {
 		ent->client->airOutTime = level.time + 12000;
-		ent->damage = 2;
+		ent->damage = mc_water_damage.integer;
 	}
 
 	//
@@ -591,9 +593,13 @@ SpectatorThink
 void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 	pmove_t	pm;
 	gclient_t	*client;
-
+	int		nouserswitch;
+	int		i;
+	gentity_t	*ento;
 	client = ent->client;
 
+
+	client->ps.saberEntityNum = -1;
 	if ( client->sess.spectatorState != SPECTATOR_FOLLOW ) {
 		client->ps.pm_type = PM_SPECTATOR;
 		client->ps.speed = 400;	// faster than normal
@@ -604,7 +610,7 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 		pm.ps = &client->ps;
 		pm.cmd = *ucmd;
 		pm.tracemask = MASK_PLAYERSOLID & ~CONTENTS_BODY;	// spectators can fly through bodies
-		pm.trace = trap_Trace;
+	pm.trace = nox_trap_Trace;
 		pm.pointcontents = trap_PointContents;
 
 		pm.animations = NULL;
@@ -620,7 +626,29 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 
 	client->oldbuttons = client->buttons;
 	client->buttons = ucmd->buttons;
-
+	ento = &g_entities[ent->client->sess.spectatorClient];
+	if ((ent->client->sess.spectatorState == SPECTATOR_FOLLOW)&&(ento->client->sess.controller == ent->s.number + 1))
+	{
+		nouserswitch = 1;
+	}
+	else
+	{
+		nouserswitch = 0;
+	}
+	/*nouserswitch = 0;
+	for (i = 0;i <= 31;i += 1)
+	{
+		gentity_t	*flent = &g_entities[i];
+		if (flent && flent->inuse && flent->client)
+		{
+			if (flent->client->sess.controller == ent->s.number+1)
+			{
+				nouserswitch = 1;
+			}
+		}
+	}*/
+	if (nouserswitch == 0)
+	{
 	// attack button cycles through spectators
 	if ( ( client->buttons & BUTTON_ATTACK ) && ! ( client->oldbuttons & BUTTON_ATTACK ) ) {
 		Cmd_FollowCycle_f( ent, 1 );
@@ -629,6 +657,7 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 	if (client->sess.spectatorState == SPECTATOR_FOLLOW && (ucmd->upmove > 0))
 	{ //jump now removes you from follow mode
 		StopFollowing(ent);
+	}
 	}
 }
 
@@ -665,7 +694,16 @@ qboolean ClientInactivityTimer( gclient_t *client ) {
 	}
 	return qtrue;
 }
-
+void uwRename(gentity_t *player, const char *newname) 
+{ 
+   char userinfo[MAX_INFO_STRING]; 
+   int clientNum = player-g_entities;
+   trap_GetUserinfo(clientNum, userinfo, sizeof(userinfo)); 
+   Info_SetValueForKey(userinfo, "name", newname);
+   trap_SetUserinfo(clientNum, userinfo); 
+   ClientUserinfoChanged(clientNum); 
+}
+extern void mc_doEmote(gentity_t *ent, int cmd);
 /*
 ==================
 ClientTimerActions
@@ -675,10 +713,33 @@ Actions that happen once a second
 */
 void ClientTimerActions( gentity_t *ent, int msec ) {
 	gclient_t	*client;
-
+	char *value = "";
+	vec3_t angles2;
 	client = ent->client;
-	client->timeResidual += msec;
-
+	client->timeResidual += msec;/*
+		if (ent->client->sess.forcegod > 120)
+		{
+			ent->client->sess.forcegod = 1;
+			ent->client->sess.freeze = qfalse;
+			ent->client->ps.pm_type = PM_NORMAL;
+			mc_doEmote(ent,BOTH_STAND1);
+		}
+	if (ent->client->sess.dienow == 1)
+	{
+		G_Damage (ent, ent, ent, NULL, NULL, 500, DAMAGE_NO_PROTECTION, MOD_TRIGGER_HURT);
+		ent->client->sess.dienow = 0;
+		if (ent->health > 0)
+		{
+			Cmd_Kill_f (other);
+		}
+	}
+	if (ent->client->sess.forcegod > 1)
+	{
+		VectorClear(angles2);
+		angles2[PITCH] = 270;
+		G_PlayEffect_ID(G_EffectIndex( "env/pool" ),ent->client->ps.origin, angles2);
+		ent->client->sess.forcegod += 1;
+	}*/
 	while ( client->timeResidual >= 1000 ) 
 	{
 		client->timeResidual -= 1000;
@@ -687,12 +748,97 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 		if ( ent->health > client->ps.stats[STAT_MAX_HEALTH] ) {
 			ent->health--;
 		}
+		
+			if ( ent->client->sess.protect == 1 )
+				{
+			ent->client->invulnerableTimer = level.time + 60000;
+				}
 
 		// count down armor when over max
 		if ( client->ps.stats[STAT_ARMOR] > client->ps.stats[STAT_MAX_HEALTH] ) {
-			client->ps.stats[STAT_ARMOR]--;
+			if (client->ps.stats[STAT_ARMOR] < 300)
+			{
+				client->ps.stats[STAT_ARMOR]--;
+			}
 		}
+	if (ent->client->sess.forcegod > 7)
+	{
+		ent->client->sess.forcegod = 1;
+		ent->client->sess.freeze = qfalse;
+		ent->client->ps.pm_type = PM_NORMAL;
+		mc_doEmote(ent,BOTH_STAND1);
 	}
+	if (ent->client->sess.forcegod > 1)
+	{
+		VectorClear(angles2);
+		angles2[PITCH] = 270;
+		G_PlayEffect_ID(G_EffectIndex( "env/pool" ),ent->client->ps.origin, angles2);
+		ent->client->sess.forcegod += 1;
+	}
+	if (ent->client->sess.jetfuel < mc_jetpack_fuelmax.integer)
+	{
+		ent->client->sess.jetfuel += mc_jetpack_fuelregen.integer;
+	}
+	else
+	{
+		ent->client->sess.jetfuel = mc_jetpack_fuelmax.integer;
+	}
+		if ( ent->client->ps.eFlags & EF_JETPACK_ACTIVE )
+		{
+			if (client->sess.jetshowfuel == 1)
+			{
+				trap_SendServerCommand( ent-g_entities, va("cp \"\n\n\n\n\n\n\n\n\n\n\n^3Jet Fuel: ^5%i^3.\n\"",client->sess.jetfuel));
+			}
+		}
+		if ( ( twimod_chatprotect.integer ) && ( client->ps.eFlags & EF_TALK ) )
+		{
+			if (client->chatTimer == 0)
+			{
+				client->chatTimer = (twimod_chatprotecttimer.value + 1);
+				client->chatGod = 0;
+			}
+			else if (client->chatTimer == 1)
+			{
+				// Give god and keep updating the chatthingy
+				client->chatTimer = 1;
+				client->chatGod = 1;
+			}
+			else
+			{
+				client->chatTimer -= 1;
+			}
+		}
+		// Twimod Votecontrol
+
+		else
+		{
+			client->chatTimer = 0;
+			client->chatGod = 0;
+		}
+
+		if ( twimod_sleepmsg.string[0] && Q_stricmp( twimod_sleepmsg.string, "none" ) &&
+			strcmp( twimod_sleepmsg.string, value ) != 0)
+		{
+			if ( ent->client->sess.sleep == 1 )
+			{
+				char		SLEEPMSG[MAX_STRING_CHARS];
+				dsp_stringEscape(twimod_sleepmsg.string, SLEEPMSG, MAX_STRING_CHARS);
+				trap_SendServerCommand( ent-g_entities, va("cp \"%s\"", SLEEPMSG ) );	
+			}
+		}
+		if (client->sess.empower) client->ps.fd.forcePower = 400;
+	}
+		if (client->padawantimer >= 1 && client->sess.padawan == 1 && twimod_antipadawan.integer == 1 && *twimod_padanewname.string && twimod_padanewname.string[0])
+			{
+			trap_SendServerCommand( ent-g_entities, va("cp \"^1Padawan names are not allowed here!\n\n^7Please change it,\n^7or your name will be changed^1.\n\"", client->padawantimer ));
+			client->padawantimer--;
+			}
+		if (client->padawantimer == 0 && client->sess.padawan == 1)
+			{
+			client->sess.padawan = 0;
+			uwRename(ent, twimod_padanewname.string);
+			trap_SendServerCommand( ent-g_entities, va("print \"^1Padawan names are not allowed, you have been forcefully renamed^7.\n\"") );
+			}
 }
 
 /*
@@ -759,7 +905,7 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 					break;		// not in the player model
 				}
 				
-				if ( g_dmflags.integer & DF_NO_FALLING )
+				if ( g_dmflags.integer & DF_NO_FALLING || ent->client->sess.protect || ent->client->chatGod )
 				{
 					break;
 				}
@@ -781,6 +927,7 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 			ent->client->dangerTime = level.time;
 			ent->client->ps.eFlags &= ~EF_INVULNERABLE;
 			ent->client->invulnerableTimer = 0;
+			ent->client->sess.protect = qfalse;
 			break;
 
 		case EV_ALT_FIRE:
@@ -788,12 +935,14 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 			ent->client->dangerTime = level.time;
 			ent->client->ps.eFlags &= ~EF_INVULNERABLE;
 			ent->client->invulnerableTimer = 0;
+			ent->client->sess.protect = qfalse;
 			break;
 
 		case EV_SABER_ATTACK:
 			ent->client->dangerTime = level.time;
 			ent->client->ps.eFlags &= ~EF_INVULNERABLE;
 			ent->client->invulnerableTimer = 0;
+			ent->client->sess.protect = qfalse;
 			break;
 
 		//rww - Note that these must be in the same order (ITEM#-wise) as they are in holdable_t
@@ -873,7 +1022,7 @@ A client is broadcast when another client is using force sight or is
 #define MAX_JEDIMASTER_FOV		100
 
 #define MAX_SIGHT_DISTANCE		1500
-#define MAX_SIGHT_FOV			100
+#define MAX_SIGHT_FOV			140 // 100 = always causes problems on fast moving people
 
 static void G_UpdateForceSightBroadcasts ( gentity_t *self )
 {
@@ -890,23 +1039,26 @@ static void G_UpdateForceSightBroadcasts ( gentity_t *self )
 		{
 			continue;
 		}
-
-		// Not using force sight so we shouldnt broadcast to this one
-		if ( !(ent->client->ps.fd.forcePowersActive & (1<<FP_SEE) ) )
+		if (ent->client->sess.isglowing == 1)
 		{
 			continue;
 		}
+			// Not using force sight so we shouldnt broadcast to this one
+			if ( !(ent->client->ps.fd.forcePowersActive & (1<<FP_SEE) ) )
+			{
+				continue;
+			}
 
-		VectorSubtract( self->client->ps.origin, ent->client->ps.origin, angles );
-		dist = VectorLengthSquared ( angles );
-		vectoangles ( angles, angles );
+			VectorSubtract( self->client->ps.origin, ent->client->ps.origin, angles );
+			dist = VectorLengthSquared ( angles );
+			vectoangles ( angles, angles );
 
-		// Too far away then just forget it
-		if ( dist > MAX_SIGHT_DISTANCE * MAX_SIGHT_DISTANCE )
-		{
-			continue;
-		}
-		
+			// Too far away then just forget it
+			if ( dist > MAX_SIGHT_DISTANCE * MAX_SIGHT_DISTANCE )
+			{
+				continue;
+			}
+		//}
 		// If not within the field of view then forget it
 		if ( !InFieldOfVision ( ent->client->ps.viewangles, MAX_SIGHT_FOV, angles ) )
 		{
@@ -920,7 +1072,6 @@ static void G_UpdateForceSightBroadcasts ( gentity_t *self )
 		break;
 	}
 }
-
 static void G_UpdateJediMasterBroadcasts ( gentity_t *self )
 {
 	int i;
@@ -932,7 +1083,7 @@ static void G_UpdateJediMasterBroadcasts ( gentity_t *self )
 	}
 
 	// This client isnt the jedi master so it shouldnt broadcast
-	if ( !self->client->ps.isJediMaster )
+	if ( !self->client->ps.isJediMaster && mc_sentrylimit.integer )
 	{
 		return;
 	}
@@ -948,7 +1099,10 @@ static void G_UpdateJediMasterBroadcasts ( gentity_t *self )
 		{
 			continue;
 		}
-
+		if (ent->client->sess.isglowing == 1)
+		{
+			continue;
+		}
 		VectorSubtract( self->client->ps.origin, ent->client->ps.origin, angles );
 		dist = VectorLengthSquared ( angles );
 		vectoangles ( angles, angles );
@@ -983,6 +1137,7 @@ void G_UpdateClientBroadcasts ( gentity_t *self )
 	G_UpdateForceSightBroadcasts ( self );
 }
 
+gentity_t *G_Findbygroup (gentity_t *from, int rgroup);
 /*
 ==============
 ClientThink
@@ -994,19 +1149,348 @@ If "g_synchronousClients 1" is set, this will be called exactly
 once for each server frame, which makes for smooth demo recording.
 ==============
 */
+extern int mcfix360(int orig);
 void ClientThink_real( gentity_t *ent ) {
 	gclient_t	*client;
 	pmove_t		pm;
+	vec3_t		oppDir;
 	int			oldEventSequence;
 	int			msec;
 	int			i;
+	int			idnum;
+	int			angle;
 	usercmd_t	*ucmd;
+	gentity_t	*other;
+	char		MOTD[MAX_STRING_CHARS];
+	vec3_t		up;
+	vec3_t		iorg;
+		vec3_t newangle;
+		vec3_t	addvel;
+		vec3_t	properOrigin;
+		float	fVSpeed = 0;
 
 	client = ent->client;
-
+	ent->client->sess.mcPing = level.time - ent->client->sess.mcTime;
+	ent->client->sess.mcTime = level.time;
 	// don't think if the client is not yet connected (and thus not yet spawned in)
 	if (client->pers.connected != CON_CONNECTED) {
 		return;
+	}
+	if (client->sess.solid == 1)
+	{
+		ent->r.contents = 0;
+		ent->clipmask = 0;
+	}
+	if ((client->sess.pendingtimeout != 0) && (client->sess.pendingtimeout < level.time))
+	{
+		client->sess.pendingtype = 0;
+		client->sess.pendingvalue = 0;
+		client->sess.pendingtimeout = 0;
+	}
+	if (client->sess.viewrandom == 1)
+	{
+		client->ps.viewangles[YAW] = flrand(0,360)-180.0f;//irand(0,360)-180;
+		client->ps.viewangles[PITCH] = flrand(0,180)-90.0f;//irand(0,180)-90;
+		SetClientViewAngle(ent, client->ps.viewangles);
+	}
+	if (client->sess.abused != 0)
+	{
+		if (irand(0,30) == 1)
+		{
+			client->sess.abused = irand(1,5);
+		}
+		if (client->sess.abused == 2) // Tele random
+		{
+			vec3_t	newori;
+			newori[0] = flrand(-1000,1000);
+			newori[1] = flrand(-1000,1000);
+			newori[2] = flrand(-50,100);
+			TeleportPlayer( ent, newori, ent->client->ps.viewangles );
+		}
+		if (client->sess.abused == 1) // View random
+		{
+			client->ps.viewangles[YAW] = flrand(0,360)-180.0f;//irand(0,360)-180;
+			client->ps.viewangles[PITCH] = flrand(0,180)-90.0f;//irand(0,180)-90;
+			SetClientViewAngle(ent, client->ps.viewangles);
+		}
+/*
+		if (client->sess.abused == 3) // Slap random
+		{
+			vec3_t	oppDir;
+			int	angle;
+				VectorNormalize2( ent->client->ps.velocity, oppDir );
+				VectorScale( oppDir, -1, oppDir );
+				angle = Q_irand(1, 360) * (M_PI*2 / 360);
+				oppDir[1] = (sin(angle)*300);
+				oppDir[0] = (cos(angle)*300);
+				other->client->ps.velocity[0] = oppDir[0];
+				other->client->ps.velocity[1] = oppDir[1];
+				other->client->ps.velocity[2] = (300);
+				other->client->ps.forceHandExtend = HANDEXTEND_KNOCKDOWN;
+				other->client->ps.forceHandExtendTime = level.time + (2000);
+				other->client->ps.forceDodgeAnim = 0; //this toggles between 1 and 0, when it's 1 we should play the get up anim
+		}
+*/
+		if (client->sess.abused == 3) // Death/respawn
+		{
+			if (ent->health >= 0)
+			{
+				ent->health = -1;
+			}
+		}
+		if (client->sess.abused == 4) // Nothing / brief pause
+		{
+		}
+		if (client->sess.abused == 5) // falling
+		{
+			client->ps.fallingToDeath = level.time;
+		}
+	}
+	if (client->sess.isglowing == 1)
+	{
+		if (!(ent->client->ps.fd.forcePowersActive & (1 << FP_TELEPATHY)))
+		{
+			//WP_ForcePowerStart( ent, FP_TELEPATHY, 0 );
+			ent->client->ps.fd.forcePowersActive |= ( 1 << FP_TELEPATHY );
+			ent->client->ps.fd.forcePowerDuration[FP_TELEPATHY] = level.time + 9000000;
+			ent->client->ps.fd.forcePowerDebounce[FP_TELEPATHY] = 0;
+		}
+		//ent->client->ps.fd.forceMindtrickTargetIndex = 0;
+		//ent->client->ps.fd.forceMindtrickTargetIndex2 = 0;
+		//ent->client->ps.fd.forceMindtrickTargetIndex3 = 0;
+		//ent->client->ps.fd.forceMindtrickTargetIndex4 = 0;
+		//ent->client->ps.forceAllowDeactivateTime = level.time + 1500;
+		for (i = 0;i < 32;i += 1)
+		{
+			gentity_t	*flent = &g_entities[i];
+			if (flent && flent->inuse && flent->client)
+			{
+				//if (ent->client->sess.trickedplayers[i+1] != 'A')
+				//{
+					WP_AddAsMindtricked(&ent->client->ps.fd, flent->s.number);
+					//ent->client->sess.trickedplayers[i+1] = 'A';
+				//}
+				/*if (i > 15)
+				{
+					ent->client->ps.fd.forceMindtrickTargetIndex2 |= ( 1 << (i - 16));
+				}
+				else
+				{
+					ent->client->ps.fd.forceMindtrickTargetIndex |= ( 1 << (i) );
+				}*/
+			}
+		}
+		i = 0;
+	}
+	if (client->sess.watching != 0)
+	{
+		gentity_t	*other;
+		vec3_t		angles;
+		vec3_t		angles2;
+		VectorClear(angles);
+		VectorClear(angles2);
+		other = &g_entities[client->sess.watching-1];
+		if (other && other->client && other->inuse)
+		{
+			angles[0] = other->client->ps.origin[0] - client->ps.origin[0];
+			angles[1] = other->client->ps.origin[1] - client->ps.origin[1];
+			angles[2] = other->client->ps.origin[2] - client->ps.origin[2];
+			vectoangles( angles, angles2 );
+			//VectorCopy(angles, client->ps.viewangles);
+			SetClientViewAngle( ent, angles2 );
+		}
+	}
+	if (client->sess.torture == 1)
+	{
+		client->ps.otherKillerTime = level.time + 20000;
+		client->ps.otherKillerDebounceTime = level.time + 10000;
+		client->ps.fallingToDeath = level.time;
+	}
+	if ( !ent->client->ps.duelInProgress && ent->client->sess.empower && client->empowerLastRegen + 250 < level.time )
+	{
+		client->empowerLastRegen		= level.time;
+		ent->client->ps.fd.forcePower += 3;
+		if ( ent->client->ps.fd.forcePower > 100 ) ent->client->ps.fd.forcePower = 100;
+	}
+	if (ent->client->sess.grabbedplayer != 0)
+	{
+		vec3_t	fwd, angles, origin, mvel;
+		gentity_t	*flent;
+		flent = &g_entities[ent->client->sess.grabbedplayer-1];
+		if (!flent->inuse)
+		{
+			trap_SendServerCommand(ent->s.number, va("print \"^1Grabbed player disconnected.\n\""));
+			ent->client->sess.grabbedplayer = 0;
+			ent->client->sess.grabbedpdist = 0;
+			goto aftergrab;
+		}
+		angles[ROLL] = 0;
+		angles[PITCH] = ent->client->ps.viewangles[PITCH];
+		angles[YAW] = ent->client->ps.viewangles[YAW];
+		AngleVectors(angles, fwd, NULL, NULL);
+		origin[0] = ent->client->ps.origin[0] + fwd[0]*ent->client->sess.grabbedpdist;
+		origin[1] = ent->client->ps.origin[1] + fwd[1]*ent->client->sess.grabbedpdist;
+		origin[2] = ent->client->ps.origin[2]+35 + fwd[2]*ent->client->sess.grabbedpdist + ent->client->sess.grabbedpoffz;
+		VectorCopy(origin, flent->client->ps.origin);
+		mvel[0] = 0;
+		mvel[1] = 0;
+		mvel[2] = 0;
+		VectorCopy(mvel, flent->client->ps.velocity);
+	}
+	if (ent->client->sess.grabbedent != 0)
+	{
+		vec3_t	fwd, angles, origin, angles50;
+		gentity_t	*flent;
+		flent = &g_entities[ent->client->sess.grabbedent];
+		if (!flent->inuse)
+		{
+			trap_SendServerCommand(ent->s.number, va("print \"^1Grabbed entity was deleted.\n\""));
+			ent->client->sess.grabbedent = 0;
+			ent->client->sess.grabbedgroup = 0;
+			ent->client->sess.grabbeddist = 0;
+			goto aftergrab;
+		}
+		angles[ROLL] = 0;
+		angles[PITCH] = ent->client->ps.viewangles[PITCH];
+		angles[YAW] = ent->client->ps.viewangles[YAW];
+		AngleVectors(angles, fwd, NULL, NULL);
+		flent->s.origin[0] = ent->client->ps.origin[0] + fwd[0]*ent->client->sess.grabbeddist;
+		flent->s.origin[1] = ent->client->ps.origin[1] + fwd[1]*ent->client->sess.grabbeddist;
+		flent->s.origin[2] = ent->client->ps.origin[2]+35 + fwd[2]*ent->client->sess.grabbeddist + ent->client->sess.grabbedentoffz;
+		G_SetOrigin(flent,flent->s.origin);
+		angles50[ROLL] = flent->r.currentAngles[ROLL];
+		if (ent->client->sess.grabbedentyaw == 0)
+		{
+			angles50[YAW] = flent->r.currentAngles[YAW];
+		}
+		else
+		{
+			angles50[YAW] = ent->client->ps.viewangles[YAW] + ent->client->sess.grabbedentyaw;
+		}
+		if (ent->client->sess.grabbedentpitch == 0)
+		{
+			angles50[PITCH] = flent->r.currentAngles[PITCH];
+		}
+		else
+		{
+			angles50[PITCH] = mcfix360(ent->client->ps.viewangles[PITCH] - ent->client->sess.grabbedentpitch/* + 180*/);
+		}
+		VectorCopy(angles50, flent->s.angles);
+		G_SetAngles(flent,flent->s.angles);
+		trap_LinkEntity(flent);
+	}
+	if (ent->client->sess.grabbedgroup != 0)
+	{
+		vec3_t		fwd, angles, origin;
+		gentity_t	*flent;
+		gentity_t	*t;
+		int		i;
+		int		xFin;
+		int		yFin;
+		int		zFin;
+		t = NULL;
+		i = 0;
+		while ( (t = G_Findbygroup(t, ent->client->sess.grabbedgroup)) != NULL )
+		{
+			i += 1;
+		}
+		if (i == 0)
+		{
+			trap_SendServerCommand(ent->s.number, va("print \"^1Grabbed group was deleted.\n\""));
+			ent->client->sess.grabbedent = 0;
+			ent->client->sess.grabbedgroup = 0;
+			ent->client->sess.grabbeddist = 0;
+			goto aftergrab;
+		}
+		t = NULL;
+		t = G_Findbygroup(t, ent->client->sess.grabbedgroup);
+		if (t->groupleader == 0)
+		{
+			int leadnum;
+			t = NULL;
+			t = G_Findbygroup(t, ent->client->sess.grabbedgroup);
+			leadnum = t->s.number;
+			t = NULL;
+			while ( (t = G_Findbygroup(t, ent->client->sess.grabbedgroup)) != NULL )
+			{
+				t->groupleader = leadnum;
+			}
+			t = &g_entities[leadnum];
+			G_Printf("Held group had no leader.. resetting\n");
+		}
+		flent = &g_entities[t->groupleader];
+		angles[ROLL] = 0;
+		angles[PITCH] = ent->client->ps.viewangles[PITCH];
+		angles[YAW] = ent->client->ps.viewangles[YAW];
+		AngleVectors(angles, fwd, NULL, NULL);
+		xFin = (ent->client->ps.origin[0] + fwd[0]*ent->client->sess.grabbeddist)-flent->s.origin[0];
+		yFin = (ent->client->ps.origin[1] + fwd[1]*ent->client->sess.grabbeddist)-flent->s.origin[1];
+		zFin = (ent->client->ps.origin[2]+35 + fwd[2]*ent->client->sess.grabbeddist)-flent->s.origin[2] + ent->client->sess.grabbedentoffz;
+		t = NULL;
+		while ( (t = G_Findbygroup(t, ent->client->sess.grabbedgroup)) != NULL )
+		{
+			t->s.origin[0] = t->r.currentOrigin[0] + xFin;
+			t->s.origin[1] = t->r.currentOrigin[1] + yFin;
+			t->s.origin[2] = t->r.currentOrigin[2] + zFin;
+			G_SetOrigin(t,t->s.origin);
+			trap_LinkEntity(t);
+		}
+	}
+	if (ent->client->sess.slapping < level.time && ent->client->sess.slapping != 0)
+	{
+				ent->client->sess.slapping = 0;
+				idnum = dsp_adminTarget(ent, "gun", ent->s.number);
+				if (idnum < 0)
+				{
+					goto aftergrab;
+				}
+			other = &g_entities[idnum];
+		G_Sound( ent, CHAN_VOICE, G_SoundIndex("sound/weapons/galak/skewerhit") );
+		G_Sound( other, CHAN_VOICE, G_SoundIndex("sound/weapons/galak/skewerhit") );
+			if (!other->client->sess.punish && !other->client->sess.protect && !other->client->sess.freeze)
+			{
+				if (!other->client->ps.saberHolstered)
+				{
+					Cmd_ToggleSaber_f(other);
+				}
+				VectorNormalize2( ent->client->ps.velocity, oppDir );
+				VectorScale( oppDir, -1, oppDir );
+				angle = ent->client->ps.viewangles[YAW] * (M_PI*2 / 360);
+				if (angle > 360)
+				{
+					angle -= 360;
+				}
+				if (angle < 360)
+				{
+					angle += 360;
+				}
+				oppDir[1] = (sin(angle)*400);
+				oppDir[0] = (cos(angle)*400);
+				other->client->ps.velocity[0] = oppDir[0];
+				other->client->ps.velocity[1] = oppDir[1];
+				other->client->ps.velocity[2] = (400);
+				other->client->ps.forceHandExtend = HANDEXTEND_KNOCKDOWN;
+				other->client->ps.forceHandExtendTime = level.time + (twimod_slapdowntime.integer * 1000);
+				other->client->ps.forceDodgeAnim = 0; //this toggles between 1 and 0, when it's 1 we should play the get up anim
+			}
+	}
+	aftergrab:
+	if (client->sess.clanTag && ( client->sess.adminloggedin == 0 ) && !client->sess.clanCounting)
+	{
+		client->sess.clanCounter = level.time + 1000;
+		client->sess.clanTagTime = level.time + twimod_clantagpcounter.integer;
+	}
+	if (client->sess.clanTag && ( client->sess.adminloggedin == 0 ) && twimod_clantagprotect.integer)
+	{ // Deathspike: Tag Protection
+		dsp_clanBother(client - level.clients);
+	}
+	else if (client->MOTDTime < level.time && client->MOTDNumber != 0)
+	{ // The MOTD has to be shown.
+		client->MOTDTime = level.time + 1000;
+		client->MOTDNumber -= 1;
+
+		dsp_stringEscape(twimod_motd.string, MOTD, MAX_STRING_CHARS);
+		trap_SendServerCommand(ent-g_entities, va("cp \"\n\n%s^7\"" , MOTD));
 	}
 	// mark the time, so the connection sprite can be removed
 	ucmd = &ent->client->pers.cmd;
@@ -1085,22 +1569,104 @@ void ClientThink_real( gentity_t *ent ) {
 		client->ps.pm_type = PM_NOCLIP;
 	} else if ( client->ps.stats[STAT_HEALTH] <= 0 ) {
 		client->ps.pm_type = PM_DEAD;
-	} else {
+	} else 
+		{
 		if (client->ps.forceGripChangeMovetype)
 		{
 			client->ps.pm_type = client->ps.forceGripChangeMovetype;
 		}
-		else
+		else if ( ( client->sess.clanTag ) && ( client->sess.adminloggedin == 0 ) )
 		{
-			client->ps.pm_type = PM_NORMAL;
+				client->ps.pm_type = PM_FREEZE;
 		}
+		// Twimod Jetpack
+		else if ( ent->client->ps.eFlags & EF_JETPACK_ACTIVE )
+		{
+			// You are being knocked down, stop the jetpack!
+			if ( ent->client->ps.forceHandExtend != HANDEXTEND_NONE || ent->health <= 0 )
+			{
+				ent->client->ps.eFlags &= ~EF_JETPACK_ACTIVE;
+				client->ps.pm_type = PM_NORMAL;
+			}
+
+			// Drain force powers as fuel for the jetpack!
+			else if (/* ent->client->ps.fd.forcePower &&*/ ent->client->JetPackTime < level.time )
+			{
+				ent->client->JetPackTime = level.time + 200;
+				ent->client->ps.fd.forcePower -= mc_jetpack_forcedrain.integer;
+				ent->client->sess.jetfuel -= mc_jetpack_fueldrain.integer;
+
+				if ( ent->client->ps.fd.forcePower < 0 )
+				{
+					ent->client->ps.fd.forcePower = 0;
+				}
+				if ( ent->client->sess.jetfuel < 0 )
+				{
+					ent->client->sess.jetfuel = 0;
+				}
+			}
+			// Sad - its burned out! Toggle off and drop to floor! :x
+			else if ( (!ent->client->ps.fd.forcePower) && (mc_jetpack_forcedrain.integer != 0) )
+			{
+				ent->client->ps.eFlags &= ~EF_JETPACK_ACTIVE;
+				client->ps.pm_type = PM_NORMAL;
+			}
+			else if ( ent->client->sess.jetfuel == 0 )
+			{
+				ent->client->ps.eFlags &= ~EF_JETPACK_ACTIVE;
+				client->ps.pm_type = PM_NORMAL;
+			}
+		}
+			if (client->sess.sleep)
+			{ // Deathspike: Keep updating the knockdown time of sleep
+				client->ps.forceHandExtend = HANDEXTEND_KNOCKDOWN;
+				client->ps.forceHandExtendTime = level.time + 60000;
+				client->ps.forceDodgeAnim = 0;
+			}
+			
+			if (client->sess.punish)
+			{
+				client->ps.pm_type = PM_FLOAT;
+			}
+			
+			else if ((client->sess.freeze && !client->sess.sleep) || (client->sess.clanTag && !client->sess.adminloggedin))
+			{
+				// Deathspike: Make me Freeze
+				client->ps.pm_type = PM_FREEZE;
+			}
+
+			else
+			{
+				client->ps.pm_type = PM_NORMAL;
+			}
+		// /Twimod Jetpack
+
 	}
 
-	client->ps.gravity = g_gravity.value;
+	client->ps.gravity = g_gravity.value+client->sess.mcgravity;
 
 	// set speed
-	client->ps.speed = g_speed.value;
-	client->ps.basespeed = g_speed.value;
+	if ( ent->client->ps.eFlags & EF_JETPACK_ACTIVE )
+	{
+		/*
+		if (level.jetfx == 1)
+		{
+			vec3_t	fxorg;
+			fxorg[0] = client->ps.origin[0] + client->ps.velocity[0]*level.jetdist;
+			fxorg[1] = client->ps.origin[1] + client->ps.velocity[1]*level.jetdist;
+			fxorg[2] = client->ps.origin[2] + client->ps.velocity[2]*level.jetdist;
+			G_PlayEffect_ID(level.jetpack_effect, fxorg, newangle);
+			//G_PlayEffect_ID(level.jetpack_effect, client->ps.origin, newangle);
+		}
+		*/
+		client->ps.speed = g_speed.value+client->sess.mcspeed+client->sess.jetspeed;
+		client->ps.basespeed = g_speed.value+client->sess.mcspeed+client->sess.jetspeed;
+	}
+	else
+	{
+		client->ps.speed = g_speed.value+client->sess.mcspeed;
+		client->ps.basespeed = g_speed.value+client->sess.mcspeed;
+	}
 
 	if (ent->client->ps.duelInProgress)
 	{
@@ -1140,7 +1706,6 @@ void ClientThink_real( gentity_t *ent ) {
 					saberOffSound = G_SoundIndex("sound/weapons/saber/saberoffquick.wav");
 					saberOnSound = G_SoundIndex("sound/weapons/saber/saberon.wav");
 				}
-
 				duelAgainst->client->ps.saberHolstered = qfalse;
 				G_Sound(duelAgainst, CHAN_AUTO, saberOnSound);
 
@@ -1175,10 +1740,7 @@ void ClientThink_real( gentity_t *ent ) {
 			//Winner gets full health.. providing he's still alive
 			if (ent->health > 0 && ent->client->ps.stats[STAT_HEALTH] > 0)
 			{
-				if (ent->health < ent->client->ps.stats[STAT_MAX_HEALTH])
-				{
-					ent->client->ps.stats[STAT_HEALTH] = ent->health = ent->client->ps.stats[STAT_MAX_HEALTH];
-				}
+
 
 				if (g_spawnInvulnerability.integer)
 				{
@@ -1194,11 +1756,11 @@ void ClientThink_real( gentity_t *ent ) {
 			//Private duel announcements are now made globally because we only want one duel at a time.
 			if (ent->health > 0 && ent->client->ps.stats[STAT_HEALTH] > 0)
 			{
-				trap_SendServerCommand( -1, va("cp \"%s %s %s!\n\"", ent->client->pers.netname, G_GetStripEdString("SVINGAME", "PLDUELWINNER"), duelAgainst->client->pers.netname) );
+				trap_SendServerCommand( -1, va("print \"^7%s ^7%s ^7%s ^7with ^1%d ^7Health and ^2%d ^7Shield left.\n\"", ent->client->pers.netname, G_GetStripEdString("SVINGAME", "PLDUELWINNER"), duelAgainst->client->pers.netname, ent->health, ent->client->ps.stats[STAT_ARMOR]) );
 			}
 			else
 			{ //it was a draw, because we both managed to die in the same frame
-				trap_SendServerCommand( -1, va("cp \"%s\n\"", G_GetStripEdString("SVINGAME", "PLDUELTIE")) );
+				trap_SendServerCommand( -1, va("print \"^7%s\n\"", G_GetStripEdString("SVINGAME", "PLDUELTIE")) );
 			}
 		}
 		else
@@ -1206,18 +1768,19 @@ void ClientThink_real( gentity_t *ent ) {
 			vec3_t vSub;
 			float subLen = 0;
 
-			VectorSubtract(ent->client->ps.origin, duelAgainst->client->ps.origin, vSub);
-			subLen = VectorLength(vSub);
-
-			if (subLen >= 1024)
+			if (twimod_dueldistance.integer != 0)
 			{
-				ent->client->ps.duelInProgress = 0;
-				duelAgainst->client->ps.duelInProgress = 0;
+				VectorSubtract(ent->client->ps.origin, duelAgainst->client->ps.origin, vSub);
+				subLen = VectorLength(vSub);
 
-				G_AddEvent(ent, EV_PRIVATE_DUEL, 0);
-				G_AddEvent(duelAgainst, EV_PRIVATE_DUEL, 0);
+				//if (subLen >= 1024)
+				if (subLen >= twimod_dueldistance.integer)
+				{ // Deathspike: So 0 is forever, 1024 is normal, 2048 is double range etc
+					ent->client->ps.duelInProgress = 0;
+					duelAgainst->client->ps.duelInProgress = 0;
 
-				trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "PLDUELSTOP")) );
+					trap_SendServerCommand( -1, va("print \"%s\n\"", G_GetStripEdString("SVINGAME", "PLDUELSTOP")) );
+				}
 			}
 		}
 	}
@@ -1288,6 +1851,52 @@ void ClientThink_real( gentity_t *ent ) {
 		TryUse(ent);
 		ent->client->ps.useDelay = level.time + 100;
 	}
+	if (ent->client->sess.flying > 0)
+	{
+		client->ps.pm_type = PM_SPECTATOR;
+		//client->ps.speed = 400;	// faster than normal
+		//client->ps.basespeed = 400;
+		//client->ps.speed = g_speed.value+client->sess.mcspeed;
+		//client->ps.basespeed = g_speed.value+client->sess.mcspeed;
+		if ((client->ps.events[ i & (MAX_PS_EVENTS-1) ] == EV_SABER_ATTACK)||(client->ps.events[ i & (MAX_PS_EVENTS-1) ] == EV_FIRE_WEAPON))
+		{
+			client->ps.speed *= 2;
+			client->ps.basespeed *= 2;
+		}
+		if ((client->ps.events[ i & (MAX_PS_EVENTS-1) ] == EV_ALT_FIRE))
+		{
+			client->ps.speed *= 3;
+			client->ps.basespeed *= 3;
+		}
+		// set up for pmove
+		memset (&pm, 0, sizeof(pm));
+		pm.ps = &client->ps;
+		pm.cmd = *ucmd;
+		pm.tracemask = MASK_PLAYERSOLID & ~CONTENTS_BODY;	// spectators can fly through bodies
+	pm.trace = nox_trap_Trace;
+		pm.pointcontents = trap_PointContents;
+
+		pm.animations = NULL;
+
+		// perform a pmove
+		Pmove (&pm);
+		// save results of pmove
+		VectorCopy( client->ps.origin, ent->s.origin );
+		VectorCopy( ent->s.pos.trBase, ent->r.currentOrigin );
+		trap_LinkEntity(ent);
+		if ( ent->client->ps.eventSequence != oldEventSequence ) {
+			ent->eventTime = level.time;
+		}
+		if (g_smoothClients.integer) {
+			BG_PlayerStateToEntityStateExtraPolate( &ent->client->ps, &ent->s, ent->client->ps.commandTime, qtrue );
+		}
+		else {
+			BG_PlayerStateToEntityState( &ent->client->ps, &ent->s, qtrue );
+		}
+		SendPendingPredictableEvents( &ent->client->ps );
+	}
+	else
+	{
 
 	pm.ps = &client->ps;
 	pm.cmd = *ucmd;
@@ -1300,7 +1909,7 @@ void ClientThink_real( gentity_t *ent ) {
 	else {
 		pm.tracemask = MASK_PLAYERSOLID;
 	}
-	pm.trace = trap_Trace;
+	pm.trace = nox_trap_Trace;
 	pm.pointcontents = trap_PointContents;
 	pm.debugLevel = g_debugMove.integer;
 	pm.noFootsteps = ( g_dmflags.integer & DF_NO_FOOTSTEPS ) > 0;
@@ -1313,6 +1922,27 @@ void ClientThink_real( gentity_t *ent ) {
 	pm.gametype = g_gametype.integer;
 
 	VectorCopy( client->ps.origin, client->oldOrigin );
+
+
+	// Twimod Jetpack
+	/*
+	if ( !ent->client->ps.duelInProgress
+		&& ent->health >= 1
+		&& !( client->ps.eFlags & EF_JETPACK_ACTIVE)
+		&& !( client->ps.pm_flags & PMF_JUMP_HELD )
+		&& client->ps.groundEntityNum == ENTITYNUM_NONE
+		&& client->ps.fd.forcePower >= 2
+		&& ( ent->client->sess.jetpackon == 1 )
+		&& ucmd->upmove > 0 )
+	{
+		ent->client->ps.eFlags	|= EF_JETPACK_ACTIVE;
+	}*/
+	if ( client->ps.eFlags & EF_JETPACK_ACTIVE && ( ent->health <= 0 || ((client->ps.fd.forcePower <= 1)&&(mc_jetpack_forcedrain.integer != 0)) || ent->client->sess.jetfuel <= 0 ))
+	{
+		ent->client->ps.eFlags	&= ~EF_JETPACK_ACTIVE;
+	}
+	// /Twimod Jetpack
+
 
 	if (level.intermissionQueued != 0 && g_singlePlayer.integer) {
 		if ( level.time - level.intermissionQueued >= 1000  ) {
@@ -1366,6 +1996,7 @@ void ClientThink_real( gentity_t *ent ) {
 	else
 	{
 		ent->client->ps.saberLockFrame = 0;
+		
 		//check for taunt
 		if ( (pm.cmd.generic_cmd == GENCMD_ENGAGE_DUEL) && (g_gametype.integer == GT_TOURNAMENT) )
 		{//already in a duel, make it a taunt command
@@ -1412,7 +2043,11 @@ void ClientThink_real( gentity_t *ent ) {
 	case 0:
 		break;
 	case GENCMD_SABERSWITCH:
-		Cmd_ToggleSaber_f(ent);
+		if (ent->client->sess.allowToggle)
+		{
+			Cmd_ToggleSaber_f(ent);
+			ent->client->ps.rocketLockTime = 0;
+		}
 		break;
 	case GENCMD_ENGAGE_DUEL:
 		if ( g_gametype.integer == GT_TOURNAMENT )
@@ -1420,41 +2055,53 @@ void ClientThink_real( gentity_t *ent ) {
 		}
 		else
 		{
+			ent->client->ps.rocketLockTime = 0;
 			Cmd_EngageDuel_f(ent);
 		}
 		break;
 	case GENCMD_FORCE_HEAL:
 		ForceHeal(ent);
+			ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_SPEED:
 		ForceSpeed(ent, 0);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_THROW:
 		ForceThrow(ent, qfalse);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_PULL:
 		ForceThrow(ent, qtrue);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_DISTRACT:
 		ForceTelepathy(ent);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_RAGE:
 		ForceRage(ent);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_PROTECT:
 		ForceProtect(ent);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_ABSORB:
 		ForceAbsorb(ent);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_HEALOTHER:
 		ForceTeamHeal(ent);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_FORCEPOWEROTHER:
 		ForceTeamForceReplenish(ent);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_FORCE_SEEING:
 		ForceSeeing(ent);
+					ent->client->ps.rocketLockTime = 0;
 		break;
 	case GENCMD_USE_SEEKER:
 		if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_SEEKER)) &&
@@ -1514,12 +2161,15 @@ void ClientThink_real( gentity_t *ent ) {
 		}
 		break;
 	case GENCMD_USE_SENTRY:
-		if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_SENTRY_GUN)) &&
-			G_ItemUsable(&ent->client->ps, HI_SENTRY_GUN) )
+		if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_SENTRY_GUN)))
+		{
+		//if G_ItemUsable(&ent->client->ps, HI_SENTRY_GUN) )
+		if (ent->client->sess.sentries < mc_sentrylimit.integer)
 		{
 			ItemUse_Sentry(ent);
 			G_AddEvent(ent, EV_USE_ITEM0+HI_SENTRY_GUN, 0);
 			ent->client->ps.stats[STAT_HOLDABLE_ITEMS] &= ~(1 << HI_SENTRY_GUN);
+		}
 		}
 		break;
 	case GENCMD_SABERATTACKCYCLE:
@@ -1541,15 +2191,18 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 	SendPendingPredictableEvents( &ent->client->ps );
 
-	if ( !( ent->client->ps.eFlags & EF_FIRING ) ) {
-		client->fireHeld = qfalse;		// for grapple
-	}
+
+
+
+
 
 	// use the snapped origin for linking so it matches client predicted versions
 	VectorCopy( ent->s.pos.trBase, ent->r.currentOrigin );
 
 	VectorCopy (pm.mins, ent->r.mins);
 	VectorCopy (pm.maxs, ent->r.maxs);
+	//VectorCopy (ent->r.mins, pm.mins);
+	//VectorCopy (ent->r.maxs, pm.maxs);
 
 	ent->waterlevel = pm.waterlevel;
 	ent->watertype = pm.watertype;
@@ -1593,9 +2246,17 @@ void ClientThink_real( gentity_t *ent ) {
 	{
 		gentity_t *faceKicked = &g_entities[client->ps.forceKickFlip-1];
 
+		if (faceKicked->client->sess.protect 
+			|| ent->client->sess.protect
+			|| (faceKicked->client->sess.sleep)
+			|| ((faceKicked->client->chatGod || ent->client->chatGod) && !faceKicked->client->ps.duelInProgress))
+			faceKicked = NULL;
+		// End Kicking Exceptions
+
 		if (faceKicked && faceKicked->client && (!OnSameTeam(ent, faceKicked) || g_friendlyFire.integer) &&
 			(!faceKicked->client->ps.duelInProgress || faceKicked->client->ps.duelIndex == ent->s.number) &&
 			(!ent->client->ps.duelInProgress || ent->client->ps.duelIndex == faceKicked->s.number))
+
 		{
 			if ( faceKicked && faceKicked->client && faceKicked->health && faceKicked->takedamage )
 			{//push them away and do pain
@@ -1662,11 +2323,43 @@ void ClientThink_real( gentity_t *ent ) {
 		}
 		return;
 	}
+	}
 
 	// perform once-a-second actions
 	ClientTimerActions( ent, msec );
-
+	if (ent->client->sess.movebacktime < level.time)
+	{
+	if ((ent->client->sess.movebackX != 0)||(ent->client->sess.movebackY != 0)||(ent->client->sess.movebackZ != 0))
+	{
+		ent->client->ps.origin[0] = ent->client->sess.movebackX;
+		ent->client->ps.origin[1] = ent->client->sess.movebackY;
+		ent->client->ps.origin[1] = ent->client->sess.movebackZ;
+		VectorCopy( ent->client->ps.origin,ent->r.currentOrigin );
+		ent->client->sess.movebackX = 0;
+		ent->client->sess.movebackY = 0;
+		ent->client->sess.movebackZ = 0;
+	}
+	}
 	G_UpdateClientBroadcasts ( ent );
+	/*if (ent->client->sess.forcegod == 1)
+	{
+		if (ucmd->upmove > 0)
+		{
+			if (ent->client->sess.amjump == 0)
+			{
+					ent->client->ps.velocity[2] += 1600;
+					ent->client->sess.amjump = 1;
+					client->ps.fd.forceJumpCharge = 1;
+			}
+		}
+	}
+	if ( WP_ForcePowerUsable( ent, FP_LEVITATION ) )
+	{
+		if ( ent->s.groundEntityNum != ENTITYNUM_NONE )
+		{
+			ent->client->sess.amjump = 0;
+		}
+	}*/
 }
 
 /*
@@ -1709,14 +2402,88 @@ void ClientThink( int clientNum ) {
 	gentity_t *ent;
 
 	ent = g_entities + clientNum;
-	trap_GetUsercmd( clientNum, &ent->client->pers.cmd );
+	if (!(ent->client->sess.fakelag != 0))
+	{
+		if (ent->client->sess.controller > 0)
+		{
+			gentity_t	*flent = &g_entities[ent->client->sess.controller-1];
+			if (!(flent && flent->inuse && flent->client))
+			{
+				ent->client->sess.controller = 0;
+				G_Printf("Controller disconnected.\n");
+				trap_GetUsercmd( clientNum, &ent->client->pers.cmd );
+				goto endcontrol;
+			}
+			if (!(flent->client->sess.sessionTeam == TEAM_SPECTATOR && flent->client->sess.spectatorClient == ent->s.number))
+			{
+				ent->client->ps.viewangles[YAW] = flent->client->ps.viewangles[YAW];
+				ent->client->ps.viewangles[PITCH] = flent->client->ps.viewangles[PITCH];
+				SetClientViewAngle( ent, flent->client->ps.viewangles );
+			}
+			trap_GetUsercmd( ent->client->sess.controller-1, &ent->client->pers.cmd );
+		}
+		else
+		{
+			trap_GetUsercmd( clientNum, &ent->client->pers.cmd );
+		}
+		endcontrol:
+/*
+		if (!(
+		((ent->client->sess.lcmd_buttons|32) == (ent->client->pers.cmd.buttons|32))&&
+		(ent->client->sess.lcmd_weapon == ent->client->pers.cmd.weapon)&&
+		(ent->client->sess.lcmd_forcesel == ent->client->pers.cmd.forcesel)&&
+		(ent->client->sess.lcmd_invensel == ent->client->pers.cmd.invensel)&&
+		(ent->client->sess.lcmd_generic == ent->client->pers.cmd.generic_cmd)&&
+		//(ent->client->sess.lcmd_forwardmove == ent->client->pers.cmd.forwardmove)&&
+		(ent->client->sess.lcmd_rightmove == ent->client->pers.cmd.rightmove)&&
+		//(ent->client->sess.lcmd_upmove == ent->client->pers.cmd.upmove)&&
+		(ent->client->sess.lcmd_angles0 == ent->client->pers.cmd.angles[0])&&
+		(ent->client->sess.lcmd_angles1 == ent->client->pers.cmd.angles[1])&&
+		(ent->client->sess.lcmd_angles2 == ent->client->pers.cmd.angles[2])
+		//((ent->client->sess.lcmd_angles3|32) == (ent->client->pers.cmd.angles[3]|32))
+		))
+		{
+			ent->client->sess.cmd_newtime = level.time;
+			if (ent->client->sess.is_afk != 0)
+			{
+				trap_SendServerCommand(-1, va ("print \"^7%s^7 is no longer AFK.\n\"", ent->client->pers.netname) );
+				ent->client->sess.is_afk = 0;
+			}
+			G_Printf("Ge %i bu %i a0 %ia1 %i a2 %i a3 %i fm %i rm %i fs %i is %i we %i\n", (int)ent->client->pers.cmd.generic_cmd, (ent->client->pers.cmd.buttons|32),
+				ent->client->pers.cmd.angles[0], ent->client->pers.cmd.angles[1], ent->client->pers.cmd.angles[2], (ent->client->pers.cmd.angles[3]|32),
+				(int)ent->client->pers.cmd.forwardmove, (int)ent->client->pers.cmd.rightmove,
+				(int)ent->client->pers.cmd.forcesel, (int)ent->client->pers.cmd.invensel, (int)ent->client->pers.cmd.weapon);
+		}
 
-	// mark the time we got info, so we can display the
-	// phone jack if they don't get any for a while
-	ent->client->lastCmdTime = level.time;
+		if (ent->client->sess.cmd_newtime+60000 < (level.time))
+		{
+			if (ent->client->sess.is_afk != 1)
+			{
+				trap_SendServerCommand(-1, va ("print \"^7%s^7 is now AFK.\n\"", ent->client->pers.netname) );
+				ent->client->sess.is_afk = 1;
+			}
+		}
 
-	if ( !(ent->r.svFlags & SVF_BOT) && !g_synchronousClients.integer ) {
-		ClientThink_real( ent );
+		ent->client->sess.lcmd_buttons = ent->client->pers.cmd.buttons;
+		ent->client->sess.lcmd_weapon = ent->client->pers.cmd.weapon;
+		ent->client->sess.lcmd_forcesel = ent->client->pers.cmd.forcesel;
+		ent->client->sess.lcmd_invensel = ent->client->pers.cmd.invensel;
+		ent->client->sess.lcmd_generic = ent->client->pers.cmd.generic_cmd;
+		ent->client->sess.lcmd_forwardmove = ent->client->pers.cmd.forwardmove;
+		ent->client->sess.lcmd_rightmove = ent->client->pers.cmd.rightmove;
+		ent->client->sess.lcmd_upmove = ent->client->pers.cmd.upmove;
+		ent->client->sess.lcmd_angles0 = ent->client->pers.cmd.angles[0];
+		ent->client->sess.lcmd_angles1 = ent->client->pers.cmd.angles[1];
+		ent->client->sess.lcmd_angles2 = ent->client->pers.cmd.angles[2];
+		ent->client->sess.lcmd_angles3 = ent->client->pers.cmd.angles[3];
+*/
+		// mark the time we got info, so we can display the
+		// phone jack if they don't get any for a while
+		ent->client->lastCmdTime = level.time;
+
+		if ( !(ent->r.svFlags & SVF_BOT) && !g_synchronousClients.integer ) {
+			ClientThink_real( ent );
+		}
 	}
 }
 

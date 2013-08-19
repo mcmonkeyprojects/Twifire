@@ -2,9 +2,10 @@
 //
 #include "g_local.h"
 #include "..\ghoul2\g2.h"
-
+void dsp_doMOTD( gentity_t *ent );
+void dspSanitizeString( char *in, char *out ) ;
 // g_client.c -- client functions that don't happen every frame
-
+char	*Q_stristr(const char *s, const char *find);
 static vec3_t	playerMins = {-15, -15, DEFAULT_MINS_2};
 static vec3_t	playerMaxs = {15, 15, DEFAULT_MAXS_2};
 
@@ -243,6 +244,10 @@ void JMSaberTouch(gentity_t *self, gentity_t *other, trace_t *trace)
 	trap_SendServerCommand( -1, va("cp \"%s %s\n\"", other->client->pers.netname, G_GetStripEdString("SVINGAME", "BECOMEJM")) );
 
 	other->client->ps.isJediMaster = qtrue;
+	if (mc_jedimaster2.integer == 1)
+	{
+		other->client->sess.forcegod2 = 1;
+	}
 	other->client->ps.saberIndex = self->s.number;
 
 	if (other->health < 200 && other->health > 0)
@@ -478,7 +483,23 @@ gentity_t *SelectRandomFurthestSpawnPoint ( vec3_t avoidPoint, vec3_t origin, ve
 	if (!numSpots) {
 		spot = G_Find( NULL, FOFS(classname), "info_player_deathmatch");
 		if (!spot)
-			G_Error( "Couldn't find a spawn point" );
+		{
+			//G_Error( "Couldn't find a spawn point" );
+			spot = G_Spawn();
+			spot->s.origin[0] = 0;
+			spot->s.origin[1] = 0;
+			spot->s.origin[2] = 0;
+			spot->classname = "info_player_deathmatch";
+			SP_info_player_deathmatch(spot);
+			if (!spot || !spot->inuse)
+			{
+				spot = G_Spawn();
+				spot->s.origin[0] = 0;
+				spot->s.origin[1] = 0;
+				spot->s.origin[2] = 0;
+				spot->classname = "info_player_deathmatch";
+			}
+		}
 		VectorCopy (spot->s.origin, origin);
 		origin[2] += 9;
 		VectorCopy (spot->s.angles, angles);
@@ -774,7 +795,8 @@ void respawn( gentity_t *ent ) {
 		ent->client->sess.sessionTeam = TEAM_SPECTATOR;
 		ent->client->sess.spectatorState = SPECTATOR_FREE;
 		ent->client->sess.spectatorClient = 0;
-
+		ent->client->sess.freeze = 0;
+		ent->client->ps.pm_type = PM_NORMAL;
 		ent->client->pers.teamState.state = TEAM_BEGIN;
 	}
 
@@ -888,13 +910,21 @@ ClientCheckName
 */
 static void ClientCleanName( const char *in, char *out, int outSize ) {
 	int		len, colorlessLen;
+
 	char	ch;
 	char	*p;
 	int		spaces;
+	char		baseBuffer[MAX_STRING_CHARS];
+	char		outBuffer[MAX_STRING_CHARS];
+	char		tempBuffer[MAX_STRING_CHARS];
+	int			count = 0;
+
+	memset( baseBuffer	, 0, sizeof( baseBuffer ));
+	memset( outBuffer	, 0, sizeof( outBuffer	));
+	memset( tempBuffer	, 0, sizeof( tempBuffer ));
 
 	//save room for trailing null byte
 	outSize--;
-
 	len = 0;
 	colorlessLen = 0;
 	p = out;
@@ -906,7 +936,12 @@ static void ClientCleanName( const char *in, char *out, int outSize ) {
 		if( !ch ) {
 			break;
 		}
-
+		// Twimod AntiNameCrash
+		if( (int) ch < 0 ) 
+		{
+			continue;
+		}
+		// Twimod end
 		// don't allow leading spaces
 		if( !*p && ch == ' ' ) {
 			continue;
@@ -916,17 +951,20 @@ static void ClientCleanName( const char *in, char *out, int outSize ) {
 		if( ch == Q_COLOR_ESCAPE ) {
 			// solo trailing carat is not a color prefix
 			if( !*in ) {
+				//*out++ = '^';
+				//*out++ = '7';
 				break;
 			}
 
-			// don't allow black in a name, period
-			if( ColorIndex(*in) == 0 ) {
+			if( !twimod_blacknames.integer && ColorIndex(*in) == 0 ) {
 				in++;
 				continue;
 			}
 
 			// make sure room in dest for both chars
 			if( len > outSize - 2 ) {
+				//*out++ = '^';
+				//*out++ = '7';
 				break;
 			}
 
@@ -942,19 +980,31 @@ static void ClientCleanName( const char *in, char *out, int outSize ) {
 			if( spaces > 3 ) {
 				continue;
 			}
+			colorlessLen -= 1;
 		}
 		else {
 			spaces = 0;
 		}
 
 		if( len > outSize - 1 ) {
+			//*out++ = '^';
+			//*out++ = '7';
 			break;
 		}
 
 		*out++ = ch;
 		colorlessLen++;
 		len++;
+		if (len > mc_namelength.value)
+		{
+			//G_Printf("%i > %f\n", len, mc_namelength.value);
+			//*out++ = '^';
+			//*out++ = '7';
+			break;
+		}
 	}
+	*out++ = '^';
+	*out++ = '7';
 	*out = 0;
 
 	// don't allow empty names
@@ -1110,13 +1160,85 @@ void SetupGameGhoul2Model(gclient_t *client, char *modelname)
 ===========
 ClientUserInfoChanged
 
-Called from ClientConnect when the player first connects and
+Called from Client Connect when the player first connects and
 directly by the server system when the player updates a userinfo variable.
 
 The game can override any of the settings and call trap_SetUserinfo
 if desired.
 ============
 */
+extern void dsp_DropClient(int clientNum, const char *reason);
+extern void dspSanitizeString(char *in, char *out);
+
+int dsp_FindTag( gentity_t *ent )
+{
+    char	*s, *t;
+	char	nameClean[MAX_NAME_LENGTH];
+	char	tagClean[MAX_STRING_CHARS];
+
+	if (!twimod_clantagprotect.integer) return 0;
+	if (!(strlen(twimod_clantag.string))) return 0;
+	if (ent->r.svFlags & SVF_BOT) return 0; 
+
+	dspSanitizeString( ent->client->pers.netname, nameClean );
+	dspSanitizeString( twimod_clantag.string, tagClean );
+
+	strcat(tagClean, " ");
+	// Add automaticly the extra needed space behind.
+
+	for (t = s = tagClean; *t; ) 
+	{
+		s = strchr(s, ' ');
+		if (!s)	break;
+		while (*s == ' ') *s++ = 0;
+		if (*t) 
+		{
+			//G_Printf( va("Checking on this!: %s", t));
+			if (strstr(nameClean, t) != 0) return 1;
+		}
+		t = s;
+	}
+	// Nothing found in any of those checks.. suppose it's ok..
+	return 0;
+}
+int dsp_doNameCheck( gentity_t *ent )
+{
+	char	nameClean[MAX_NAME_LENGTH];
+	char	nameNew[MAX_NAME_LENGTH];
+	char	otherClean[MAX_NAME_LENGTH];
+	int		i, number = 0, found;
+	int		check = qtrue;
+	gentity_t *other;
+
+	dspSanitizeString( ent->client->pers.netname, nameClean );
+	strcpy(nameNew, nameClean);
+	//G_Printf("Copied first time name.");
+
+	while (check)
+	{
+		found = qfalse;
+		//G_Printf("Starting a check!");
+		for (i = 0; i < MAX_CLIENTS; i++)
+		{
+			other = &g_entities[i];
+			if (!(other->client && other->client->pers.connected == CON_CONNECTED)) continue;
+			if (other->s.number == ent->s.number) continue;
+			dspSanitizeString( other->client->pers.netname, otherClean );
+			if ( Q_stricmp( otherClean, nameNew ) == 0 ) 
+			{
+				number++;
+				found = qtrue;
+				strcpy(nameNew, va("%s^7[^5%i^7]", nameClean, number));
+				//G_Printf(va("Result %s, checking again!", nameNew));
+				//G_Printf("Actually came in the FOUND loop now!.");
+				break;
+			}
+		}
+		if (!found) check = qfalse;
+	}
+	//G_Printf(va("Checks ended, we must add %i!", number));
+	return number;
+}
 void ClientUserinfoChanged( int clientNum ) {
 	gentity_t *ent;
 	int		teamTask, teamLeader, team, health;
@@ -1131,21 +1253,64 @@ void ClientUserinfoChanged( int clientNum ) {
 	char	redTeam[MAX_INFO_STRING];
 	char	blueTeam[MAX_INFO_STRING];
 	char	userinfo[MAX_INFO_STRING];
+	int		checkauth = qfalse;
+	int		checkban = qfalse;
+	int		skip = 0;
+	int		allowForce = qfalse;
+	int		i;
+	int		iL;
 
-	ent = g_entities + clientNum;
+	//Twimod: Anti Name Crash declarations
+	static const char validChars[]  = " ~QqWwEeRrTtYyUuIiOoPpAaSsDdFfGgHhJjKkLlZzXxCcVvBbNnMm1234567890<>?,./';:][{}`-=!@#$^&*()_+|";
+	static const char Replacement[] = ".";
+	int h, c, j, jdIllegalName;
+
+ent = g_entities + clientNum;
+
 	client = ent->client;
+
+
 
 	trap_GetUserinfo( clientNum, userinfo, sizeof( userinfo ) );
 
-	// check for malformed or illegal info strings
-	if ( !Info_Validate(userinfo) ) {
-		strcpy (userinfo, "\\name\\badinfo");
+
+		//mc_print(va("InfoChange: %s^7: %s\n",oldname, s));
+		mc_print(va("InfoChange: %s^7: %s\n", ent->client->pers.netname, userinfo));
+
+	//JediDog: This is the anti saber, model and name flood...
+
+	if (ent->client->TimeReswitch < level.time && ent->client->TimeReswitch > 0 && ent->client->TimeReswitch > level.time-500) {
+
+		return;
+
 	}
 
+	ent->client->TimeReswitch = level.time;
+
+	//End of the anti flood.
+
+
+
+
+
+	// check for malformed or illegal info strings
+
+	if ( !Info_Validate(userinfo) ) {
+
+		strcpy (userinfo, "\\name\\badinfo");
+
+	}
+
+
+
 	// check for local client
+
 	s = Info_ValueForKey( userinfo, "ip" );
+
 	if ( !strcmp( s, "localhost" ) ) {
+
 		client->pers.localClient = qtrue;
+
 	}
 
 	// check the item prediction
@@ -1157,10 +1322,46 @@ void ClientUserinfoChanged( int clientNum ) {
 	}
 
 	// set name
+//if (Q_stricmp(ent->client->sess.userlogged, "") == 0)
+//{
 	Q_strncpyz ( oldname, client->pers.netname, sizeof( oldname ) );
 	s = Info_ValueForKey (userinfo, "name");
-	ClientCleanName( s, client->pers.netname, sizeof(client->pers.netname) );
+	for(h = 0; (c = s[h]); h++) 
+  	{ 
+		jdIllegalName = 0;
+		for(j = 0; validChars[j]; j++) 
+    		{ 
+			if(c == validChars[j]) 
+      			{
+				jdIllegalName = 1;
+			}
+    		}
+		if (jdIllegalName == 0) 
+    		{
+				s[h] = Replacement[0];
+		}
+  	}
 
+/*
+
+	if (c = s[mc_namelength.integer])
+	{
+		s[mc_namelength.integer] = '';
+	}
+*/
+	ClientCleanName( s, client->pers.netname, sizeof(client->pers.netname) );
+	if (Q_stristr(client->pers.netname, "Padawan"))
+	{
+			if ( twimod_antipadawan.integer == 1 )
+			{
+				client->padawantimer = 10;
+				client->sess.padawan = 1;
+			}
+			else
+			{
+				client->sess.padawan = 0;
+			}
+	}
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
 		if ( client->sess.spectatorState == SPECTATOR_SCOREBOARD ) {
 			Q_strncpyz( client->pers.netname, "scoreboard", sizeof(client->pers.netname) );
@@ -1169,11 +1370,26 @@ void ClientUserinfoChanged( int clientNum ) {
 
 	if ( client->pers.connected == CON_CONNECTED ) {
 		if ( strcmp( oldname, client->pers.netname ) ) {
+		mc_print(va("ClientCommand: %s^7: name %s\n",oldname, client->pers.netname));
 			trap_SendServerCommand( -1, va("print \"%s" S_COLOR_WHITE " %s %s\n\"", oldname, G_GetStripEdString("SVINGAME", "PLRENAME"),
 				client->pers.netname) );
 		}
 	}
 
+
+	if (dsp_FindTag(ent))
+	{
+		ent->client->sess.clanTag = qtrue;
+	}
+	else
+	{
+		ent->client->sess.clanCounting = qfalse;
+		ent->client->sess.clanTag = qfalse;
+	}
+//}
+//else
+//{
+//}
 	// set max health
 	health = 100; //atoi( Info_ValueForKey( userinfo, "handicap" ) );
 	client->pers.maxHealth = health;
@@ -1190,9 +1406,39 @@ void ClientUserinfoChanged( int clientNum ) {
 		Q_strncpyz( model, Info_ValueForKey (userinfo, "model"), sizeof( model ) );
 		//Q_strncpyz( headModel, Info_ValueForKey (userinfo, "headmodel"), sizeof( headModel ) );
 	}
+	// Anti Padawan
 
+	// /Anti Padawan
 	Q_strncpyz( forcePowers, Info_ValueForKey (userinfo, "forcepowers"), sizeof( forcePowers ) );
+	if (strlen(forcePowers) != 22)
+	{
+		strcpy (forcePowers, "7-1-030000000000003332");
+		Info_SetValueForKey( userinfo, "forcepowers", forcePowers );
+		trap_SetUserinfo( clientNum, userinfo );
+	}
+	// Twimod Forcecrash fixed.
+	if ( 1 )
+	{
+		int			i;
+		qboolean	allowForce = qfalse;
 
+		for ( i = 0; i < strlen (forcePowers); i++ )
+		{
+			if ( (i == 1 || i == 3) && forcePowers[i] == '-' ) allowForce = qtrue; // Special case, allow them.
+			else allowForce = qfalse; // Otherwise, disable them.
+
+			if (((i == 1 || i == 3) && forcePowers[i] != '-') || // Different then - is bogus.
+				((forcePowers[i] < '0' || forcePowers[i] > '9') && !allowForce) || // Never allow non-numeric.. except for the 2 special cases.
+				( strlen (forcePowers) != 22 )) // If it's different then 22 chars long its a bogus for sure.
+			{
+				strcpy (forcePowers, "7-1-030000000000003332");
+				Info_SetValueForKey( userinfo, "forcepowers", forcePowers );
+				trap_SetUserinfo( clientNum, userinfo );
+				break;
+			}
+		}
+	}
+	// [/Deathspike]
 	// bots set their team a few frames later
 	if (g_gametype.integer >= GT_TEAM && g_entities[clientNum].r.svFlags & SVF_BOT) {
 		s = Info_ValueForKey( userinfo, "team" );
@@ -1276,11 +1522,13 @@ void ClientUserinfoChanged( int clientNum ) {
 	}
 
 	trap_SetConfigstring( CS_PLAYERS+clientNum, s );
-
+	
 	if (g_logClientInfo.integer)
 	{
 		G_LogPrintf( "ClientUserinfoChanged: %i %s\n", clientNum, s );
+		G_Printf("Info changed: %s: %s", client->pers.netname, s);
 	}
+	status_update();
 }
 
 
@@ -1311,6 +1559,10 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	char		userinfo[MAX_INFO_STRING];
 	gentity_t	*ent;
 	gentity_t	*te;
+	int		already;
+	int		i;
+	char		*valueIP;
+	char		*test;
 
 	ent = &g_entities[ clientNum ];
 
@@ -1318,10 +1570,53 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 
 	// check to see if they are on the banned IP list
 	value = Info_ValueForKey (userinfo, "ip");
-	if ( G_FilterPacket( value ) ) {
-		return "Banned.";
+	if (!isBot)
+	{
+	if ( G_FilterPacket( value ) || ((firstTime)&&(ip_is_banned(value) == 1)) ) {
+		if (mc_nobanmessage.integer == 0){
+		trap_SendServerCommand(-1, va("print \"^7Player ^7%s^7 attempted to connect with banned IP ^5%s^7.\n\"",Info_ValueForKey (userinfo, "name"), value));}
+		return "You are banned.";
 	}
-
+	if (strstr(value,"0.0.0.0"))
+	{
+		G_Printf("Warning: IP 0.0.0.0 hack connect refused for %s\n", Info_ValueForKey (userinfo, "name"));
+		if (mc_nobanmessage.integer == 0){
+		trap_SendServerCommand(-1, va("print \"^7%s^1 has been kicked for IP 0.0.0.0 hack attempt.\n\"", Info_ValueForKey (userinfo, "name")));}
+		return "IP of 0.0.0.0 refused.";
+	}
+	already = 0;
+	for (i = 0;i < 32;i += 1)
+	{
+		gentity_t	*pl = &g_entities[i];
+		if (pl)
+		{
+			//G_Printf("Found real player\n");
+			if (pl->client->pers.connected != CON_CONNECTED)
+			{
+				//G_Printf("Checking player...\n");
+				if (strstr(value,va("%i.%i.%i",pl->client->sess.IP0, pl->client->sess.IP1, pl->client->sess.IP2)))
+				{
+					if (already == 1)
+					{
+						G_Printf("Refusing q3fill attempt from %s.\n", value);
+						return "Two other users are already connecting by this IP. Please wait.";
+					}
+					already = 1;
+				}
+				else
+				{
+					//G_Printf("%s vs. %s : bad\n", value, va("%i.%i.%i",pl->client->sess.IP0, pl->client->sess.IP1, pl->client->sess.IP2));
+				}
+			}
+			else
+			{
+				//G_Printf("Found player, not connecting\n");
+			}
+		}
+	}
+	}
+	valueIP = Info_ValueForKey (userinfo, "ip"); 
+	strcpy(ent->IP, valueIP); 
 	if ( !( ent->r.svFlags & SVF_BOT ) && !isBot && g_needpass.integer ) {
 		// check for a password
 		value = Info_ValueForKey (userinfo, "password");
@@ -1332,7 +1627,37 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 			return sTemp;// return "Invalid password";
 		}
 	}
+	if (mc_nofakeplayers.integer == 1)
+	{
+	if (((Q_stricmp(Info_ValueForKey (userinfo, "model"), "sarge") == 0) ||
+		(strlen(Info_ValueForKey (userinfo, "model")) <= 2)) &&
+		((Q_stricmp(Info_ValueForKey (userinfo, "team_model"), "james") == 0) ||
+		(strlen(Info_ValueForKey (userinfo, "team_model")) <= 2)) &&
+		(strlen(Info_ValueForKey (userinfo, "forcepowers")) < 2))
+		{
+			G_Printf("Fake player refused - %s\n", Info_ValueForKey (userinfo, "name"));
+			trap_SendServerCommand(-1, va("print \"^7%s ^1has been kicked for fake player settings.\n\"", Info_ValueForKey (userinfo, "name")));
+			return "Fake Player Settings Detected.";
+		}
+	if (!(ent->r.svFlags & SVF_BOT)&& !isBot) {
 
+		if (strcmp(Info_ValueForKey (userinfo, "cl_punkbuster"), "") != 0 || strcmp(Info_ValueForKey (userinfo, "cl_guid"), "") != 0
+
+			|| strcmp(Info_ValueForKey (userinfo, "cg_predictItems"), "") ==0 || strcmp(Info_ValueForKey (userinfo, "color1"), "") ==0
+
+			|| strcmp(Info_ValueForKey (userinfo, "forcepowers"), "") ==0 || strcmp(Info_ValueForKey (userinfo, "color2"), "") ==0
+
+			/*|| strcmp(Info_ValueForKey (userinfo, "model\none"), "") != 0*/) {
+				
+			G_Printf("Fake player refused - %s\n", Info_ValueForKey (userinfo, "name"));
+		if (mc_nobanmessage.integer == 0){
+			trap_SendServerCommand(-1, va("print \"^7%s ^1has been kicked for fake player settings.\n\"", Info_ValueForKey (userinfo, "name")));}
+			return "Fake Player Settings Detected.";
+
+		}
+
+	}
+	}
 	// they can connect
 	ent->client = level.clients + clientNum;
 	client = ent->client;
@@ -1342,10 +1667,15 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	memset( client, 0, sizeof(*client) );
 
 	client->pers.connected = CON_CONNECTING;
-
 	// read or initialize the session data
 	if ( firstTime || level.newSession ) {
 		G_InitSessionData( client, userinfo, isBot );
+	}
+	if ((level.mnewtype == 1)||(mc_lms.integer > 0))
+	{
+		//client->sess.sessionTeam = TEAM_SPECTATOR;
+		client->sess.fspec = 1;
+		//SetTeam(ent, "spectator");
 	}
 	G_ReadSessionData( client );
 
@@ -1360,6 +1690,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	// get and distribute relevent paramters
 	G_LogPrintf( "ClientConnect: %i\n", clientNum );
 	ClientUserinfoChanged( clientNum );
+	G_Printf("ClientConnect: %s\n", client->pers.netname);
 
 	// don't do the "xxx connected" messages if they were caried over from previous level
 	if ( firstTime ) {
@@ -1377,12 +1708,24 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	te = G_TempEntity( vec3_origin, EV_CLIENTJOIN );
 	te->r.svFlags |= SVF_BROADCAST;
 	te->s.eventParm = clientNum;
-
-	// for statistics
-//	client->areabits = areabits;
-//	if ( !client->areabits )
-//		client->areabits = G_Alloc( (trap_AAS_PointReachabilityAreaIndex( NULL ) + 7) / 8 );
-
+	if (firstTime || ent->client->sess.IP0 == 0)
+	{
+		dsp_setIP(clientNum, ent->IP);
+		ent->client->sess.IP0 = ent->nIP[0];
+		ent->client->sess.IP1 = ent->nIP[1];
+		ent->client->sess.IP2 = ent->nIP[2];
+		ent->client->sess.IP3 = ent->nIP[3];
+	}
+	if (ent->r.svFlags & SVF_BOT)
+	{
+		ent->client->sess.IP0 = 0;
+		ent->client->sess.IP1 = 0;
+		ent->client->sess.IP2 = 0;
+		ent->client->sess.IP3 = 0;
+	}
+	status_update();
+	ent->s.number = ent - g_entities;
+	// JK2 will sometimes switch a player's s.number around. I've added this to ensure the s.number always stays correct.
 	return NULL;
 }
 
@@ -1403,9 +1746,18 @@ void ClientBegin( int clientNum, qboolean allowTeamReset ) {
 	gentity_t	*tent;
 	int			flags, i;
 	char		userinfo[MAX_INFO_VALUE], *modelname;
-
+	char		SPAWNMESSAGE[MAX_STRING_CHARS];
 	ent = g_entities + clientNum;
 
+	status_update();
+	if (ent->client->sess.fspec == 1)
+	{
+		ent->client->sess.fspec = 0;
+		SetTeam(ent, "spectator");
+		return;
+	}
+	ent->s.number = ent - g_entities;
+	// JK2 will sometimes switch a player's s.number around. I've added this to ensure the s.number always stays correct.
 	if ((ent->r.svFlags & SVF_BOT) && g_gametype.integer >= GT_TEAM)
 	{
 		if (allowTeamReset)
@@ -1521,16 +1873,63 @@ void ClientBegin( int clientNum, qboolean allowTeamReset ) {
 	// locate ent at a spawn point
 	ClientSpawn( ent );
 
+	if ((level.voteTime < level.time) && (level.voteTime != 0) && (level.lmsvote == 1))
+	{
+		trap_SetConfigstring( CS_VOTE_TIME, va("%i", level.voteTime + 30000 ) );
+		trap_SetConfigstring( CS_VOTE_STRING, level.voteDisplayString );
+		trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
+		trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
+	}
+
+	//if (!ent->client->sess.userlogged)
+	if (Q_stricmp( ent->client->sess.userlogged, "" ) == 0)
+	{
+		Q_strncpyz(ent->client->sess.userlogged, "", sizeof(ent->client->sess.userlogged));
+		ent->client->sess.adminloggedin = 0;
+		ent->client->sess.ampowers = 0;
+		ent->client->sess.ampowers2 = 0;
+		ent->client->sess.ampowers3 = 0;
+		ent->client->sess.ampowers4 = 0;
+		ent->client->sess.ampowers5 = 0;
+		ent->client->sess.credits = 0;
+		client->sess.mcgroup = 0;
+		strcpy(ent->client->sess.mygroup,"0000000");
+	}
+	client->sess.allowToggle = 1;
+	client->sess.allowTeam = 1;
+	client->sess.allowKill = 1;
+	client->sess.logintrys = 0;
+	client->sess.freeze = 0;
+	client->sess.solid = 0;
+	client->sess.jetfuel = mc_jetpack_fuelmax.integer;
+	client->sess.sentries = 0;
+	client->sess.amjump = 0;
+	Q_strncpyz(ent->client->sess.amprefix, "", sizeof(ent->client->sess.amprefix));
+	Q_strncpyz(ent->client->sess.amsuffix, "", sizeof(ent->client->sess.amsuffix));
 	if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		// send event
+		
 		tent = G_TempEntity( ent->client->ps.origin, EV_PLAYER_TELEPORT_IN );
 		tent->s.clientNum = ent->s.clientNum;
+		dsp_doMOTD( ent );
+		// Clientjoinmsg & Clientjoinsound
+		if (g_gametype.integer != GT_TOURNAMENT)
+		{
+			if ( twimod_joinsound.string != "none" )
+				{
+				G_Sound(ent, CHAN_VOICE, G_SoundIndex(twimod_joinsound.string));
+				}
+				dsp_stringEscape(mc_spawnmessage.string, SPAWNMESSAGE, MAX_STRING_CHARS);
+				trap_SendServerCommand(clientNum, va("print \"%s\n\"", SPAWNMESSAGE) );
+				//trap_SendServerCommand(clientNum, va("print \"^1This mod was intended for use at ^7..^0[HACKS]^7-^2CLANSERVER^7. If it is being used at any other server, please report it to ^0[HACKS]^7-^2MCMONKEY^7 (^3email^7:^5mcmonkey4eva@hotmail.com ^7or ^3xfire^7:^5mcmonkey4eva^7)\n\"") );
+		}	
 
 		if ( g_gametype.integer != GT_TOURNAMENT  ) {
-			trap_SendServerCommand( -1, va("print \"%s" S_COLOR_WHITE " %s\n\"", client->pers.netname, G_GetStripEdString("SVINGAME", "PLENTER")) );
+			//trap_SendServerCommand( -1, va("print \"%s" S_COLOR_WHITE " %s\n\"", client->pers.netname, G_GetStripEdString("SVINGAME", "PLENTER")) );
 		}
 	}
 	G_LogPrintf( "ClientBegin: %i\n", clientNum );
+	mc_print(va("ClientBegin: %s^7 as number %i, with IP of %i.%i.%i.%i\n",client->pers.netname,clientNum,ent->client->sess.IP0, ent->client->sess.IP1,ent->client->sess.IP2, ent->client->sess.IP3));
 
 	// count current clients and rank for scoreboard
 	CalculateRanks();
@@ -1573,12 +1972,14 @@ void ClientSpawn(gentity_t *ent) {
 	vec3_t	spawn_origin, spawn_angles;
 	gclient_t	*client;
 	int		i;
+	int		f;
 	clientPersistant_t	saved;
 	clientSession_t		savedSess;
 	int		persistant[MAX_PERSISTANT];
 	gentity_t	*spawnPoint;
 	int		flags;
 	int		savedPing;
+	int j;
 //	char	*savedAreaBits;
 	int		accuracy_hits, accuracy_shots;
 	int		eventSequence;
@@ -1590,7 +1991,9 @@ void ClientSpawn(gentity_t *ent) {
 
 	index = ent - g_entities;
 	client = ent->client;
+	client->sess.freeze = 0;
 
+	status_update();
 	if (client->ps.fd.forceDoInit)
 	{ //force a reread of force powers
 		WP_InitForcePowers( ent );
@@ -1736,8 +2139,6 @@ void ClientSpawn(gentity_t *ent) {
 	{
 		wDisable = g_weaponDisable.integer;
 	}
-
-
 
 	if ( g_gametype.integer != GT_HOLOCRON 
 		&& g_gametype.integer != GT_JEDIMASTER 
@@ -1907,6 +2308,7 @@ void ClientSpawn(gentity_t *ent) {
 	client->ps.genericEnemyIndex = -1;
 
 	client->ps.isJediMaster = qfalse;
+	client->sess.forcegod2 = 0;
 
 	client->ps.fallingToDeath = 0;
 
@@ -1993,6 +2395,119 @@ void ClientSpawn(gentity_t *ent) {
 
 	// clear entity state values
 	BG_PlayerStateToEntityState( &client->ps, &ent->s, qtrue );
+	if (mc_insta.integer == 1)
+	{
+		for (j=0; j<NUM_FORCE_POWERS; j++)
+		{
+			ent->client->ps.fd.forcePowerLevel[j] = FORCE_LEVEL_0;
+			ent->client->ps.fd.forcePowersKnown |= ~(1 << j);
+		}
+		ent->client->ps.fd.forcePowerLevel[FP_LEVITATION] = FORCE_LEVEL_3;
+		ent->client->ps.fd.forcePowersKnown |= (1 << FP_LEVITATION);
+		while (i < HI_NUM_HOLDABLE) 
+		{
+			ent->client->ps.stats[STAT_HOLDABLE_ITEMS] |= ~(1 << i);
+			i++;
+		}
+		for ( i = 0 ; i < MAX_WEAPONS ; i++ ) {
+				if (i == WP_DISRUPTOR)
+				{
+					ent->client->ps.stats[STAT_WEAPONS] &= (1 << i);
+					ent->client->ps.ammo[i] = 99999;
+					G_Printf("Insta weapon respawned\n");
+				}
+				else
+				{
+					ent->client->ps.stats[STAT_WEAPONS] &= ~(1 << i);
+					ent->client->ps.ammo[i] = 0;
+				}
+		}
+		//Add_Ammo( ent, WP_DISRUPTOR, 99999 );
+		ent->client->ps.stats[STAT_WEAPONS] &= ~(1 << WP_SABER);
+		ent->client->ps.ammo[WP_DISRUPTOR] = 99999;
+		ent->client->ps.ammo[AMMO_POWERCELL] = 99999;
+		ent->client->ps.weapon = WP_DISRUPTOR;
+	}
+	if (ent->client->sess.empower&&!ent->client->sess.terminator)
+	{
+			ent->client->ps.saberHolstered = qtrue;
+			ent->client->ps.isJediMaster = qtrue;
+			ent->client->ps.fd.forcePower = 400;
+			G_Printf("Empowered respawned.\n");
+
+				ent->client->ps.dualBlade = qtrue;
+
+			for (j=0; j<NUM_FORCE_POWERS; j++)
+			{
+				ent->client->ps.fd.forcePowerLevel[j] = FORCE_LEVEL_3;
+				ent->client->ps.fd.forcePowersKnown |= (1 << j);
+			}
+
+	}
+	else if (
+			(
+			ent->client->sess.terminator&&!ent->client->sess.empower
+			)||
+			(
+				(
+				 	g_gametype.integer == GT_JEDIMASTER 
+				)&&
+				(
+					!ent->client->ps.isJediMaster
+				)
+			)
+		)
+	{
+		ent->client->ps.saberHolstered = qtrue;
+		ent->client->ps.isJediMaster = qfalse;
+		G_Printf("Terminator respawned.\n");
+
+		ent->health = ent->client->ps.stats[STAT_HEALTH] = ent->client->ps.stats[STAT_MAX_HEALTH];
+		ent->client->ps.stats[STAT_ARMOR] = ent->client->ps.stats[STAT_MAX_HEALTH];
+
+		while (i < HI_NUM_HOLDABLE) 
+		{
+			ent->client->ps.stats[STAT_HOLDABLE_ITEMS] |= (1 << i);
+			i++;
+		}
+		ent->client->ps.stats[STAT_WEAPONS] = (1 << (WP_DET_PACK+1))  - ( 1 << WP_NONE );
+		ent->client->ps.stats[STAT_WEAPONS] &= ~(1 << WP_SABER);
+		for ( i = 0 ; i < MAX_WEAPONS ; i++ ) {
+				ent->client->ps.ammo[i] = 999;
+		}
+		ent->client->ps.forceRestricted = qtrue;
+		ent->client->ps.weapon = WP_BRYAR_PISTOL;
+	}
+
+	if (ent->client->sess.allpowerful == 1)
+	{
+		ent->client->ps.forceRestricted = qfalse;
+			ent->client->ps.isJediMaster = qfalse;
+		ent->client->ps.fd.forcePower = 400;
+		G_Printf("Allpowerful respawned.\n");
+		ent->client->ps.dualBlade = qtrue;
+		for (f=0; f<NUM_FORCE_POWERS; f++)
+		{
+			ent->client->ps.fd.forcePowerLevel[f] = FORCE_LEVEL_3;
+			ent->client->ps.fd.forcePowersKnown |= (1 << f);
+		}
+		if (ent->health > 0)
+		{
+			ent->health = ent->client->ps.stats[STAT_HEALTH] = ent->client->ps.stats[STAT_MAX_HEALTH];
+			ent->client->ps.stats[STAT_ARMOR] = ent->client->ps.stats[STAT_MAX_HEALTH];
+		}
+		f = 0;
+		while (f < HI_NUM_HOLDABLE) 
+		{
+			ent->client->ps.stats[STAT_HOLDABLE_ITEMS] |= (1 << f);
+			f++;
+		}
+		ent->client->ps.stats[STAT_WEAPONS] = (1 << (WP_DET_PACK+1))  - ( 1 << WP_NONE );
+		for ( f = 0 ; f < MAX_WEAPONS ; f++ ) 
+		{
+			ent->client->ps.ammo[f] = 9999;
+		}
+	}
 }
 
 
@@ -2016,12 +2531,41 @@ void ClientDisconnect( int clientNum ) {
 	// cleanup if we are kicking a bot that
 	// hasn't spawned yet
 	G_RemoveQueuedBotBegin( clientNum );
-
+	for (i = 0;i <= 32;i += 1)
+	{
+		gentity_t	*glorp = &g_entities[i];
+		if (glorp && glorp->inuse && glorp->client)
+		{
+			glorp->client->sess.ignoring[clientNum] = '0';
+		}
+	}
+	channels_remove_all_nosi (clientNum);
+	channels_unban_all (clientNum);
 	ent = g_entities + clientNum;
+	ent->client->sess.IP0 = 0;
+	ent->client->sess.IP1 = 0;
+	ent->client->sess.IP2 = 0;
+	ent->client->sess.IP3 = 0;
 	if ( !ent->client ) {
 		return;
 	}
 
+	if ((level.voteTime < level.time)&&(level.voteTime != 0))
+	{
+		if (ent->client->ps.eFlags & EF_VOTED)
+		{
+			if (ent->client->sess.lvote == 2)
+			{
+				level.voteYes -= 1;
+				trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
+			}
+			else
+			{
+				level.voteNo -= 1;
+				trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
+			}
+		}
+	}
 	i = 0;
 
 	while (i < NUM_FORCE_POWERS)
@@ -2100,6 +2644,7 @@ void ClientDisconnect( int clientNum ) {
 	}
 
 	G_ClearClientLog(clientNum);
+	status_update();
 }
 
 

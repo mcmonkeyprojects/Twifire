@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_layout_file>
+	<ActiveTarget name="Win32 Release JK2" />
+	<File name="g_cmds.c" open="1" top="1" tabpos="0">
+		<Cursor position="489082" topLine="15929" />
+	</File>
+	<File name="q_math.c" open="0" top="0" tabpos="0">
+		<Cursor position="154" topLine="0" />
+	</File>
+</CodeBlocks_layout_file>

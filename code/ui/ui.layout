@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_layout_file>
+	<ActiveTarget name="Win32 Release JK2" />
+	<File name="..\game\bg_lib.c" open="0" top="0" tabpos="0">
+		<Cursor position="5227" topLine="156" />
+	</File>
+	<File name="..\game\q_math.c" open="0" top="0" tabpos="0">
+		<Cursor position="20824" topLine="780" />
+	</File>
+	<File name="..\game\q_shared.h" open="0" top="0" tabpos="0">
+		<Cursor position="17255" topLine="728" />
+	</File>
+</CodeBlocks_layout_file>

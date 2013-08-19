@@ -20,6 +20,8 @@
 
 #define	JUMP_VELOCITY		225//270
 
+#define LOLER					384
+
 #define	MAX_ITEMS			256
 
 #define	RANK_TIED_FLAG		0x4000
@@ -230,6 +232,8 @@ extern int bgForcePowerCost[NUM_FORCE_POWERS][NUM_FORCE_POWER_LEVELS];
 #define PMF_UPDATE_ANIM		2048	// The server updated the animation, the pmove should set the ghoul2 anim to match.
 #define PMF_FOLLOW			4096	// spectate following another player
 #define PMF_SCOREBOARD		8192	// spectate as a scoreboard
+#define PMF_STUCK_TO_WALL	16384	// grabbing a wall
+
 
 #define	PMF_ALL_TIMES	(PMF_TIME_WATERJUMP|PMF_TIME_LAND|PMF_TIME_KNOCKBACK)
 
@@ -378,6 +382,10 @@ typedef enum {
 #define EF_DROPPEDWEAPON	0x01000000		// it's a dropped weapon
 #define EF_DISINTEGRATION	0x02000000		// being disintegrated by the disruptor
 #define EF_INVULNERABLE		0x04000000		// just spawned in or whatever, so is protected
+// Twimod Jetpack
+#define EF_JETPACK_ACTIVE	0x10000000
+#define EF_JETPACK_FLAMING	0x20000000
+// /Twimod Jetpack
 
 
 
@@ -808,7 +816,8 @@ typedef enum {
 	ET_PUSH_TRIGGER,
 	ET_TELEPORT_TRIGGER,
 	ET_INVISIBLE,
-	ET_GRAPPLE,				// grapple hooked on wall
+	ET_GRAPPLE,
+
 	ET_TEAM,
 	ET_BODY,
 

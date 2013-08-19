@@ -1,0 +1,183 @@
+--1:
+1		ammakeadmin		Powerup
+2		amprotect/unprotect	Powerup
+4		amcontrol		General
+8		amkick			Punishment
+16		amban			Punishment
+32		ambanrange		Punishment
+64		amorigin		Teleport
+128		amtele			Teleport
+256		amsentry		General
+512		amget			Teleport
+1024		amnpcspawn		General
+2048		amgoto			Teleport
+4096		amslap			Punishment
+8192		amslap2			Punishment
+16384		amdoemote		General
+32768		amplayfx		General
+65536		amforceteam		General
+131072		amdualsaber		Powerup
+262144		amscreenshake		General
+524288		amgametype		General
+1048576		amremote		General
+2097152		amfreeze		Punishment
+4194304		amadminsleep/amwake	Punishment
+8388608		ampunish/unpunish	Punishment
+16777216	amsilence/unsilence	Punishment
+33554432	amkill			Punishment
+
+--2:
+1		amrename		Punishment
+2		amcheats		Powerup
+4		amstatus		General
+8		amwhois			General
+16		amempower/unemp		Powerup
+32		amterminator/unterm	Powerup
+64		amsetspeed		Powerup
+128		amsetgravity		Powerup
+256		amvote			General
+512		amgettoother		Teleport
+1024		amswapplayers		Teleport
+2048		amtelegun		Teleport
+4096		ammap_shader		Builder
+8192		ammap_place		Builder
+16384		ammap_entitylist	Builder
+32768		ammap_addmodel		Builder
+65536		ammap_addeffect		Builder
+131072		amrget			Teleport
+262144		amrgoto			Teleport
+524288		amspecweapon		Weapons
+1048576		amdontforceme		Powerup
+2097152		amfly			Powerup
+4194304		ammap_nudge		Builder
+8388608		ammap_delent		Builder
+16777216	ammap_respawn		Builder
+33554432	ammap_setvar		Builder
+
+--3:
+1		amshowmotd		General
+2		ammap_collisiontype	NotDisplayed
+4		amgod			Powerup
+8		amnoclip		Powerup
+16		amgive			Powerup
+32		amillusion		General
+64		amforcegod		Powerup
+128		amsetprefix		General
+256		amsetsuffix		General
+512		amfakechat		General
+1024		amnodrown		Powerup
+2048		amsolid			Powerup
+4096		amresetfiretime		Weapons
+8192		aminvisible		Powerup
+16384		amtimescale		General
+32768		amfakelag		Punishment
+65536		amweaponspeed		Weapons
+131072		
+262144		amdropfakeweapon	General
+524288		ampsay			General
+1048576		amsetscore/add		General
+2097152		amsetcredits/give	General
+4194304		ansethealth/give	General
+8388608		amannounce		General
+16777216	ammap_trace		Builder
+33554432	amstealth		Powerup
+
+--4:
+1		ammap_clearedits	Builder
+2		amteles			Teleport
+4		ammap_shader2		Builder
+8		amturretweapon		Weapons
+16		amweaponbounces		Weapons
+32		amallpowerful		Powerup
+64		ammap_duplicate		Builder
+128		ampassvote		General
+256		amfailvote		General
+512		amweaponfirerate	Weapons
+1024		amsupershield		Builder
+2048		amsupershield2		Builder
+4096		amfastjet		Powerup
+8192		amjetspeed		Powerup
+16384		amjoingroup		General
+32768		ammap_place2		Builder
+65536		ammap_setangles		Builder
+131072		amgetpos		General
+262144		amhome			Punishment
+524288		amsupersentry		Builder
+1048576		amsupersentry2		Builder
+2097152		amdefaultweapons	Weapons
+4194304		ammap_useent		Builder
+8388608		ammap_usetarget		Builder
+16777216	ammap_nearby		Builder
+33554432	amsetfakeping		General
+
+--5:
+1		amsetgripdamage		Powerup
+2		amsetsaberspeed		NoClearPurpose
+4		amplaysound / 2		General
+8		amviewrandom		Punishment
+16		amabuse			Punishment
+32		amaddbot		General
+64		
+128		amotherweaponsettings	Weapons
+256		amaddpowers/amsetpowers	NotDisplayed
+512		ammap_setmins/maxes	Builder
+1024		amsupergod		Powerup
+2048		ammap_move		Builder
+4096		amweapondelay		Weapons
+8192		amforcelogout		Punishment
+16384		amsetmusic		General
+32768		aminsta			Weapons
+65536		amstatus2		General
+131072		amdodge			Powerup
+262144		amreflect		Powerup
+524288		ammap_save		Builder
+1048576		amadminslap		Punishment
+2097152		amaimbot		Powerup
+4194304		ammonitor**commands	NotDisplayed
+8388608		amsteve			Punishment
+16777216	amspycamera		General
+33554432	amwatchme		General
+
+--6:
+1		ammassgravity		Punishment
+2		amknockbackuponly	Powerup
+4		ammap_grab		Builder
+8		ammap_group		Builder
+16		ammap_addlight		Builder
+32		ammap_glow		Builder
+64		ammap_groupleader	Builder
+128		ammap_addangles		Builder
+256		ammap_setorigin		Builder
+512		ammap_addglm		Builder
+1024		ammap_setanim		NoClearPurpose
+2048		ammap_adddoor		Builder
+4096		amaccountinfo		General
+8192		amfury			Powerup
+16384		amexplode		General
+32768		amgrabplayer		Teleport
+65536		ammap_undomove		Builder
+131072		ammap_undorot		Builder
+262144		amgivecommand		General
+524288		amaddnote/amdelnote	Builder
+1048576		amreadnote		Builder
+2097152		amaddlulglm		NoClearPurpose
+4194304		amsetrank		General
+8388608		amtorture		Punishment
+16777216	amknockbackonly		Powerup
+33554432	amaddtsent		Builder
+
+--7:
+1		ammonitorchannels
+2		ammodel			General
+4		amsudo|name|cmd		General
+8		ammap_delent2		Builder
+16		callvote		General
+32		bypass_notele		General
+64		ambans			General
+128		amshock			General
+256		realentnum		Builder
+512		allgroup		General
+1024		amsetweapon
+2048		
+4096		
+8192		

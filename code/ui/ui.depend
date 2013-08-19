@@ -1,0 +1,90 @@
+# depslib dependency file v1.0
+1012393620 source:c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\bg_lib.c
+	"q_shared.h"
+
+1313640010 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\q_shared.h
+	"../qcommon/disablewarnings.h"
+	"bg_lib.h"
+	<assert.h>
+	<math.h>
+	<stdio.h>
+	<stdarg.h>
+	<string.h>
+	<stdlib.h>
+	<time.h>
+	<ctype.h>
+	<limits.h>
+	<MacTypes.h>
+	"surfaceflags.h"
+	"../qcommon/tags.h"
+
+1013378640 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\qcommon\disablewarnings.h
+
+1012409040 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\bg_lib.h
+
+1021384920 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\surfaceflags.h
+
+1012392900 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\qcommon\tags.h
+
+1301629574 source:c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\bg_misc.c
+	"q_shared.h"
+	"bg_public.h"
+	"g_local.h"
+	"../ui/ui_local.h"
+	"../cgame/cg_local.h"
+
+1221163380 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\bg_public.h
+	"bg_weapons.h"
+	"anims.h"
+
+1301541030 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\bg_weapons.h
+
+1019047080 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\anims.h
+
+1313456385 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\g_local.h
+	"q_shared.h"
+	"bg_public.h"
+	"g_public.h"
+	"g_team.h"
+
+1221908820 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\g_public.h
+
+1221162960 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\g_team.h
+
+1022764260 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\ui\ui_local.h
+	"../game/q_shared.h"
+	"../cgame/tr_types.h"
+	"ui_public.h"
+	"keycodes.h"
+	"../game/bg_public.h"
+	"ui_shared.h"
+
+1013648706 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\cgame\tr_types.h
+
+1019665560 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\ui\ui_public.h
+
+1019047080 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\ui\keycodes.h
+
+1225828848 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\ui\ui_shared.h
+	"../game/q_shared.h"
+	"../cgame/tr_types.h"
+	"keycodes.h"
+	"../../ui/menudef.h"
+
+1020136890 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\ui\menudef.h
+
+1021417340 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\cgame\cg_local.h
+	"../game/q_shared.h"
+	"tr_types.h"
+	"../game/bg_public.h"
+	"cg_public.h"
+
+1020133278 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\cgame\cg_public.h
+
+1308258194 source:c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\bg_weapons.c
+	"q_shared.h"
+	"bg_public.h"
+	"bg_local.h"
+
+1301800210 c:\program files\lucasarts\star wars jk ii jedi outcast\gamedata\code\game\bg_local.h
+

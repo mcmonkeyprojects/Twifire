@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="JK2_game" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Win32 Release JK2">
+				<Option output="..\Release\jk2mpgamex86" prefix_auto="1" extension_auto="1" />
+				<Option object_output="..\Release\JK2game" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-mcpu=pentiumpro -D_M_IX86=600" />
+					<Add option="-Wall" />
+					<Add option="-fexceptions" />
+					<Add option="-O2" />
+					<Add option="-DWIN32" />
+					<Add option="-DNDebug" />
+					<Add option="-D_WINDOWS" />
+					<Add option="-g" />
+					<Add option="-DMISSIONPACK" />
+					<Add option="-DQAGAME" />
+					<Add option="-D_JK2" />
+				</Compiler>
+				<Linker>
+					<Add option="--image-base 0x20000000" />
+					<Add library="kernel32" />
+					<Add library="user32" />
+					<Add library="winmm" />
+				</Linker>
+			</Target>
+			<Target title="Win32 Debug JK2">
+				<Option output="..\Debug\jk2mpgamex86" prefix_auto="1" extension_auto="1" />
+				<Option object_output="..\Debug\JK2game" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-mcpu=pentium -D_M_IX86=500" />
+					<Add option="-W" />
+					<Add option="-fexceptions" />
+					<Add option="-g" />
+					<Add option="-DWIN32" />
+					<Add option="-D_Debug" />
+					<Add option="-D_WINDOWS" />
+					<Add option="-DBUILDING_REF_GL" />
+					<Add option="-DDebug" />
+					<Add option="-mcpu=pentiumpro -D_M_IX86=600" />
+					<Add option="-DMISSIONPACK" />
+					<Add option="-DQAGAME" />
+					<Add option="-D_JK2" />
+					<Add option="-DJK2AWARDS" />
+				</Compiler>
+				<Linker>
+					<Add option="--image-base 0x20000000" />
+					<Add library="kernel32" />
+					<Add library="user32" />
+					<Add library="winmm" />
+				</Linker>
+			</Target>
+			<Target title="Win32 Final JK2">
+				<Option output="..\Final\jk2mpgamex86" prefix_auto="1" extension_auto="1" />
+				<Option object_output="..\Final\JK2game" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-mcpu=pentiumpro -D_M_IX86=600" />
+					<Add option="-Wall" />
+					<Add option="-fexceptions" />
+					<Add option="-g" />
+					<Add option="-O2" />
+					<Add option="-DNDebug2" />
+					<Add option="-DWIN32" />
+					<Add option="-D_WINDOWS" />
+					<Add option="-DMISSIONPACK" />
+					<Add option="-DQAGAME" />
+					<Add option="-D_JK2" />
+					<Add option="-DNDEBUG" />
+					<Add option="-DFINAL_BUILD" />
+					<Add directory=".." />
+					<Add directory="..\..\jk2\game" />
+				</Compiler>
+				<Linker>
+					<Add option="--image-base 0x20000000" />
+					<Add library="kernel32" />
+					<Add library="user32" />
+					<Add library="winmm" />
+				</Linker>
+			</Target>
+		</Build>
+		<Unit filename="ai_main.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="ai_util.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="ai_wpnav.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="bg_lib.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="bg_misc.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="bg_panimate.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="bg_pmove.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="bg_saber.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="bg_slidemove.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="bg_weapons.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_active.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_arenas.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_bot.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_client.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_cmds.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_combat.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_items.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_log.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_main.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_mem.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_misc.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_missile.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_mover.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_object.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_saga.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_session.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_spawn.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_svcmds.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_syscalls.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_target.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_team.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_trigger.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_utils.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="g_weapon.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="q_math.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="q_shared.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="w_force.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="w_saber.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="ai_main.h" />
+		<Unit filename="anims.h" />
+		<Unit filename="..\cgame\animtable.h" />
+		<Unit filename="be_aas.h" />
+		<Unit filename="be_ai_char.h" />
+		<Unit filename="be_ai_chat.h" />
+		<Unit filename="be_ai_gen.h" />
+		<Unit filename="be_ai_goal.h" />
+		<Unit filename="be_ai_move.h" />
+		<Unit filename="be_ai_weap.h" />
+		<Unit filename="be_ea.h" />
+		<Unit filename="bg_local.h" />
+		<Unit filename="bg_public.h" />
+		<Unit filename="bg_saga.h" />
+		<Unit filename="bg_weapons.h" />
+		<Unit filename="botlib.h" />
+		<Unit filename="..\cgame\cg_local.h" />
+		<Unit filename="..\cgame\cg_public.h" />
+		<Unit filename="chars.h" />
+		<Unit filename="..\qcommon\disablewarnings.h" />
+		<Unit filename="..\ghoul2\G2.h" />
+		<Unit filename="g_local.h" />
+		<Unit filename="g_public.h" />
+		<Unit filename="g_team.h" />
+		<Unit filename="inv.h" />
+		<Unit filename="JK2_game.def">
+			<Option target="&lt;{~None~}&gt;" />
+		</Unit>
+		<Unit filename="match.h" />
+		<Unit filename="..\..\ui\menudef.h" />
+		<Unit filename="q_shared.h" />
+		<Unit filename="surfaceflags.h" />
+		<Unit filename="syn.h" />
+		<Unit filename="..\qcommon\tags.h" />
+		<Unit filename="..\cgame\tr_types.h" />
+		<Unit filename="w_saber.h" />
+		<Unit filename="game.bat" />
+		<Unit filename="game.q3asm" />
+		<Extensions>
+			<code_completion />
+			<envvars />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

@@ -8,6 +8,7 @@ typedef struct {
   char oldShader[MAX_QPATH];
   char newShader[MAX_QPATH];
   float timeOffset;
+  int ignoreme;
 } shaderRemap_t;
 
 #define MAX_SHADER_REMAPS 128
@@ -18,6 +19,14 @@ shaderRemap_t remappedShaders[MAX_SHADER_REMAPS];
 void AddRemap(const char *oldShader, const char *newShader, float timeOffset) {
 	int i;
 
+	if (validcharacter_number(oldShader[0])+validcharacter_letter(oldShader[0]) == 0)
+	{
+		return;
+	}
+	if (validcharacter_number(newShader[0])+validcharacter_letter(newShader[0]) == 0)
+	{
+		return;
+	}
 	for (i = 0; i < remapCount; i++) {
 		if (Q_stricmp(oldShader, remappedShaders[i].oldShader) == 0) {
 			// found it, just update this one
@@ -31,9 +40,24 @@ void AddRemap(const char *oldShader, const char *newShader, float timeOffset) {
 		strcpy(remappedShaders[remapCount].oldShader,oldShader);
 		remappedShaders[remapCount].timeOffset = timeOffset;
 		remapCount++;
+		remappedShaders[remapCount].ignoreme = 0;
 	}
 }
 
+void DelRemap(const char *oldShader) {
+	int i;
+
+	if (validcharacter_number(oldShader[0])+validcharacter_letter(oldShader[0]) == 0)
+	{
+		return;
+	}
+	for (i = 0; i < remapCount; i++) {
+		if (Q_stricmp(oldShader, remappedShaders[i].oldShader) == 0) {
+			remappedShaders[remapCount].ignoreme = 1;
+			return;
+		}
+	}
+}
 const char *BuildShaderStateConfig(void) {
 	static char	buff[MAX_STRING_CHARS*4];
 	char out[(MAX_QPATH * 2) + 5];
@@ -41,6 +65,10 @@ const char *BuildShaderStateConfig(void) {
   
 	memset(buff, 0, MAX_STRING_CHARS);
 	for (i = 0; i < remapCount; i++) {
+		if (remappedShaders[i].ignoreme == 1)
+		{
+			continue;
+		}
 		Com_sprintf(out, (MAX_QPATH * 2) + 5, "%s=%s:%5.2f@", remappedShaders[i].oldShader, remappedShaders[i].newShader, remappedShaders[i].timeOffset);
 		Q_strcat( buff, sizeof( buff ), out);
 	}
@@ -296,6 +324,78 @@ match (string)self.target and call their .use function
 
 ==============================
 */
+/*
+gentity_t *g_mcfind2_targ(gentity_t *from, gentity_t *match, gentity_t *activator)
+{
+	char	match2[MAX_STRING_CHARS];
+	char	match3[MAX_STRING_CHARS];
+	char	match4[MAX_STRING_CHARS];
+	strcpy(match2, match->target);
+	if (!from)
+		from = g_entities;
+	else
+		from++;
+
+	for ( ; from < &g_entities[level.num_entities] ; from++)
+	{
+		if (from->inuse)
+		{
+			if (from->mctargetname)
+			{
+				strcpy(match3, from->mctargetname);
+				if ((match3 != NULL) && (match3 != "")){
+					//if (match3 == match2)
+					if (Q_stricmp( match3, match2 ) == 0)
+					{
+						return from;
+					}
+				}
+			}
+			if (from->targetname)
+			{
+				strcpy(match4, from->targetname);
+				if ((match4 != NULL) && (match4 != ""))
+				{
+					if (Q_stricmp( match4, match2 ) == 0)
+					{
+						return from;
+					}
+				}
+			}
+		}
+	}
+
+	return NULL;
+}
+void G_UseTargets_old( gentity_t *ent, gentity_t *activator ) {
+	gentity_t		*t;
+	if ( !ent ) {
+		return;
+	}
+	if (ent->targetShaderName && ent->targetShaderNewName) {
+		float f = level.time * 0.001;
+		AddRemap(ent->targetShaderName, ent->targetShaderNewName, f);
+		trap_SetConfigstring(CS_SHADERSTATE, BuildShaderStateConfig());
+	}
+	if ( !ent->target ) {
+		return;
+	}
+	t = NULL;
+	while ( (t = g_mcfind2_targ(t, ent, activator)) != NULL ) {
+		if ( t == ent ) {
+			G_Printf ("WARNING: Entity used itself.\n");
+		} else {
+			if ( t->use ) {
+				t->use (t, ent, activator);
+			}
+		}
+		if ( !ent->inuse ) {
+			G_Printf("entity was removed while using targets\n");
+			return;
+		}
+	}
+}
+*/
 void G_UseTargets( gentity_t *ent, gentity_t *activator ) {
 	gentity_t		*t;
 	
@@ -328,7 +428,60 @@ void G_UseTargets( gentity_t *ent, gentity_t *activator ) {
 		}
 	}
 }
+void G_UseTargets2( gentity_t *ent, gentity_t *activator, char *newtarg ) {
+	gentity_t		*t;
+	char			newtarg2[MAX_STRING_CHARS];
+	strcpy(newtarg2,newtarg);
+	
+	if ( !ent ) {
+		return;
+	}
 
+	t = NULL;
+	while ( (t = G_Find (t, FOFS(targetname), newtarg2)) != NULL ) {
+		if ( t == ent ) {
+			G_Printf ("WARNING: Entity used itself.\n");
+		} else {
+			if ( t->use ) {
+				t->use (t, ent, activator);
+			}
+		}
+		if ( !ent->inuse ) {
+			G_Printf("entity was removed while using targets\n");
+			return;
+		}
+	}
+}
+/*
+void G_UsemcTargets2( gentity_t *ent, gentity_t *activator ) {
+	gentity_t		*t;
+	
+	trap_SendServerCommand( activator->s.number, va("print \"^3Using targets.\n\"" ) );
+	if ( !ent ) {
+		trap_SendServerCommand( activator->s.number, va("print \"^3!ent returns qtrue\n\"" ) );
+		return;
+	}
+
+	if ( !ent->mctarget ) {
+		return;
+	}
+
+	t = NULL;
+	while ( (t = G_Find (t, FOFS(mctargetname), ent->mctarget)) != NULL ) {
+		if ( t == ent ) {
+			G_Printf ("WARNING: Entity used itself.\n");
+		} else {
+			if ( t->use ) {
+				t->use (t, ent, activator);
+			}
+		}
+		if ( !ent->inuse ) {
+			G_Printf("entity was removed while using targets\n");
+			return;
+		}
+	}
+}
+*/
 
 /*
 =============
@@ -438,6 +591,12 @@ gentity_t *G_Spawn( void ) {
 		// if we go through all entities and can't find one to free,
 		// override the normal minimum times before use
 		e = &g_entities[MAX_CLIENTS];
+		if (Q_stricmp(e->classname,"noclass") == 0)
+		{
+			G_FreeEntity(e);
+			G_InitGentity( e );
+			return e;
+		}
 		for ( i = MAX_CLIENTS ; i<level.num_entities ; i++, e++) {
 			if ( e->inuse ) {
 				continue;
@@ -458,10 +617,13 @@ gentity_t *G_Spawn( void ) {
 		}
 	}
 	if ( i == ENTITYNUM_MAX_NORMAL ) {
-		for (i = 0; i < MAX_GENTITIES; i++) {
+		/*for (i = 0; i < MAX_GENTITIES; i++) {
 			G_Printf("%4i: %s\n", i, g_entities[i].classname);
 		}
-		G_Error( "G_Spawn: no free entities" );
+		G_Error( "G_Spawn: no free entities" );*/
+		e = &g_entities[1020];
+		G_FreeEntity(e);
+		return e;
 	}
 	
 	// open up a new slot
@@ -578,7 +740,8 @@ void G_FreeEntity( gentity_t *ed ) {
 		//Or not. Events can be dropped, so that would be a bad thing.
 		G_KillG2Queue(ed->s.number);
 	}
-
+	ed->entgroup = 0;
+	ed->groupleader = 0;
 	if (ed->s.eFlags & EF_SOUNDTRACKER)
 	{
 		int i = 0;
@@ -607,10 +770,135 @@ void G_FreeEntity( gentity_t *ed ) {
 		}
 	}
 
+/*
+	ed->spawnflags = 0;
+	ed->teamnodmg = 0;
+	ed->roffname = "";
+	ed->rofftarget = "";
+	ed->objective = 0;
+	ed->side = 0;
+	stringclear(ed->mcpassword,1020);
+	ed->passThroughNum = 0;
+	ed->aimDebounceTime = 0;
+	ed->painDebounceTime = 0;
+	ed->attackDebounceTime = 0;
+	ed->noDamageTeam = 0;
+	ed->roffid = 0;
+	ed->payable = 0;
+	ed->flags = 0;
+	ed->model = "";
+	ed->model2 = "";
+	ed->eventTime = 0;
+	ed->freeAfterEvent = qfalse;
+	ed->unlinkAfterEvent = qfalse;
+	ed->physicsObject = qfalse;
+	ed->physicsBounce = 0;
+	ed->clipmask = 0;
+	ed->soundPos1 = 0;
+	ed->sound1to2 = 0;
+	ed->sound2to1 = 0;
+	ed->soundPos2 = 0;
+	ed->soundLoop = 0;
+	ed->parent = NULL;
+	ed->nextTrain = NULL;
+	ed->prevTrain = NULL;
+	ed->pos1[0] = 0;
+	ed->pos1[1] = 0;
+	ed->pos1[2] = 0;
+	ed->pos2[0] = 0;
+	ed->pos2[1] = 0;
+	ed->pos2[2] = 0;
+	ed->message = "";
+	ed->fxFile = "";
+	stringclear(ed->mcmessage,MAX_STRING_CHARS-2];
+	stringclear(ed->mctarget,MAX_STRING_CHARS-2];
+	stringclear(ed->mctargetname,MAX_STRING_CHARS-2];
+	stringclear(ed->upmes,MAX_STRING_CHARS-2];
+	stringclear(ed->downmes,MAX_STRING_CHARS-2];
+	ed->timestamp = 0;
+	ed->angle = 0;
+	ed->target = "";
+	ed->targetname = "";
+	ed->team = "";
+	ed->targetShaderName = "";
+	ed->targetShaderNewName = "";
+	ed->target_ent = NULL;
+	ed->speed = 0;
+	ed->movedir = 0;
+	ed->mass = 0;
+	ed->setTime = 0;
+	ed->entgroup = 0;
+	ed->groupleader = 0;
+	ed->nextthink = 0;
+	ed->think = NULL;
+	ed->reached = NULL;
+	ed->blocked = NULL;
+	ed->touch = NULL;
+	ed->use = NULL;
+	ed->pain = NULL;
+	ed->die = NULL;
+	ed->pain_debounce_time = 0;
+	ed->fly_sound_debounce_time = 0;
+	ed->last_move_time = 0;
+	ed->health = 0;
+	ed->takedamage = qfalse;
+	ed->damage = 0;
+	ed->dflags = 0;
+	ed->splashDamage = 0;
+	ed->splashRadius = 0;
+	ed->methodOfDeath = 0;
+	ed->splashMethodofDeath = 0;
+	ed->count = 0;
+	ed->bounceCount = 0;
+	ed->alt_fire = qfalse;
+	ed->chain = NULL;
+	ed->enemy = NULL;
+	ed->activator = NULL;
+	ed->teamchain = NULL;
+	ed->teammaster = NULL;
+	ed->watertype = 0;
+	ed->waterlevel = 0;
+	ed->noise_index = 0;
+	ed->wait = 0;
+	ed->random = 0;
+	ed->delay = 0;
+	ed->boltpoint1 = 0;
+	ed->boltpoint2 = 0;
+	ed->boltpoint3 = 0;
+	ed->boltpoint4 = 0;
+	ed->bolt_Head = 0;
+	ed->bolt_LArm = 0;
+	ed->bolt_RArm = 0;
+	ed->bolt_LLeg = 0;
+	ed->bolt_RLeg = 0;
+	ed->bolt_Waist = 0;
+	ed->bolt_Motion = 0;
+	ed>isSaberEntity = qfalse;
+	ed->damageRedirect = 0;
+	ed->damageRedirectTo = 0;
+	ed->item = NULL;
+	ed->origOrigin[0] = 0;
+	ed->origOrigin[1] = 0;
+	ed->origOrigin[2] = 0;
+	ed->spawnBefore = qfalse;
+	ed->itemtype = 0;
+	ed->rprotected = qfalse;
+	ed->xOff = 0;
+	ed->yOff = 0;
+	ed->zOff = 0;
+	ed->lastorigin[0] = 0;
+	ed->lastorigin[1] = 0;
+	ed->lastorigin[2] = 0;
+	ed->lastrot[0] = 0;
+	ed->lastrot[1] = 0;
+	ed->lastrot[2] = 0;
+*/
+
 	memset (ed, 0, sizeof(*ed));
 	ed->classname = "freed";
 	ed->freetime = level.time;
 	ed->inuse = qfalse;
+
 }
 
 /*
@@ -731,7 +1019,7 @@ void G_KillBox (gentity_t *ent) {
 
 		// nail it
 		G_Damage ( hit, ent, ent, NULL, NULL,
-			100000, DAMAGE_NO_PROTECTION, MOD_TELEFRAG);
+			1000000, DAMAGE_NO_PROTECTION, MOD_TELEFRAG);
 	}
 
 }
@@ -803,6 +1091,17 @@ gentity_t *G_PlayEffect(int fxID, vec3_t org, vec3_t ang)
 	return te;
 }
 
+gentity_t *G_PlayEffect_ID(int fxID, vec3_t org, vec3_t ang)
+{
+	gentity_t	*te;
+
+	te = G_TempEntity( org, EV_PLAY_EFFECT_ID );
+	VectorCopy(ang, te->s.angles);
+	VectorCopy(org, te->s.origin);
+	te->s.eventParm = fxID;
+
+	return te;
+}
 /*
 =============
 G_ScreenShake
@@ -890,6 +1189,41 @@ void G_Sound( gentity_t *ent, int channel, int soundIndex ) {
 	}
 }
 
+void G_Soundm2( gentity_t *ent, int channel, int soundIndex ) {
+	int i;
+	//for (i = 0;i < 32;i += 1)
+	//{
+	//gentity_t	*pl = &g_entities[i];
+	//if (pl && pl->client && pl->inuse)
+	//{
+	gentity_t	*te;
+
+	te = G_SoundTempEntity( ent->r.currentOrigin, EV_GLOBAL_SOUND, channel );
+	te->s.eventParm = soundIndex;
+
+	if (ent && ent->client && channel > TRACK_CHANNEL_NONE)
+	{ //let the client remember the index of the player entity so he can kill the most recent sound on request
+		te->s.saberEntityNum = channel;
+
+		if (g_entities[ent->client->ps.fd.killSoundEntIndex[channel-50]].inuse &&
+			ent->client->ps.fd.killSoundEntIndex[channel-50] > MAX_CLIENTS)
+		{
+			G_MuteSound(ent->client->ps.fd.killSoundEntIndex[channel-50], CHAN_VOICE);
+			if (ent->client->ps.fd.killSoundEntIndex[channel-50] > MAX_CLIENTS && g_entities[ent->client->ps.fd.killSoundEntIndex[channel-50]].inuse)
+			{
+				G_FreeEntity(&g_entities[ent->client->ps.fd.killSoundEntIndex[channel-50]]);
+			}
+			ent->client->ps.fd.killSoundEntIndex[channel-50] = 0;
+		}
+
+		ent->client->ps.fd.killSoundEntIndex[channel-50] = te->s.number;
+		te->s.trickedentindex = ent->s.number;
+		te->s.eFlags = EF_SOUNDTRACKER;
+		//te->freeAfterEvent = qfalse;
+	//}
+	//}
+	}
+}
 /*
 =============
 G_SoundAtLoc
@@ -958,6 +1292,32 @@ void TryUse( gentity_t *ent )
 	trace_t		trace;
 	vec3_t		src, dest, vf;
 	vec3_t		viewspot;
+	int		ignoreme;
+	ignoreme = 0;
+
+	// Twimod Jetpack
+	if (( ent->client->ps.eFlags & EF_JETPACK_ACTIVE )&&(ignoreme == 0)&& (ent->client->sess.jetdelayusefix <= level.time))
+	{
+		ent->client->ps.eFlags &= ~EF_JETPACK_ACTIVE;
+		ignoreme = 1;
+		ent->client->sess.jetdelayusefix = level.time + 800;
+		return;
+	}
+	if ( !ent->client->ps.duelInProgress
+		&& ent->health >= 1
+		&& !( ent->client->ps.eFlags & EF_JETPACK_ACTIVE)
+		&& ent->client->ps.groundEntityNum == ENTITYNUM_NONE
+		&& ( ent->client->sess.jetpackon == 1 )
+		&& (ignoreme == 0)
+		&& (ent->client->sess.jetdelayusefix <= level.time))
+	{
+		ent->client->sess.jetdelayusefix = level.time + 800;
+		ent->client->ps.eFlags	|= EF_JETPACK_ACTIVE;
+		ignoreme = 1;
+		return;
+	}
+	// /Twimod Jetpack
+
 
 	VectorCopy(ent->client->ps.origin, viewspot);
 	viewspot[2] += ent->client->ps.viewheight;

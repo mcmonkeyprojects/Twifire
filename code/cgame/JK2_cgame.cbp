@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="JK2_cgame" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Win32 Release JK2">
+				<Option output="..\Release\cgamex86" prefix_auto="1" extension_auto="1" />
+				<Option object_output="..\Release\JK2cgame" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-mcpu=pentiumpro -D_M_IX86=600" />
+					<Add option="-Wall" />
+					<Add option="-fexceptions" />
+					<Add option="-O2" />
+					<Add option="-DWIN32" />
+					<Add option="-DNDebug" />
+					<Add option="-D_WINDOWS" />
+					<Add option="-g" />
+					<Add option="-DMISSIONPACK" />
+					<Add option="-D_JK2" />
+					<Add directory=".." />
+					<Add directory=".\..\game" />
+				</Compiler>
+				<Linker>
+					<Add option="--image-base 0x30000000" />
+				</Linker>
+			</Target>
+			<Target title="Win32 Debug JK2">
+				<Option output="..\Debug\cgamex86" prefix_auto="1" extension_auto="1" />
+				<Option object_output="..\Debug\JK2cgame" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-mcpu=pentium -D_M_IX86=500" />
+					<Add option="-W" />
+					<Add option="-fexceptions" />
+					<Add option="-g" />
+					<Add option="-DWIN32" />
+					<Add option="-D_Debug" />
+					<Add option="-D_WINDOWS" />
+					<Add option="-mcpu=pentiumpro -D_M_IX86=600" />
+					<Add option="-DMISSIONPACK" />
+					<Add option="-D_JK2" />
+					<Add option="-DJK2AWARDS" />
+					<Add directory=".." />
+					<Add directory=".\..\game" />
+				</Compiler>
+				<Linker>
+					<Add option="--image-base 0x30000000" />
+				</Linker>
+			</Target>
+			<Target title="Win32 Final JK2">
+				<Option output="..\Final\cgamex86" prefix_auto="1" extension_auto="1" />
+				<Option object_output="..\Final\JK2cgame" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-mcpu=pentiumpro -D_M_IX86=600" />
+					<Add option="-Wall" />
+					<Add option="-fexceptions" />
+					<Add option="-g" />
+					<Add option="-O2" />
+					<Add option="-DNDebug" />
+					<Add option="-DWIN32" />
+					<Add option="-D_WINDOWS" />
+					<Add option="-DMISSIONPACK" />
+					<Add option="-D_JK2" />
+					<Add option="-DFINAL_BUILD" />
+					<Add directory=".." />
+					<Add directory="..\..\jk2\game" />
+					<Add directory=".\..\game" />
+				</Compiler>
+				<Linker>
+					<Add option="--image-base 0x30000000" />
+				</Linker>
+			</Target>
+		</Build>
+		<Unit filename="..\game\bg_lib.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\game\bg_misc.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\game\bg_panimate.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\game\bg_pmove.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\game\bg_saber.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\game\bg_slidemove.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\game\bg_weapons.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_consolecmds.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_draw.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_drawtools.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_effects.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_ents.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_event.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_info.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_light.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_localents.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_main.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_marks.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_newDraw.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_players.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_playerstate.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_predict.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_saga.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_scoreboard.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_servercmds.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_snapshot.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_syscalls.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_turret.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_view.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_weaponinit.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="cg_weapons.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fx_blaster.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fx_bowcaster.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fx_bryarpistol.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fx_demp2.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fx_disruptor.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fx_flechette.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fx_force.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fx_heavyrepeater.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="fx_rocketlauncher.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\game\q_math.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\game\q_shared.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\ui\ui_shared.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\game\anims.h" />
+		<Unit filename="animtable.h" />
+		<Unit filename="..\game\bg_local.h" />
+		<Unit filename="..\game\bg_public.h" />
+		<Unit filename="..\game\bg_saga.h" />
+		<Unit filename="..\game\bg_weapons.h" />
+		<Unit filename="cg_lights.h" />
+		<Unit filename="cg_local.h" />
+		<Unit filename="cg_public.h" />
+		<Unit filename="..\qcommon\disablewarnings.h" />
+		<Unit filename="fx_local.h" />
+		<Unit filename="..\ghoul2\G2.h" />
+		<Unit filename="JK2_cgame.def" />
+		<Unit filename="..\ui\keycodes.h" />
+		<Unit filename="..\..\ui\menudef.h" />
+		<Unit filename="..\game\q_shared.h" />
+		<Unit filename="..\qcommon\qfiles.h" />
+		<Unit filename="..\game\surfaceflags.h" />
+		<Unit filename="..\qcommon\tags.h" />
+		<Unit filename="tr_types.h" />
+		<Unit filename="..\ui\ui_shared.h" />
+		<Unit filename="cgame.bat" />
+		<Unit filename="cgame.q3asm" />
+		<Extensions>
+			<code_completion />
+			<envvars />
+			<debugger />
+			<lib_finder disable_auto="1" />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
