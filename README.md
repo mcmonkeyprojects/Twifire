@@ -1,3 +1,3 @@
 # Twifire
 
-http://mcmonkey4eva.dyndns.org/jk2/twifire
+http://mcmonkey.org/jk2/twifire
