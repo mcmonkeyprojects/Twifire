@@ -9,4 +9,4 @@ To use it, you must copy it into your JK2/GameData folder.
 
 
 ///// NOTE: IT IS HIGHLY RECOMMENDED YOU USE JK2:SE INSTEAD OF THIS
-///// JK2SE (Most highly recommended!) IS AT http://mcmonkey4eva.dyndns.org/jk2se
+///// JK2SE (Most highly recommended!) IS AT https://github.com/mcmonkeyprojects/JK2SE/

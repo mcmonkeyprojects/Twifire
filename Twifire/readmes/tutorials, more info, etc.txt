@@ -1,3 +1,3 @@
 For Twifire tutorials, more Twifire information, etc.
-Visit http://mcmonkey4eva.dyndns.org/twifire
+Visit https://github.com/mcmonkeyprojects/Twifire
 (Copy/paste it into your internet browser)

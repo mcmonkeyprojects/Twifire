@@ -26,7 +26,6 @@ mckick <player> - similar to amkick
 rstatus - similar to amstatus
 rtestfile <filename> - check if a file exists
 mcjetpack_effect <fx> - change the jetpack effect
-say2 <message> - similar to amannounce all
 mckill <player> - similar to amkill
 waterworld - make everyone drown.
 statuswrite - Write server status info in HTML to a file.

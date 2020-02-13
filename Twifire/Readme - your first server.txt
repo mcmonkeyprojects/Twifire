@@ -9,7 +9,7 @@ installed it elsewhere.
 -You need a server executable. This is usually JK2MP.exe, but professionals prefer JK2ded.exe
 ///// NOTE: HIGHLY RECOMMENDED YOU USE JK2MP2, JK2DED2, OR JK2:SE INSTEAD OF JK2MF OR JK2DED
 ///// JK2MP2 AND JK2DED2 ARE INCLUDED in Twifire/helpers
-///// JK2SE (Most highly recommended!) IS AT http://mcmonkey4eva.dyndns.org/jk2se
+///// JK2SE (Most highly recommended!) IS AT https://github.com/mcmonkeyprojects/JK2SE/
 
 -Open your Twifire folder (JK2/Gamedata/Twifire), and copy the file "Launcher"
 
