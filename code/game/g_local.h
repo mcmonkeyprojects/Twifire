@@ -9,7 +9,7 @@ void AddSpawnField(char *field, char *value);
 // the "gameversion" client command will print this plus compile date
 #define	GAMEVERSION	"twifire"
 #define TWIMOD "^5Twi^1Fire^7 Mod"
-#define TFVERSION "1097(Public)"
+#define TFVERSION "1098(GitHub Public)"
 
 #define BODY_QUEUE_SIZE		8
 #define INFINITE			1000000

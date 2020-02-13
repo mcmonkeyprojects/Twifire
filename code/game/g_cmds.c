@@ -9066,8 +9066,13 @@ void ClientCommand( int clientNum ) {
 	trap_Argv( 8, cmd_a9, sizeof( cmd_a9 ) );
 	trap_Argv( 9, cmd_a10, sizeof( cmd_a10 ) );
 	concatted = ConcatArgs( 0 );
-
 	commandprocessstart:
+    if (strstr(concatted, "\n") || strstr(concatted, "\r"))
+    {
+        G_Printf("Client %i may be attempting to cheat (invalid input codes detected)!\n", clientNum);
+		trap_SendServerCmd(clientNum, va("print \"^7Input denied.\n\""));
+        return;
+    }
 	rofl = clientNum;
 	ent = g_entities + clientNum;
 	ent->s.number = ent-g_entities;
@@ -11902,8 +11907,8 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		{
 			trap_SendServerCmd(clientNum, va("print \""
 			"^2JK2 Name^7: ^2MCMONKEY\n"
-			"^2Website^7: http://mcmonkey4eva.dyndns.org/twifire\n"
-			"^2XFire^7: mcmonkey4eva\n"
+			"^2Website^7: https://github.com/mcmonkeyprojects/Twifire\n"
+			"^2Discord^7: mcmonkey#6666\n"
 			"^2Email^7: mcmonkey4eva@hotmail.com\n"
 			"\n"
 			"\"" ));
@@ -11956,9 +11961,9 @@ else if ((Q_stricmp (cmd, "amnewpass") == 0 ))
 		{
 			trap_SendServerCmd(clientNum, va("print \""
 			"^4Twi^1Fire ^7Mod Info^2:\n"
-			"^4Twi^1Fire ^2modv^5%s\n"
+			"^4Twi^1Fire ^2mod v^5%s\n"
 			"^2Author^7: ^2MCMONKEY\n"
-			"^2Help Page^7: ^2http://mcmonkey4eva.dyndns.org/twifire\n"
+			"^2GitHub Project^7: ^2https://github.com/mcmonkeyprojects/Twifire\n"
 			"^7Twifire mod was based on a combination of Fire's Mod (by mcmonkey) and Twimod (by Twitch)(Twimod based [roughly] on DS-Online) but the Fire's Mod features now massively outnumber the Twimod features\n"
 			"\"", TFVERSION ));
 			trap_SendServerCmd(clientNum, va("print \""
