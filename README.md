@@ -11,7 +11,7 @@ Twifire was a mod that added a few key things:
 - Bug fixes. There are a few common bugs that can be fixed by VM mods, so Twifire fixed 'em.
 - All the crowd favorites: emotes (like `/amsit`), jetpacks (refer to `/amhelp jetpack`), etc.
 - A credits system, for some reason! I don't know why this was added and nobody ever used it seriously, but it was neat, so there's that!
-- NPCs. Not bots, NPCs. They're slightly different!
+- NPCs. Not bots, NPCs. Like, the singleplayer NPCs. Yeah!
 - Vehicles! You can fly a TIE fighter or drive an ATST! Or turn yourself into a mouse droid if you want!
 - Instagib! There's a command for it and even a vote call for it (specialgametype)!
 - Weaponmodding! You can have guns that shoot faster/slower... and you can make it so lasers bounce on impact, or whatever nonsense like that (protip: repeater alt fire, with a high bounce count and super rapid fire, makes a beautiful energy worm)!
@@ -20,6 +20,9 @@ Twifire was a mod that added a few key things:
 - User-friendly teleports! `/amrget` for example to *request* a 'get' teleport (and they must then `/amaccept` to be teleported).
 - Chat teleports! Cause you gotta be able to chat `!temple` to get to the temple.
 - A notes system! Users could read notes that could then be read by stepping on them. This was used for "The People's Map" (a project where players were allowed to leave notes with ideas for what to add into the map, which would then be built into the next update of the map).
+- A chat channels system! Now you can speak with your friends... and *only* your friends! Screw everybody else!
+- A mail system! Send a message to somebody for when they next log in!
+- AFK tracking! That's helpful sometimes!
 
 ### History
 
